@@ -168,7 +168,7 @@ def analizar_archivo(
 
     # GAFF002: Nomenclatura de typedef
     if "GAFF002" in reglas:
-        re_typedef = re.compile(r"\btypedef\s+(?:struct|enum|union)\s*\w*\s*\{?[^;]*\}\s*(\w+)\s*;")
+        re_typedef = re.compile(r"\btypedef\s+(?:struct|enum|union)\s*(?:\w*\s*\{[^}]*\}|\w+)\s+(\w+)\s*;", re.DOTALL)
         for m in re_typedef.finditer(codigo_sin_comentarios):
             tipo_name = m.group(1)
             if not (tipo_name.startswith("t_") or tipo_name.endswith("_t") or tipo_name.startswith("T_")):

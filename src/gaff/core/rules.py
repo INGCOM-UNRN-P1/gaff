@@ -112,7 +112,7 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
         "descripcion": "Ubicar las llaves de apertura y cierre en líneas separadas alineadas con la instrucción de control.",
         "ejemplo_correcto": "if (x > 0)\n{\n    return x;\n}",
         "ejemplo_incorrecto": "if (x > 0) {\n    return x;\n}",
-        "autofix": "No",
+        "autofix": "Sí",
     },
 
     # 0x10XXh: Estructuras de Control y Lazos

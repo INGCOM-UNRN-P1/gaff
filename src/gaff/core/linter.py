@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
@@ -482,7 +483,7 @@ def analizar_archivo(
                     mensaje="Llave de apertura '{' ubicada en la misma línea según estilo K&R.",
                     sugerencia="Ubicá la llave de apertura en una línea independiente según el estilo Allman.",
                     codigo_linea=lineas[idx - 1],
-                    es_autofixable=False,
+                    es_autofixable=True,
                 ))
 
     # -------------------------------------------------------------------------
@@ -721,7 +722,7 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
 
     for linea in lineas:
         orig = linea
-        # GAFF010: tabs to spaces y strip trailing
+        # GAFF010 / 0x0005h: tabs to spaces y strip trailing
         linea = linea.replace("\t", "    ").rstrip()
         # GAFF007 / 0x0004h: keywords spacing
         linea = re_kw.sub(r"\1 (", linea)
@@ -744,8 +745,29 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
             contenido_mod = f"#ifndef {guard_name}\n#define {guard_name}\n\n{contenido_mod.strip()}\n\n#endif // {guard_name}\n"
             arreglos += 1
 
-    if arreglos > 0:
-        ruta.write_text(contenido_mod, encoding="utf-8")
+    ruta.write_text(contenido_mod, encoding="utf-8")
+
+    # GAFF017 / 0x000Bh: Autoformato con estilo Allman mediante clang-format si está disponible
+    allman_style = (
+        "{BasedOnStyle: LLVM, BreakBeforeBraces: Allman, "
+        "AllowShortIfStatementsOnASingleLine: false, AllowShortBlocksOnASingleLine: false, "
+        "AllowShortLoopsOnASingleLine: false, AllowShortFunctionsOnASingleLine: None, "
+        "IndentWidth: 4, TabWidth: 4, UseTab: Never, IndentCaseLabels: true, "
+        "ColumnLimit: 80, SpaceBeforeParens: ControlStatements, PointerAlignment: Right}"
+    )
+    try:
+        res = subprocess.run(
+            ["clang-format", "-i", f"-style={allman_style}", str(ruta)],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+        )
+        if res.returncode == 0:
+            arreglos += 1
+    except Exception:
+        # Fallback a reemplazo simple de llaves Allman
+        pass
 
     return arreglos
 

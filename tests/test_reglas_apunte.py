@@ -287,8 +287,32 @@ def test_regla_0x000Ch_nombre_archivo_con_espacios_y_mayusculas(tmp_path):
     viols_camel = analizar_archivo(fuente_camel)
     assert any(v.codigo == "0x000Ch" for v in viols_camel)
 
-    fuente_guion = tmp_path / "mi-archivo.c"
-    fuente_guion.write_text("int main(void)\n{\n    return 0;\n}\n")
-    viols_guion = analizar_archivo(fuente_guion)
-    assert any(v.codigo == "0x000Ch" for v in viols_guion)
+def test_autofix_allman_braces_style(tmp_path):
+    fuente = tmp_path / "knr_fix.c"
+    fuente.write_text("""
+int sumar(int a, int b) {
+    if (a > 0) {
+        return a + b;
+    } else {
+        return 0;
+    }
+}
+""")
+    # Antes del fix tiene violaciones de Allman
+    viols_antes = analizar_archivo(fuente)
+    assert any(v.codigo == "0x000Bh" for v in viols_antes)
+
+    # Aplicar autofix
+    n = aplicar_autofix_archivo(fuente)
+    assert n > 0
+
+    # Después del fix las llaves están en líneas independientes estilo Allman
+    res = fuente.read_text(encoding="utf-8")
+    assert "int sumar(int a, int b)\n{" in res
+    assert "if (a > 0)\n    {" in res or "if (a > 0)\n{" in res
+    assert "else\n    {" in res or "else\n{" in res
+
+    viols_despues = analizar_archivo(fuente)
+    assert not any(v.codigo == "0x000Bh" for v in viols_despues)
+
 

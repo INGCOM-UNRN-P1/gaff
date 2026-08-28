@@ -274,3 +274,21 @@ void test(void)
     res = fuente.read_text(encoding="utf-8")
     assert "int *ptr" in res
     assert "char *str" in res
+
+
+def test_regla_0x000Ch_nombre_archivo_con_espacios_y_mayusculas(tmp_path):
+    fuente_espacios = tmp_path / "mi archivo fuente.c"
+    fuente_espacios.write_text("int main(void)\n{\n    return 0;\n}\n")
+    viols = analizar_archivo(fuente_espacios)
+    assert any(v.codigo == "0x000Ch" for v in viols)
+
+    fuente_camel = tmp_path / "CalculadoraAvanzada.c"
+    fuente_camel.write_text("int main(void)\n{\n    return 0;\n}\n")
+    viols_camel = analizar_archivo(fuente_camel)
+    assert any(v.codigo == "0x000Ch" for v in viols_camel)
+
+    fuente_guion = tmp_path / "mi-archivo.c"
+    fuente_guion.write_text("int main(void)\n{\n    return 0;\n}\n")
+    viols_guion = analizar_archivo(fuente_guion)
+    assert any(v.codigo == "0x000Ch" for v in viols_guion)
+

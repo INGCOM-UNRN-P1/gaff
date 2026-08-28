@@ -116,6 +116,15 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
     },
 
     # 0x10XXh: Estructuras de Control y Lazos
+        "0x000Ch": {
+        "codigo": "0x000Ch",
+        "alias": "GAFF060",
+        "titulo": "Los nombres de los archivos deben usar snake_case en minúsculas (sin espacios)",
+        "descripcion": "Los nombres de archivos fuentes y cabeceras deben escribirse exclusivamente en snake_case en minúsculas, sin espacios ni caracteres especiales.",
+        "ejemplo_correcto": "lista_enlazada.c\narbol_binario.h",
+        "ejemplo_incorrecto": "Lista Enlazada.c\nArbolBinario.H\nmi-archivo.c",
+        "autofix": "No",
+    },
     "0x1001h": {
         "codigo": "0x1001h",
         "alias": "GAFF018",
@@ -620,6 +629,7 @@ ALIAS_MAP: Dict[str, str] = {
     "GAFF057": "0x5004h",
     "GAFF058": "0x5005h",
     "GAFF059": "0x5006h",
+    "GAFF060": "0x000Ch",
 }
 
 for k, v in ALIAS_MAP.items():

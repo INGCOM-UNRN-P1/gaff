@@ -74,6 +74,27 @@ def analizar_archivo(
         return RuleCode(codigo_hex, alias_gaff), titulo
 
     # -------------------------------------------------------------------------
+    # 0x000Ch (GAFF060): Nombres de archivo en snake_case en minúsculas (sin espacios)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x000Ch", "GAFF060"):
+        nombre_archivo = ruta.name
+        es_valido_snake = bool(re.match(r"^[a-z0-9_]+(?:\.[a-z0-9_]+)+$", nombre_archivo))
+        if not es_valido_snake:
+            sugerido = re.sub(r"[-\s]+", "_", nombre_archivo.lower())
+            sugerido = re.sub(r"[^a-z0-9_\.]", "", sugerido)
+            rcode, tit = _regla_info("0x000Ch", "GAFF060")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=1,
+                columna=1,
+                mensaje=f"El nombre del archivo '{nombre_archivo}' no utiliza snake_case en minúsculas (contiene mayúsculas, espacios o caracteres no permitidos).",
+                sugerencia=f"Renombrá el archivo a formato snake_case en minúsculas (ej: '{sugerido}').",
+                es_autofixable=False,
+            ))
+
+    # -------------------------------------------------------------------------
     # 0x50XXh: Compilación y Buenas Prácticas
     # -------------------------------------------------------------------------
 

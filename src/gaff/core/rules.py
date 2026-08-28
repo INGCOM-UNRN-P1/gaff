@@ -632,6 +632,25 @@ ALIAS_MAP: Dict[str, str] = {
     "GAFF060": "0x000Ch",
 }
 
+
+def obtener_regla(codigo: str) -> Optional[Dict[str, Any]]:
+    """Busca una regla por código hex (0xXXXXh) o alias (GAFFxxx) de forma insensible a mayúsculas."""
+    cod = codigo.strip().lower()
+    for k, info in CATALOGO_REGLAS.items():
+        if k.lower() == cod:
+            return info
+        if info.get("codigo", "").lower() == cod:
+            return info
+        if info.get("alias", "").lower() == cod:
+            return info
+
+    for alias, hex_k in ALIAS_A_HEX.items():
+        if alias.lower() == cod:
+            return CATALOGO_REGLAS.get(hex_k)
+
+    return None
+
+
 for k, v in ALIAS_MAP.items():
     if v in CATALOGO_REGLAS:
         CATALOGO_REGLAS[k] = CATALOGO_REGLAS[v]

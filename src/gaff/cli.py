@@ -131,23 +131,26 @@ def rules_cmd() -> None:
 
 @app.command("explain")
 def explain_cmd(
-    codigo: str = typer.Argument(..., help="Código de la regla a explicar (ej: 'GAFF001')."),
+    codigo: str = typer.Argument(..., help="Código de la regla a explicar (ej: 'GAFF001' o '0x0001h')."),
 ) -> None:
     """Explica en detalle una regla de cátedra con ejemplos de código correctos e incorrectos."""
-    cod = codigo.strip().upper()
-    if cod not in CATALOGO_REGLAS:
-        err_console.print(f"[red]Error:[/red] La regla '{cod}' no existe en el catálogo de GAFF.")
+    from gaff.core.rules import obtener_regla
+
+    info = obtener_regla(codigo)
+    if not info:
+        err_console.print(f"[red]Error:[/red] La regla '{codigo}' no existe en el catálogo de GAFF.")
         raise typer.Exit(code=2)
 
-    info = CATALOGO_REGLAS[cod]
+    cod = info.get("codigo", codigo)
+    alias = info.get("alias", "")
     cuerpo = (
         f"[bold]{info['titulo']}[/bold]\n\n"
         f"{info['descripcion']}\n\n"
         f"[bold green]✓ Ejemplo Correcto:[/bold green]\n```c\n{info['ejemplo_correcto']}\n```\n\n"
         f"[bold red]✗ Ejemplo Incorrecto:[/bold red]\n```c\n{info['ejemplo_incorrecto']}\n```\n\n"
-        f"[dim]Capacidad de Autofix: {info['autofix']}[/dim]"
+        f"[dim]Capacidad de Autofix: {info['autofix']} | Alias: {alias}[/dim]"
     )
-    console.print(Panel(cuerpo, title=f"📘 Regla {cod}", border_style="cyan"))
+    console.print(Panel(cuerpo, title=f"📘 Regla {cod} ({alias})", border_style="cyan"))
 
 
 def main() -> None:

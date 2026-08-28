@@ -13,7 +13,7 @@ runner = CliRunner()
 
 def test_cli_check_rich_ok(tmp_path):
     fuente = tmp_path / "ok.c"
-    fuente.write_text("int main(void) {\n    return 0;\n}\n")
+    fuente.write_text("int main(void)\n{\n    return 0;\n}\n")
     res = runner.invoke(app, ["check", str(fuente)])
     assert res.exit_code == 0
     assert "GAFF Linting OK" in res.stdout

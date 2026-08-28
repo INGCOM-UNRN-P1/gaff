@@ -55,8 +55,10 @@ def test_archivo_limpio_sin_violaciones(tmp_path):
     fuente = tmp_path / "limpio.c"
     fuente.write_text("""#include <stdio.h>
 
-int calcular_suma(int a, int b) {
-    if (a > 0) {
+int calcular_suma(int a, int b)
+{
+    if (a > 0)
+    {
         return a + b;
     }
     return 0;

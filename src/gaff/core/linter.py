@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import List, Optional, Set
 
-from gaff.core.models import ReporteArchivo, ReporteLinting, ViolacionRegla
+from gaff.core.models import ReporteArchivo, ReporteLinting, RuleCode, ViolacionRegla
 from gaff.core.rules import CATALOGO_REGLAS
 
 
@@ -23,14 +23,15 @@ def _eliminar_comentarios(texto: str) -> str:
         r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
         re.DOTALL | re.MULTILINE,
     )
-    return re.sub(pattern, replacer, texto)
+    return pattern.sub(replacer, texto)
 
 
 def analizar_archivo(
     ruta: Path,
     reglas_habilitadas: Optional[Set[str]] = None,
 ) -> List[ViolacionRegla]:
-    """Analiza un archivo C o H y retorna la lista de violaciones encontradas."""
+    """Analiza un archivo fuente C y retorna las violaciones de estilo encontradas."""
+    ruta = Path(ruta)
     if not ruta.is_file():
         return []
 
@@ -51,14 +52,28 @@ def analizar_archivo(
 
     es_header = ruta.suffix.lower() in (".h", ".hpp")
 
-    # GAFF005: Guardas de inclusión en cabeceras (.h)
-    if "GAFF005" in reglas and es_header:
+    # Normalizar conjunto de reglas habilitadas para aceptar tanto '0xXXXXh' como 'GAFFXXX'
+    reglas_norm = set()
+    if reglas_habilitadas:
+        for r in reglas_habilitadas:
+            reglas_norm.add(r.lower())
+            if r in CATALOGO_REGLAS:
+                reglas_norm.add(CATALOGO_REGLAS[r].get("codigo", "").lower())
+                reglas_norm.add(CATALOGO_REGLAS[r].get("alias", "").lower())
+    else:
+        reglas_norm = {k.lower() for k in CATALOGO_REGLAS.keys()}
+
+    def _esta_activa(codigo_hex: str, alias_gaff: str) -> bool:
+        return codigo_hex.lower() in reglas_norm or alias_gaff.lower() in reglas_norm
+
+    # 0x5003h (GAFF005): Guardas de inclusión en cabeceras (.h)
+    if _esta_activa("0x5003h", "GAFF005") and es_header:
         tiene_pragma = "#pragma once" in contenido_original
         tiene_ifndef = bool(re.search(r"#ifndef\s+\w+", contenido_original) and re.search(r"#define\s+\w+", contenido_original))
         if not (tiene_pragma or tiene_ifndef):
             violaciones.append(ViolacionRegla(
-                codigo="GAFF005",
-                titulo=CATALOGO_REGLAS["GAFF005"]["titulo"],
+                codigo=RuleCode("0x5003h", "GAFF005"),
+                titulo=CATALOGO_REGLAS["0x5003h"]["titulo"],
                 archivo=ruta,
                 linea=1,
                 columna=1,
@@ -67,14 +82,14 @@ def analizar_archivo(
                 es_autofixable=True,
             ))
 
-    # GAFF008: Prohibición de goto
-    if "GAFF008" in reglas:
+    # 0x1006h (GAFF008): Prohibición de goto
+    if _esta_activa("0x1006h", "GAFF008"):
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_goto = re.search(r"\bgoto\s+\w+", linea)
             if m_goto:
                 violaciones.append(ViolacionRegla(
-                    codigo="GAFF008",
-                    titulo=CATALOGO_REGLAS["GAFF008"]["titulo"],
+                    codigo=RuleCode("0x1006h", "GAFF008"),
+                    titulo=CATALOGO_REGLAS["0x1006h"]["titulo"],
                     archivo=ruta,
                     linea=idx,
                     columna=m_goto.start() + 1,
@@ -84,16 +99,16 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # GAFF007: Espaciado en palabras clave (if, for, while, switch)
-    if "GAFF007" in reglas:
+    # 0x0004h (GAFF007): Espaciado en palabras clave (if, for, while, switch)
+    if _esta_activa("0x0004h", "GAFF007"):
         re_kw = re.compile(r"\b(if|for|while|switch)\(")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_kw = re_kw.search(linea)
             if m_kw:
                 kw = m_kw.group(1)
                 violaciones.append(ViolacionRegla(
-                    codigo="GAFF007",
-                    titulo=CATALOGO_REGLAS["GAFF007"]["titulo"],
+                    codigo=RuleCode("0x0004h", "GAFF007"),
+                    titulo=CATALOGO_REGLAS["0x0004h"]["titulo"],
                     archivo=ruta,
                     linea=idx,
                     columna=m_kw.start() + 1,
@@ -103,29 +118,29 @@ def analizar_archivo(
                     es_autofixable=True,
                 ))
 
-    # GAFF009: Longitud de línea (> 100 chars)
-    if "GAFF009" in reglas:
+    # 0x0009h (GAFF009): Longitud de línea (> 79/80 chars)
+    if _esta_activa("0x0009h", "GAFF009"):
         for idx, linea in enumerate(lineas, 1):
-            if len(linea) > 100:
+            if len(linea) > 80:
                 violaciones.append(ViolacionRegla(
-                    codigo="GAFF009",
-                    titulo=CATALOGO_REGLAS["GAFF009"]["titulo"],
+                    codigo=RuleCode("0x0009h", "GAFF009"),
+                    titulo=CATALOGO_REGLAS["0x0009h"]["titulo"],
                     archivo=ruta,
                     linea=idx,
-                    columna=101,
-                    mensaje=f"Línea de {len(linea)} caracteres excede el límite máximo de 100.",
+                    columna=81,
+                    mensaje=f"Línea de {len(linea)} caracteres excede el límite máximo de 80 caracteres.",
                     sugerencia="Dividí la instrucción o llamada en múltiples líneas identadas.",
                     codigo_linea=linea[:80] + "...",
                     es_autofixable=False,
                 ))
 
-    # GAFF010: Espacios finales y mezcla de tabuladores
-    if "GAFF010" in reglas:
+    # 0x0005h (GAFF010): Espacios finales y mezcla de tabuladores
+    if _esta_activa("0x0005h", "GAFF010"):
         for idx, linea in enumerate(lineas, 1):
             if linea.endswith(" ") or linea.endswith("\t"):
                 violaciones.append(ViolacionRegla(
-                    codigo="GAFF010",
-                    titulo=CATALOGO_REGLAS["GAFF010"]["titulo"],
+                    codigo=RuleCode("0x0005h", "GAFF010"),
+                    titulo=CATALOGO_REGLAS["0x0005h"]["titulo"],
                     archivo=ruta,
                     linea=idx,
                     columna=len(linea),
@@ -136,8 +151,8 @@ def analizar_archivo(
                 ))
             elif "\t" in linea:
                 violaciones.append(ViolacionRegla(
-                    codigo="GAFF010",
-                    titulo=CATALOGO_REGLAS["GAFF010"]["titulo"],
+                    codigo=RuleCode("0x0005h", "GAFF010"),
+                    titulo=CATALOGO_REGLAS["0x0005h"]["titulo"],
                     archivo=ruta,
                     linea=idx,
                     columna=linea.find("\t") + 1,
@@ -147,16 +162,16 @@ def analizar_archivo(
                     es_autofixable=True,
                 ))
 
-    # GAFF001: CamelCase en funciones o variables
-    if "GAFF001" in reglas:
+    # 0x0007h / 0x200Ah (GAFF001): CamelCase en funciones o variables
+    if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF001"):
         re_camel = re.compile(r"\b(?:int|void|char|float|double|size_t|bool|\w+_t|t_\w+)\s+([a-z]+[A-Z]\w*)\s*\(")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_fn = re_camel.search(linea)
             if m_fn:
                 fn_name = m_fn.group(1)
                 violaciones.append(ViolacionRegla(
-                    codigo="GAFF001",
-                    titulo=CATALOGO_REGLAS["GAFF001"]["titulo"],
+                    codigo=RuleCode("0x0007h", "GAFF001"),
+                    titulo=CATALOGO_REGLAS["0x0007h"]["titulo"],
                     archivo=ruta,
                     linea=idx,
                     columna=m_fn.start(1) + 1,
@@ -166,17 +181,16 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # GAFF002: Nomenclatura de typedef
-    if "GAFF002" in reglas:
+    # 0x3004h (GAFF002): Nomenclatura de typedef
+    if _esta_activa("0x3004h", "GAFF002"):
         re_typedef = re.compile(r"\btypedef\s+(?:struct|enum|union)\s*(?:\w*\s*\{[^}]*\}|\w+)\s+(\w+)\s*;", re.DOTALL)
         for m in re_typedef.finditer(codigo_sin_comentarios):
             tipo_name = m.group(1)
             if not (tipo_name.startswith("t_") or tipo_name.endswith("_t") or tipo_name.startswith("T_")):
-                # Calcular número de línea
                 line_no = codigo_sin_comentarios[:m.start(1)].count("\n") + 1
                 violaciones.append(ViolacionRegla(
-                    codigo="GAFF002",
-                    titulo=CATALOGO_REGLAS["GAFF002"]["titulo"],
+                    codigo=RuleCode("0x3004h", "GAFF002"),
+                    titulo=CATALOGO_REGLAS["0x3004h"]["titulo"],
                     archivo=ruta,
                     linea=line_no,
                     columna=1,
@@ -185,15 +199,14 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # GAFF004: Longitud máxima de función (> 50 líneas)
-    if "GAFF004" in reglas:
+    # 0x2005h (GAFF004): Longitud máxima de función (> 50 líneas)
+    if _esta_activa("0x2005h", "GAFF004"):
         re_fn_start = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^)]*\)\s*\{", re.MULTILINE)
         for m in re_fn_start.finditer(codigo_sin_comentarios):
             fn_name = m.group(1)
             start_pos = m.end() - 1
             line_start = codigo_sin_comentarios[:m.start()].count("\n") + 1
 
-            # Contar llaves balanceadas
             brace_count = 0
             end_pos = start_pos
             for i in range(start_pos, len(codigo_sin_comentarios)):
@@ -208,8 +221,8 @@ def analizar_archivo(
             total_lines = line_end - line_start + 1
             if total_lines > 50:
                 violaciones.append(ViolacionRegla(
-                    codigo="GAFF004",
-                    titulo=CATALOGO_REGLAS["GAFF004"]["titulo"],
+                    codigo=RuleCode("0x2005h", "GAFF004"),
+                    titulo=CATALOGO_REGLAS["0x2005h"]["titulo"],
                     archivo=ruta,
                     linea=line_start,
                     columna=1,

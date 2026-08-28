@@ -7,10 +7,27 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
+class RuleCode(str):
+    """Representa un código de regla de cátedra (ej. '0x0007h') con alias retrocompatible ('GAFF001')."""
+
+    def __new__(cls, code: str, alias: Optional[str] = None):
+        obj = super().__new__(cls, code)
+        obj._alias = alias or ""
+        return obj
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return super().__eq__(other) or (bool(getattr(self, "_alias", None)) and self._alias.lower() == other.lower())
+        return super().__eq__(other)
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+
 @dataclass
 class ViolacionRegla:
     """Representa una violación de estilo encontrada en el código."""
-    codigo: str                   # GAFF001, GAFF002, etc.
+    codigo: RuleCode | str        # 0x0007h, 0x3004h, etc.
     titulo: str
     archivo: Path
     linea: int
@@ -19,11 +36,12 @@ class ViolacionRegla:
     sugerencia: str
     codigo_linea: str = ""
     es_autofixable: bool = False
-    severidad: str = "ERROR"      # ERROR, WARNING, INFO
+    severidad: str = "ESTILO"     # ESTILO, ADVERTENCIA, ERROR
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "codigo": self.codigo,
+            "codigo": str(self.codigo),
+            "alias": getattr(self.codigo, "_alias", ""),
             "titulo": self.titulo,
             "archivo": str(self.archivo),
             "linea": self.linea,

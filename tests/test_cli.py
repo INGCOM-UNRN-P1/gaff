@@ -45,7 +45,7 @@ def test_cli_check_con_violaciones_y_json(tmp_path):
     data = json.loads(res.stdout)
     assert data["ok"] is False
     assert data["total_violaciones"] >= 1
-    assert any(v["codigo"] == "GAFF008" for a in data["archivos"] for v in a["violaciones"])
+    assert any(v["codigo"] in ("0x1006h", "GAFF008") or v.get("alias") == "GAFF008" for a in data["archivos"] for v in a["violaciones"])
 
 
 def test_cli_fix(tmp_path):

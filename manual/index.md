@@ -179,3 +179,52 @@ check-gaff:
 ````
 
 Ejecutá `make check-gaff` antes de cada commit para asegurar que tu código conserve el estado de aprobación.
+
+---
+
+(manual-gaff-arquitectura)=
+## 7. Arquitectura Interna y Mecanismo Técnico
+
+La herramienta **`gaff`** implementa un motor de alta precisión basado en:
+
+- **Tecnología Núcleo:** `libclang / Clang-Format 18 Driver + Custom AST Style Rules Engine (Allman, snake_case)`.
+- **Aislamiento y Determinismo:** Diseñada para operar sin efectos colaterales en entornos de integración continua (CI), terminales de estudiantes y servidores docentes headless.
+- **Manejo de Errores Pedagógico:** Todo fallo de sintaxis, memoria o lógica se traduce en una acción prescriptiva concreta con su respectiva justificación técnica.
+
+---
+
+(manual-gaff-ecosistema)=
+## 8. Integración y Conexión con el Ecosistema
+
+````{note}
+Ninguna herramienta opera de forma aislada. **`gaff`** forma parte del pipeline integral de evaluación, verificación y enseñanza de la cátedra.
+````
+
+### Diagrama de Flujo e Interoperabilidad
+
+````{mermaid}
+graph TD
+    SRC[Código C del Estudiante] --> GAF[Gaff: Linter de Estilo]
+    GAF -->|Autofix Allman / snake_case| CLANG[clang-format Engine]
+    GAF -->|Reporte de Violaciones| RIP[Ripley: Microkernel de Reglas]
+    RIP -->|Evaluación Automática| DRD[Dredd: Calificador Masivo]
+````
+
+### Matriz de Intercambio de Datos
+
+| Canal | Herramientas Conectadas | Tipo de Datos Transferidos |
+| :--- | :--- | :--- |
+| **Entradas (Inputs)** | - `Código fuente C (.c y .h)` | Código fuente, AST, binarios, testcases, contratos |
+| **Salidas (Outputs)** | - `ripley (reglas de formato 0x0001h-0x00FFh)`
+- `dredd (calificación de estilo)` | Informes Markdown, diagnósticos Rich, JSON, actas |
+| **Sincronización** | `ripley`, `spunkmeyer`, `dredd` | Validación cruzada, flags compartidos y autofix |
+
+### Pipeline de Integración Recomendado
+
+Podés encadenar `gaff` con otras herramientas del ecosistema en una única línea de comando:
+
+````{code-block} bash
+# Pipeline de integración típico
+gaff fix -r src/ include/ && ripley check src/
+````
+

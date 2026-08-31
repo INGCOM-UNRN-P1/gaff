@@ -55,3 +55,48 @@ def test_cli_fix(tmp_path):
     res = runner.invoke(app, ["fix", str(fuente)])
     assert "correcciones" in res.stdout
     assert "if (" in fuente.read_text(encoding="utf-8")
+
+
+def test_cli_check_recursivo(tmp_path):
+    """Verifica que -r y --recursive recorran subdirectorios anidados."""
+    dir_a = tmp_path / "modulo_a"
+    dir_sub = dir_a / "submodulo"
+    dir_sub.mkdir(parents=True)
+
+    f_raiz = tmp_path / "raiz.c"
+    f_raiz.write_text("int main(void) { return 0; }\n")
+
+    f_anidado = dir_sub / "anidado.c"
+    f_anidado.write_text("int f(void) { goto salir; salir: return 0; }\n")
+
+    # Sin recursión sobre tmp_path (solo raiz.c en primer nivel)
+    res_no_rec = runner.invoke(app, ["check", str(tmp_path)])
+    assert res_no_rec.exit_code == 0
+    assert "1" in res_no_rec.stdout
+
+    # Con flag corto -r
+    res_r = runner.invoke(app, ["check", str(tmp_path), "-r", "--json"])
+    assert res_r.exit_code == 1
+    data_r = json.loads(res_r.stdout)
+    assert len(data_r["archivos"]) == 2
+    assert any("anidado.c" in a["archivo"] for a in data_r["archivos"])
+
+    # Con flag largo --recursive
+    res_rec = runner.invoke(app, ["check", str(tmp_path), "--recursive", "--json"])
+    assert res_rec.exit_code == 1
+    data_rec = json.loads(res_rec.stdout)
+    assert len(data_rec["archivos"]) == 2
+
+
+def test_cli_fix_recursivo(tmp_path):
+    """Verifica que fix -r aplique correcciones en subdirectorios."""
+    sub_dir = tmp_path / "sub"
+    sub_dir.mkdir(parents=True)
+    f_sub = sub_dir / "fix_sub.c"
+    f_sub.write_text("void f(void){\n    if(1){ return; }\n}\n")
+
+    res = runner.invoke(app, ["fix", str(tmp_path), "-r"])
+    assert res.exit_code == 0
+    assert "correcciones" in res.stdout
+    assert "if (" in f_sub.read_text(encoding="utf-8")
+

@@ -1028,6 +1028,7 @@ def ejecutar_linter(
     rutas: List[Path],
     fix: bool = False,
     reglas_habilitadas: Optional[Set[str]] = None,
+    recursive: bool = False,
 ) -> ReporteLinting:
     """Ejecuta el linter sobre un conjunto de archivos o directorios."""
     archivos_objetivo: Set[Path] = set()
@@ -1036,7 +1037,8 @@ def ejecutar_linter(
         if p.is_file() and p.suffix.lower() in (".c", ".h", ".cpp", ".hpp"):
             archivos_objetivo.add(p)
         elif p.is_dir():
-            for sub_p in p.rglob("*"):
+            iterador = p.rglob("*") if recursive else p.glob("*")
+            for sub_p in iterador:
                 if sub_p.is_file() and sub_p.suffix.lower() in (".c", ".h", ".cpp", ".hpp"):
                     archivos_objetivo.add(sub_p)
 

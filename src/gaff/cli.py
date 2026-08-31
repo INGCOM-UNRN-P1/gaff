@@ -70,15 +70,16 @@ def generar_seccion_markdown(reporte) -> str:
 @app.command("check")
 def check_cmd(
     rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a analizar."),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     fix: bool = typer.Option(False, "--fix", "-f", help="Aplica automáticamente correcciones en reglas autofixables."),
-    rules: Optional[str] = typer.Option(None, "--rules", "-r", help="Lista de códigos de regla separados por comas (ej: 'GAFF001,GAFF005')."),
+    rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Lista de códigos de regla separados por comas (ej: 'GAFF001,GAFF005')."),
     json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en JSON."),
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", "-o", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Ocultar advertencias y solo mostrar errores críticos."),
 ) -> None:
     """Audita archivos de código C comprobando las reglas de estilo y arquitectura de la cátedra."""
     reglas_set = set(r.strip().upper() for r in rules.split(",") if r.strip()) if rules else None
-    reporte = ejecutar_linter(rutas, fix=fix, reglas_habilitadas=reglas_set)
+    reporte = ejecutar_linter(rutas, fix=fix, reglas_habilitadas=reglas_set, recursive=recursive)
 
     if output_md:
         md_text = generar_seccion_markdown(reporte)
@@ -127,12 +128,13 @@ def check_cmd(
 @app.command("report")
 def report_cmd(
     rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a analizar."),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Ruta de destino del archivo Markdown."),
-    rules: Optional[str] = typer.Option(None, "--rules", "-r", help="Reglas a habilitar."),
+    rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Reglas a habilitar."),
 ) -> None:
     """Genera directamente la sección de reporte Markdown de GAFF para Dredd."""
     reglas_set = set(r.strip().upper() for r in rules.split(",") if r.strip()) if rules else None
-    reporte = ejecutar_linter(rutas, fix=False, reglas_habilitadas=reglas_set)
+    reporte = ejecutar_linter(rutas, fix=False, reglas_habilitadas=reglas_set, recursive=recursive)
     md_content = generar_seccion_markdown(reporte)
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -140,24 +142,6 @@ def report_cmd(
         console.print(f"[green]✓ Reporte Markdown generado en:[/green] [cyan]{output}[/cyan]")
     else:
         print(md_content)
-
-
-@app.command("fix")
-def fix_cmd(
-    rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a corregir automáticamente."),
-    rules: Optional[str] = typer.Option(None, "--rules", "-r", help="Reglas a aplicar."),
-) -> None:
-    """Aplica correcciones automáticas de estilo directamente sobre los archivos."""
-    reglas_set = set(r.strip().upper() for r in rules.split(",") if r.strip()) if rules else None
-    reporte = ejecutar_linter(rutas, fix=True, reglas_habilitadas=reglas_set)
-
-    if reporte.total_arreglos > 0:
-        console.print(f"[green]✓ Se aplicaron {reporte.total_arreglos} correcciones automáticas en {len(reporte.archivos)} archivo(s).[/green]")
-    else:
-        console.print("[dim]No se requirieron correcciones automáticas.[/dim]")
-
-    if not reporte.ok:
-        console.print(f"[yellow]Aún quedan {reporte.total_violaciones} violaciones que requieren corrección manual. Ejecutá 'gaff check' para verlas.[/yellow]")
 
 
 @app.command("rules")
@@ -240,16 +224,21 @@ def init_config_cmd(
 @app.command("fix")
 def fix_cmd(
     rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a corregir."),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
+    rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Reglas a aplicar."),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Previsualiza el diff de cada cambio antes de aplicar."),
 ) -> None:
     """Aplica correcciones automáticas de estilo con opción de vista previa interactiva."""
     from gaff.core.interactive_fix import ejecutar_autofix_interactivo
     archivos = []
     for r in rutas:
-        if r.is_file() and r.suffix in (".c", ".h"):
+        if r.is_file() and r.suffix.lower() in (".c", ".h", ".cpp", ".hpp"):
             archivos.append(r)
         elif r.is_dir():
-            archivos.extend(list(r.glob("**/*.c")) + list(r.glob("**/*.h")))
+            pat = "**/*" if recursive else "*"
+            for sub_p in (list(r.glob(f"{pat}.c")) + list(r.glob(f"{pat}.h")) + list(r.glob(f"{pat}.cpp")) + list(r.glob(f"{pat}.hpp"))):
+                if sub_p.is_file():
+                    archivos.append(sub_p)
 
     if not archivos:
         console.print("[yellow]No se encontraron archivos C/H para corregir.[/yellow]")
@@ -263,6 +252,7 @@ def fix_cmd(
 @app.command("format")
 def format_cmd(
     rutas: List[Path] = typer.Argument(..., help="Archivos o directorios a formatear"),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
 ) -> None:
     """Formatea código C/H aplicando las convenciones canónicas de la cátedra."""
     import subprocess
@@ -270,10 +260,13 @@ def format_cmd(
     clang_fmt = shutil.which("clang-format")
     files_to_fmt = []
     for r in rutas:
-        if r.is_file() and r.suffix in (".c", ".h"):
+        if r.is_file() and r.suffix.lower() in (".c", ".h", ".cpp", ".hpp"):
             files_to_fmt.append(r)
         elif r.is_dir():
-            files_to_fmt.extend(list(r.glob("**/*.c")) + list(r.glob("**/*.h")))
+            pat = "**/*" if recursive else "*"
+            for sub_p in (list(r.glob(f"{pat}.c")) + list(r.glob(f"{pat}.h")) + list(r.glob(f"{pat}.cpp")) + list(r.glob(f"{pat}.hpp"))):
+                if sub_p.is_file():
+                    files_to_fmt.append(sub_p)
 
     if not files_to_fmt:
         console.print("[yellow]No se encontraron archivos C/H para formatear.[/yellow]")
@@ -285,7 +278,7 @@ def format_cmd(
         console.print(f"[bold green]✓ {len(files_to_fmt)} archivo(s) formateados con clang-format.[/bold green]")
     else:
         # Fallback a autofix nativo de GAFF
-        reporte = ejecutar_linter(files_to_fmt, fix=True)
+        reporte = ejecutar_linter(files_to_fmt, fix=True, recursive=recursive)
         console.print(f"[bold green]✓ Formato básico y correcciones de estilo aplicadas ({reporte.total_arreglos} arreglos).[/bold green]")
 
 

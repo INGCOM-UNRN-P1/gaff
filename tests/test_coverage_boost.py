@@ -102,3 +102,20 @@ def test_cli_main_block(monkeypatch):
         gaff.cli.main()
     except SystemExit as e:
         assert e.code == 0
+
+
+def test_cli_doctor():
+    res = runner.invoke(app, ["doctor"])
+    assert res.exit_code == 0
+    assert "Diagnóstico del Entorno de GAFF" in res.stdout
+
+
+def test_cli_export_rules(tmp_path):
+    out = tmp_path / "rules.md"
+    res = runner.invoke(app, ["export-rules", "-o", str(out)])
+    assert res.exit_code == 0
+    assert out.is_file()
+    content = out.read_text(encoding="utf-8")
+    assert "Manual de Convenciones y Estilo" in content
+    assert "GAFF001" in content or "0x1001h" in content
+

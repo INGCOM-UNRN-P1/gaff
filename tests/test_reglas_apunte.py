@@ -287,6 +287,170 @@ def test_regla_0x000Ch_nombre_archivo_con_espacios_y_mayusculas(tmp_path):
     viols_camel = analizar_archivo(fuente_camel)
     assert any(v.codigo == "0x000Ch" for v in viols_camel)
 
+def test_catalogo_serie_gaff06x():
+    """Verifica el alta de los alias GAFF061-GAFF066 en el catálogo."""
+    from gaff.core.rules import ALIAS_MAP, CATALOGO_REGLAS, obtener_regla
+
+    assert ALIAS_MAP["GAFF061"] == "0x300Dh"
+    assert ALIAS_MAP["GAFF062"] == "0x1007h"
+    assert ALIAS_MAP["GAFF063"] == "0x3004h"
+    assert ALIAS_MAP["GAFF064"] == "0x5003h"
+    assert ALIAS_MAP["GAFF065"] == "0x2001h"
+    assert ALIAS_MAP["GAFF066"] == "0x000Dh"
+    assert obtener_regla("GAFF061")["titulo"]
+    assert obtener_regla("gaff066")["codigo"] == "0x000Dh"
+    assert "GAFF065" in CATALOGO_REGLAS
+
+
+def test_regla_gaff061_numero_magico(tmp_path):
+    fuente = tmp_path / "magic.c"
+    fuente.write_text("""
+void test(void)
+{
+    for (int i = 0; i < 5; i++)
+    {
+        int x = i * 3;
+    }
+}
+""")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF061"})
+    magicos = [v for v in viols if v.codigo == "0x300Dh"]
+    assert len(magicos) == 2
+    assert any("'5'" in v.mensaje for v in magicos)
+    assert any("'3'" in v.mensaje for v in magicos)
+
+
+def test_regla_gaff061_no_flag_en_define_enum_y_valores_comunes(tmp_path):
+    fuente = tmp_path / "ok_magic.c"
+    fuente.write_text("""
+#define MAX_INTENTOS 5
+typedef enum { OK = 0, ERROR = 3 } estado_t;
+
+int main(void)
+{
+    printf("Error 404 en registro\\n");
+    return 0;
+}
+""")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF061"})
+    assert viols == []
+
+
+def test_regla_gaff062_alias_ternario(tmp_path):
+    fuente = tmp_path / "tern.c"
+    fuente.write_text("""
+int maximo(int a, int b)
+{
+    return (a > b) ? a : b;
+}
+""")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF062"})
+    assert any(v.codigo == "0x1007h" for v in viols)
+
+
+def test_regla_gaff063_alias_typedef(tmp_path):
+    header = tmp_path / "tipos_dato.h"
+    header.write_text("""
+#ifndef TIPOS_DATO_H
+#define TIPOS_DATO_H
+
+typedef struct nodo Nodo;
+
+#endif
+""")
+    viols = analizar_archivo(header, reglas_habilitadas={"GAFF063"})
+    assert any(v.codigo == "0x3004h" for v in viols)
+
+
+def test_regla_gaff064_alias_guardas(tmp_path):
+    header = tmp_path / "sin_guarda.h"
+    header.write_text("void funcion(void);\n")
+    viols = analizar_archivo(header, reglas_habilitadas={"GAFF064"})
+    assert any(v.codigo == "0x5003h" for v in viols)
+
+
+def test_regla_gaff065_anidacion_profunda(tmp_path):
+    fuente = tmp_path / "flecha.c"
+    fuente.write_text("""
+void proceso(int a, int b, int c, int d)
+{
+    if (a > 0)
+    {
+        if (b > 0)
+        {
+            if (c > 0)
+            {
+                if (d > 0)
+                {
+                    a++;
+                }
+            }
+        }
+    }
+}
+""")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF065"})
+    assert any(v.codigo == "0x2001h" for v in viols)
+
+
+def test_regla_gaff065_anidacion_tres_niveles_permitida(tmp_path):
+    fuente = tmp_path / "tres_niveles.c"
+    fuente.write_text("""
+void proceso(int a, int b, int c)
+{
+    if (a > 0)
+    {
+        if (b > 0)
+        {
+            if (c > 0)
+            {
+                a++;
+            }
+        }
+    }
+}
+""")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF065"})
+    assert viols == []
+
+
+def test_regla_gaff066_codigo_comentado(tmp_path):
+    fuente = tmp_path / "muerto.c"
+    fuente.write_text("""
+int main(void)
+{
+    // int resultado_viejo = calcular(2);
+    int resultado = calcular(2);
+    /*
+    if (resultado < 0)
+    {
+        return 0;
+    }
+    */
+    return resultado;
+}
+""")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF066"})
+    assert sum(1 for v in viols if v.codigo == "0x000Dh") == 2
+
+
+def test_regla_gaff066_comentario_doxygen_permitido(tmp_path):
+    fuente = tmp_path / "doc.c"
+    fuente.write_text("""
+/**
+ * @brief Suma dos enteros.
+ * @param a Primer sumando.
+ * @return Resultado de la suma.
+ */
+int sumar(int a, int b)
+{
+    return a + b;
+}
+""")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF066"})
+    assert viols == []
+
+
 def test_autofix_allman_braces_style(tmp_path):
     fuente = tmp_path / "knr_fix.c"
     fuente.write_text("""

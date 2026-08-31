@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
     # 0x00XXh: Sintaxis Básica y Nomenclatura
@@ -565,6 +565,62 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
         "ejemplo_incorrecto": "gets(buffer);\nscanf(\"%s\", buffer);",
         "autofix": "No",
     },
+
+    # 0x00XXh complementarios: serie GAFF06x y GAFF07x
+    "0x000Dh": {
+        "codigo": "0x000Dh",
+        "alias": "GAFF066",
+        "titulo": "No dejes código comentado (dead code) en los archivos fuente",
+        "descripcion": "El código comentado ensucia el archivo y confunde al lector: debe eliminarse. El historial de cambios pertenece al control de versiones, no a los fuentes.",
+        "ejemplo_correcto": "int total = calcular_total(precio);",
+        "ejemplo_incorrecto": "// int total = calcular_total_viejo(precio);\nint total = calcular_total(precio);",
+        "autofix": "No",
+    },
+    "0x000Eh": {
+        "codigo": "0x000Eh",
+        "alias": "GAFF067",
+        "titulo": "Los nombres de funciones deben usar snake_case estricto en minúsculas",
+        "descripcion": "Todas las funciones deben nombrarse en snake_case en minúsculas, sin mezclar camelCase ni PascalCase.",
+        "ejemplo_correcto": "int procesar_vector(int *vec, size_t n);",
+        "ejemplo_incorrecto": "int procesarVector(int *vec, size_t n);",
+        "autofix": "No",
+    },
+    "0x000Fh": {
+        "codigo": "0x000Fh",
+        "alias": "GAFF068",
+        "titulo": "Evitá comentarios obvios, redundantes o vacíos",
+        "descripcion": "Los comentarios deben explicar la razón o justificación del algoritmo, no repetir la sintaxis obvia ni estar vacíos (//, /* */).",
+        "ejemplo_correcto": "// Ajustamos el offset por alineación de 64 bits\nptr += 8;",
+        "ejemplo_incorrecto": "i++; // incrementa i en uno\n//\n/* TODO */",
+        "autofix": "Sí",
+    },
+    "0x0010h": {
+        "codigo": "0x0010h",
+        "alias": "GAFF069",
+        "titulo": "Control de longitud máxima de archivos de código (máx 500 líneas)",
+        "descripcion": "Los archivos .c no deben superar las 500 líneas para favorecer la modularización y cohesión en TDAs.",
+        "ejemplo_correcto": "modulo_pila.c (120 líneas) y modulo_cola.c (140 líneas)",
+        "ejemplo_incorrecto": "todo_junto.c (950 líneas)",
+        "autofix": "No",
+    },
+    "0x0011h": {
+        "codigo": "0x0011h",
+        "alias": "GAFF070",
+        "titulo": "En archivos .c la inclusión de la cabecera propia debe figurar en primer lugar",
+        "descripcion": "En modulo.c, '#include \"modulo.h\"' debe ser la primera inclusión de usuario para asegurar que el header sea autosuficiente.",
+        "ejemplo_correcto": "#include \"mi_modulo.h\"\n#include <stdio.h>",
+        "ejemplo_incorrecto": "#include <stdio.h>\n#include \"otra_cosa.h\"\n#include \"mi_modulo.h\"",
+        "autofix": "No",
+    },
+    "0x0012h": {
+        "codigo": "0x0012h",
+        "alias": "GAFF071",
+        "titulo": "Las variables globales deben ser declaradas como static o usar prefijo g_",
+        "descripcion": "Las variables con alcance de archivo deben restringirse con static o usar explícitamente el prefijo g_ para visibilizar el acoplamiento global.",
+        "ejemplo_correcto": "static int g_contador_llamadas = 0;",
+        "ejemplo_incorrecto": "int total_acumulado = 0; // variable global no static",
+        "autofix": "No",
+    },
 }
 
 # Alias bidireccionales para retrocompatibilidad
@@ -587,6 +643,13 @@ ALIAS_MAP: Dict[str, str] = {
     "GAFF015": "0x0008h",
     "GAFF016": "0x000Ah",
     "GAFF017": "0x000Bh",
+    "GAFF066": "0x000Dh",
+    "GAFF067": "0x000Eh",
+    "GAFF068": "0x000Fh",
+    "GAFF069": "0x0010h",
+    "GAFF070": "0x0011h",
+    "GAFF071": "0x0012h",
+
     "GAFF018": "0x1001h",
     "GAFF019": "0x1002h",
     "GAFF020": "0x1003h",
@@ -630,6 +693,12 @@ ALIAS_MAP: Dict[str, str] = {
     "GAFF058": "0x5005h",
     "GAFF059": "0x5006h",
     "GAFF060": "0x000Ch",
+    "GAFF061": "0x300Dh",
+    "GAFF062": "0x1007h",
+    "GAFF063": "0x3004h",
+    "GAFF064": "0x5003h",
+    "GAFF065": "0x2001h",
+    "GAFF066": "0x000Dh",
 }
 
 
@@ -644,7 +713,7 @@ def obtener_regla(codigo: str) -> Optional[Dict[str, Any]]:
         if info.get("alias", "").lower() == cod:
             return info
 
-    for alias, hex_k in ALIAS_A_HEX.items():
+    for alias, hex_k in ALIAS_MAP.items():
         if alias.lower() == cod:
             return CATALOGO_REGLAS.get(hex_k)
 

@@ -26,6 +26,12 @@ def _eliminar_comentarios(texto: str) -> str:
     return pattern.sub(replacer, texto)
 
 
+def _enmascarar_literales(texto: str) -> str:
+    """Reemplaza literales de cadena y carácter por espacios preservando líneas/columnas."""
+    pattern = re.compile(r"'(?:\\.|[^\\'])*'|\"(?:\\.|[^\\\"])*\"", re.DOTALL)
+    return pattern.sub(lambda m: "".join("\n" if c == "\n" else " " for c in m.group(0)), texto)
+
+
 # Tipos básicos de C
 TIPOS_BASICOS = r"(?:int|unsigned\s+int|short|unsigned\s+short|long|unsigned\s+long|long\s+long|char|unsigned\s+char|float|double|long\s+double|size_t|ssize_t|bool|_Bool|void|FILE|\w+_t|t_\w+)"
 
@@ -698,6 +704,252 @@ def analizar_archivo(
                 sugerencia="Ocultá la implementación mediante un TDA con puntero opaco ('typedef struct nombre_t nombre_t;').",
                 es_autofixable=False,
             ))
+
+    # -------------------------------------------------------------------------
+    # Serie GAFF06x: 0x300Dh (GAFF061), 0x2001h (GAFF065), 0x000Dh (GAFF066)
+    # -------------------------------------------------------------------------
+
+    # 0x300Dh (GAFF006 / GAFF061): Números mágicos (literales fuera de 0, 1, 2, -1)
+    if _esta_activa("0x300Dh", "GAFF006"):
+        codigo_magicos = codigo_sin_comentarios
+        # Los bloques enum son contexto válido para literales numéricos
+        for m_enum in list(re.finditer(r"\benum\b[^{;]*\{[^}]*\}", codigo_magicos, re.DOTALL)):
+            relleno = "".join("\n" if c == "\n" else " " for c in m_enum.group(0))
+            codigo_magicos = codigo_magicos[: m_enum.start()] + relleno + codigo_magicos[m_enum.end():]
+        codigo_magicos = _enmascarar_literales(codigo_magicos)
+
+        re_num_magico = re.compile(
+            r"(?<![\w.])(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:[uUlLfF]+)?"
+        )
+        for idx, linea in enumerate(codigo_magicos.splitlines(), 1):
+            if linea.strip().startswith("#"):
+                continue
+            for m in re_num_magico.finditer(linea):
+                literal = m.group(0)
+                if literal.lower().startswith("0x"):
+                    valor = float(int(literal[2:].rstrip("uUlL") or "0", 16))
+                else:
+                    valor = float(literal.rstrip("uUlLfF"))
+                if valor in (0.0, 1.0, 2.0):
+                    continue
+                rcode, tit = _regla_info("0x300Dh", "GAFF006")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=idx,
+                    columna=m.start() + 1,
+                    mensaje=f"Número mágico '{literal}' sin contexto: no está definido como constante.",
+                    sugerencia=f"Definí una constante descriptiva con #define o enum (ej: '#define MAX_INTENTOS {literal}') y usala en su lugar.",
+                    codigo_linea=lineas[idx - 1],
+                    es_autofixable=False,
+                ))
+
+    # 0x2001h (GAFF025 / GAFF065): Anidación máxima de 3 niveles dentro de funciones
+    if _esta_activa("0x2001h", "GAFF025"):
+        codigo_nesting = _enmascarar_literales(codigo_sin_comentarios)
+        re_no_funcion = re.compile(r"^\s*(?:typedef\s+)?(?:struct|enum|union)\b")
+        profundidad = 0
+        base_funcion: Optional[int] = None
+        ultimo_hito = 0
+        for i, ch in enumerate(codigo_nesting):
+            if ch == "{":
+                profundidad += 1
+                if base_funcion is None:
+                    segmento = "\n".join(
+                        ln for ln in codigo_nesting[ultimo_hito:i].splitlines()
+                        if not ln.strip().startswith("#")
+                    ).strip()
+                    if segmento.endswith(")") and "=" not in segmento and not re_no_funcion.match(segmento):
+                        base_funcion = profundidad
+                elif profundidad - base_funcion == 4:
+                    texto_previo = codigo_nesting[ultimo_hito:i].strip()
+                    if not texto_previo.endswith("="):
+                        line_no = codigo_nesting[:i].count("\n") + 1
+                        rcode, tit = _regla_info("0x2001h", "GAFF025")
+                        violaciones.append(ViolacionRegla(
+                            codigo=rcode,
+                            titulo=tit,
+                            archivo=ruta,
+                            linea=line_no,
+                            columna=1,
+                            mensaje="Anidación de 4 niveles: supera el máximo de 3 niveles permitidos (código en flecha).",
+                            sugerencia="Aplicá cláusulas de guarda (retornos tempranos) o extraé funciones auxiliares para reducir la anidación.",
+                            codigo_linea=lineas[line_no - 1],
+                            es_autofixable=False,
+                        ))
+                ultimo_hito = i + 1
+            elif ch == "}":
+                profundidad -= 1
+                if base_funcion is not None and profundidad < base_funcion:
+                    base_funcion = None
+                ultimo_hito = i + 1
+            elif ch == ";":
+                ultimo_hito = i + 1
+
+    # 0x000Dh (GAFF066): Código comentado (dead code)
+    if _esta_activa("0x000Dh", "GAFF066"):
+        re_codigo_comentado = re.compile(
+            r"^\s*(?:"
+            r"(?:if|for|while|switch|return|break|continue|else|do)\b"
+            r"|[\w\])]+\s*=[^=]"
+            r"|.*;\s*$"
+            r"|#\s*(?:include|define|ifdef|ifndef|endif|undef|pragma)\b"
+            r")"
+        )
+        re_token_comentario = re.compile(
+            r"//.*?$|/\*.*?\*/|'(?:\\.|[^\\'])*'|\"(?:\\.|[^\\\"])*\"",
+            re.DOTALL | re.MULTILINE,
+        )
+        for m in re_token_comentario.finditer(contenido_original):
+            token = m.group(0)
+            if not token.startswith("/"):
+                continue
+            if token.startswith("//"):
+                lineas_cuerpo = [token[2:].strip()]
+            else:
+                lineas_cuerpo = []
+                for ln in token[2:-2].splitlines():
+                    ln = re.sub(r"^\s*\*+\s?", "", ln).strip()
+                    if ln:
+                        lineas_cuerpo.append(ln)
+            linea_code = next((ln for ln in lineas_cuerpo if re_codigo_comentado.match(ln)), None)
+            if linea_code is None:
+                continue
+            line_no = contenido_original[:m.start()].count("\n") + 1
+            columna = m.start() - contenido_original.rfind("\n", 0, m.start())
+            rcode, tit = _regla_info("0x000Dh", "GAFF066")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=line_no,
+                columna=columna,
+                mensaje=f"Código comentado detectado: '{linea_code[:50]}'",
+                sugerencia="Eliminá el código comentado: el historial de cambios pertenece al control de versiones.",
+                codigo_linea=lineas[line_no - 1],
+                es_autofixable=False,
+            ))
+
+    # -------------------------------------------------------------------------
+    # 0x000Eh (GAFF067): Nombres de funciones en snake_case estricto
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x000Eh", "GAFF067"):
+        re_fn_decl = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^;{)]*\)\s*\{", re.MULTILINE)
+        for m in re_fn_decl.finditer(codigo_sin_comentarios):
+            fn_name = m.group(1)
+            if fn_name in ("if", "for", "while", "switch", "main"):
+                continue
+            # Si contiene mayúsculas (camelCase / PascalCase)
+            if any(c.isupper() for c in fn_name):
+                line_no = codigo_sin_comentarios[:m.start(1)].count("\n") + 1
+                col = m.start(1) - codigo_sin_comentarios.rfind("\n", 0, m.start(1))
+                sugerido_fn = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", fn_name).lower()
+                rcode, tit = _regla_info("0x000Eh", "GAFF067")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=col,
+                    mensaje=f"El nombre de la función '{fn_name}' no utiliza snake_case en minúsculas (mezcla mayúsculas/camelCase).",
+                    sugerencia=f"Renombrá la función a snake_case en minúsculas (ej: '{sugerido_fn}').",
+                    codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x000Fh (GAFF068): Evitá comentarios obvios, redundantes o vacíos
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x000Fh", "GAFF068"):
+        re_comentarios_obvios = re.compile(r"//\s*(?:incrementa|suma|retorna|asigna|TODO|FIXME|\s*$)", re.IGNORECASE)
+        for i, l in enumerate(lineas):
+            if "//" in l:
+                coment = l.split("//", 1)[1].strip()
+                if not coment or coment.lower() in ("todo", "fixme") or re.search(r"^(?:incrementa|suma|guarda|asigna|imprime|retorna)\s+\w+", coment, re.IGNORECASE):
+                    rcode, tit = _regla_info("0x000Fh", "GAFF068")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=l.index("//") + 1,
+                        mensaje=f"Comentario redundante, obvio o vacío detectado: '// {coment}'",
+                        sugerencia="Explicá la justificación algorítmica ('el porqué') en lugar de describir la sintaxis obvia, o eliminá el comentario.",
+                        codigo_linea=l,
+                        es_autofixable=True,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x0010h (GAFF069): Longitud máxima de archivos (máx 500 líneas)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0010h", "GAFF069") and len(lineas) > 500:
+        rcode, tit = _regla_info("0x0010h", "GAFF069")
+        violaciones.append(ViolacionRegla(
+            codigo=rcode,
+            titulo=tit,
+            archivo=ruta,
+            linea=len(lineas),
+            columna=1,
+            mensaje=f"El archivo supera el límite recomendado de 500 líneas ({len(lineas)} líneas).",
+            sugerencia="Modularizá el archivo dividiendo las funciones en módulos/TDAs complementarios con sus cabeceras .h.",
+            codigo_linea=lineas[-1] if lineas else "",
+            es_autofixable=False,
+        ))
+
+    # -------------------------------------------------------------------------
+    # 0x0011h (GAFF070): Inclusión de cabecera propia en primer lugar en .c
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0011h", "GAFF070") and ruta.suffix.lower() == ".c":
+        header_propio = f'"{ruta.stem}.h"'
+        headers_encontrados = []
+        for i, l in enumerate(lineas):
+            strip_l = l.strip()
+            if strip_l.startswith("#include") and '"' in strip_l:
+                headers_encontrados.append((i + 1, strip_l))
+        if headers_encontrados and (ruta.parent / f"{ruta.stem}.h").is_file():
+            primero_lin, primero_txt = headers_encontrados[0]
+            if header_propio not in primero_txt:
+                rcode, tit = _regla_info("0x0011h", "GAFF070")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=primero_lin,
+                    columna=1,
+                    mensaje=f"La cabecera propia '#include {header_propio}' debe incluirse antes de cualquier otro header de usuario.",
+                    sugerencia=f"Colocá '#include {header_propio}' como la primera línea de inclusión para verificar que el header sea autosuficiente.",
+                    codigo_linea=lineas[primero_lin - 1],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0012h (GAFF071): Variables globales deben ser static o usar prefijo g_
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0012h", "GAFF071"):
+        re_global_var = re.compile(rf"^(?!static|const|extern|typedef)\s*{TIPOS_BASICOS}\s+([a-zA-Z_]\w*)\s*(?:=|;)", re.MULTILINE)
+        # Buscar declaraciones fuera de funciones (al nivel de indentación 0)
+        for i, l in enumerate(lineas):
+            if l.startswith(" ") or l.startswith("\t") or l.strip().startswith("//") or l.strip().startswith("/*"):
+                continue
+            if "(" in l or ")" in l or l.strip().startswith("#"):
+                continue
+            m = re_global_var.match(l)
+            if m:
+                var_name = m.group(1)
+                if not var_name.startswith("g_"):
+                    rcode, tit = _regla_info("0x0012h", "GAFF071")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=1,
+                        mensaje=f"Variable global '{var_name}' declarada sin 'static' ni prefijo 'g_'.",
+                        sugerencia=f"Declarala como 'static {l.strip()}' o renombrala con prefijo 'g_{var_name}' para visibilizar el acoplamiento global.",
+                        codigo_linea=l,
+                        es_autofixable=False,
+                    ))
 
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones

@@ -349,3 +349,12 @@ Podés encadenar `gaff` con otras herramientas del ecosistema en una única lín
 gaff fix -r src/ include/ && ripley check src/
 ````
 
+---
+
+(manual-gaff-seccion-plugins)=
+## 9. Extensión, Desarrollo de Plugins y API Python
+
+Para crear tus propias reglas, conectores de evaluación o integrar `gaff` programáticamente en pipelines de CI/CD:
+
+- 👉 **Consultá la guía completa:** [Guía de Extensión y Creación de Plugins](plugins.md)
+

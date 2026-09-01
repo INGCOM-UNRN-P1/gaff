@@ -89,9 +89,15 @@ TIPOS_BASICOS = r"(?:int|unsigned\s+int|short|unsigned\s+short|long|unsigned\s+l
 
 def analizar_archivo(
     ruta: Path,
+    reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
 ) -> List[ViolacionRegla]:
-    """Analiza un archivo fuente C y retorna las violaciones de estilo encontradas."""
+    """Analiza un archivo fuente C y retorna las violaciones de estilo encontradas.
+
+    Por diseño pedagógico institucional, la configuración es por EXCLUSIÓN: todas
+    las reglas del catálogo se evalúan obligatoriamente salvo las especificadas en
+    `reglas_excluidas`.
+    """
     ruta = Path(ruta)
     if not ruta.is_file():
         return []
@@ -112,21 +118,47 @@ def analizar_archivo(
 
     es_header = ruta.suffix.lower() in (".h", ".hpp")
 
-    # Normalizar conjunto de reglas habilitadas para aceptar códigos de cátedra '0xXXXXh' o '0xXXXX'
-    reglas_norm = set()
-    if reglas_habilitadas:
+    # 1. Normalizar conjunto de reglas excluidas (modo canónico institucional)
+    excluidas_norm: Set[str] = set()
+    if reglas_excluidas:
+        for r in reglas_excluidas:
+            r_low = str(r).strip().lower()
+            excluidas_norm.add(r_low)
+            if r_low.startswith("0x") and not r_low.endswith("h"):
+                excluidas_norm.add(r_low + "h")
+            elif r_low.startswith("0x") and r_low.endswith("h"):
+                excluidas_norm.add(r_low[:-1])
+            if r in CATALOGO_REGLAS:
+                c = CATALOGO_REGLAS[r].get("codigo", "").lower()
+                excluidas_norm.add(c)
+                if c.endswith("h"):
+                    excluidas_norm.add(c[:-1])
+
+    # 2. Determinar reglas activas
+    if reglas_habilitadas is not None:
+        # Retrocompatibilidad con tests heredados que pasen lista de inclusión
+        reglas_norm = set()
         for r in reglas_habilitadas:
-            r_low = r.lower()
+            r_low = str(r).strip().lower()
             reglas_norm.add(r_low)
             if r_low.startswith("0x") and not r_low.endswith("h"):
                 reglas_norm.add(r_low + "h")
             if r in CATALOGO_REGLAS:
                 reglas_norm.add(CATALOGO_REGLAS[r].get("codigo", "").lower())
+        reglas_norm = reglas_norm - excluidas_norm
     else:
-        reglas_norm = {k.lower() for k in CATALOGO_REGLAS.keys()}
+        # Por defecto: TODAS las reglas de cátedra activas EXCEPTO las excluidas
+        reglas_norm = {k.lower() for k in CATALOGO_REGLAS.keys()} - excluidas_norm
 
     def _esta_activa(codigo_hex: str) -> bool:
-        return codigo_hex.lower() in reglas_norm
+        cod_low = codigo_hex.lower()
+        if cod_low in excluidas_norm:
+            return False
+        if cod_low.endswith("h") and cod_low[:-1] in excluidas_norm:
+            return False
+        if not cod_low.endswith("h") and (cod_low + "h") in excluidas_norm:
+            return False
+        return cod_low in reglas_norm
 
     def _regla_info(codigo_hex: str) -> Tuple[RuleCode, str]:
         info = CATALOGO_REGLAS.get(codigo_hex, {})
@@ -1577,12 +1609,31 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
 
 
 def ejecutar_linter(
-    rutas: List[Path],
+    rutas: List[Path] | Sequence[Path | str],
     fix: bool = False,
+    reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
     recursive: bool = False,
+    config: Optional[Dict[str, Any]] = None,
 ) -> ReporteLinting:
-    """Ejecuta el linter sobre un conjunto de archivos o directorios."""
+    """Ejecuta el linter sobre un conjunto de archivos o directorios aplicando configuración por exclusión."""
+    from gaff.core.config import cargar_configuracion_gaff
+
+    if reglas_excluidas is None:
+        dir_base = None
+        for r in rutas:
+            p = Path(r)
+            if p.is_dir():
+                dir_base = p
+                break
+            elif p.is_file():
+                dir_base = p.parent
+                break
+        cfg = config or cargar_configuracion_gaff(dir_base)
+        excl_cfg = cfg.get("excluded_rules", []) or cfg.get("disabled_rules", [])
+        if excl_cfg:
+            reglas_excluidas = set(str(x) for x in excl_cfg)
+
     archivos_objetivo: Set[Path] = set()
     for r in rutas:
         p = Path(r)
@@ -1599,7 +1650,11 @@ def ejecutar_linter(
         arreglos = 0
         if fix:
             arreglos = aplicar_autofix_archivo(arch)
-        viols = analizar_archivo(arch, reglas_habilitadas=reglas_habilitadas)
+        viols = analizar_archivo(
+            arch,
+            reglas_excluidas=reglas_excluidas,
+            reglas_habilitadas=reglas_habilitadas,
+        )
         reportes.append(ReporteArchivo(
             archivo=arch,
             violaciones=viols,

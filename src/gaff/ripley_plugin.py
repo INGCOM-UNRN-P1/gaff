@@ -18,7 +18,19 @@ class GaffPlugin:
         return True
 
     def execute(self, workspace: Path, manifest_config: Dict[str, Any]) -> Dict[str, Any]:
-        reporte = ejecutar_linter([workspace], fix=False, recursive=True)
+        excluidas = set(
+            manifest_config.get("excluded_rules", [])
+            or manifest_config.get("disabled_rules", [])
+            or manifest_config.get("exclude", [])
+            or manifest_config.get("ignore", [])
+            or manifest_config.get("reglas_excluidas", [])
+        )
+        reporte = ejecutar_linter(
+            [workspace],
+            fix=False,
+            reglas_excluidas=excluidas if excluidas else None,
+            recursive=True,
+        )
         observaciones = []
 
         for f_rep in reporte.archivos:

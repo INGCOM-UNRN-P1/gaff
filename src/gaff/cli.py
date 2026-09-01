@@ -72,14 +72,34 @@ def check_cmd(
     rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a analizar."),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     fix: bool = typer.Option(False, "--fix", "-f", help="Aplica automáticamente correcciones en reglas autofixables."),
-    rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Lista de códigos de regla separados por comas (ej: '0x0001h,0x5003h')."),
+    exclude: Optional[str] = typer.Option(
+        None,
+        "--exclude",
+        "-e",
+        "--ignore",
+        "-i",
+        help="Lista de códigos de regla a excluir/desactivar separados por comas (ej: '0x0001h,0x0037h').",
+    ),
+    rules: Optional[str] = typer.Option(
+        None,
+        "--rules",
+        "-R",
+        help="[Legado/Filtro] Lista de códigos de regla a evaluar exclusivamente. Por defecto se evalúan todas salvo las excluidas.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en JSON."),
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", "-o", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Ocultar advertencias y solo mostrar errores críticos."),
 ) -> None:
     """Audita archivos de código C comprobando las reglas de estilo y arquitectura de la cátedra."""
+    excluidas_set = set(r.strip() for r in exclude.split(",") if r.strip()) if exclude else None
     reglas_set = set(r.strip().upper() for r in rules.split(",") if r.strip()) if rules else None
-    reporte = ejecutar_linter(rutas, fix=fix, reglas_habilitadas=reglas_set, recursive=recursive)
+    reporte = ejecutar_linter(
+        rutas,
+        fix=fix,
+        reglas_excluidas=excluidas_set,
+        reglas_habilitadas=reglas_set,
+        recursive=recursive,
+    )
 
     if output_md:
         md_text = generar_seccion_markdown(reporte)

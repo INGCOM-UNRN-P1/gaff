@@ -157,3 +157,29 @@ int evaluar(int valor_entrada)
     assert not any("'1024'" in m for m in mensajes)
     assert not any("'500'" in m for m in mensajes)
     assert not any("'3.14159'" in m for m in mensajes)
+
+
+def test_gaff_identificadores_cortos_dos_y_tres_letras(tmp_path: Path):
+    """Regla 0x0001h: Variables de 2 y 3 letras no canónicas (id, cp, op, env) y excepciones (fd, fp)."""
+    fuente = tmp_path / "cortos_2_3.c"
+    fuente.write_text("""
+typedef struct Envio {
+    int valor;
+} envio_t;
+
+envio_t *crear(int fd, int id)
+{
+    unsigned int cp = 8400;
+    int op = 1;
+    envio_t *env = (envio_t *)0;
+    return env;
+}
+""")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x0001h"})
+    mensajes = [v.mensaje for v in viols if v.codigo == "0x0001h"]
+    assert any("'id'" in m for m in mensajes)
+    assert any("'cp'" in m for m in mensajes)
+    assert any("'op'" in m for m in mensajes)
+    assert any("'env'" in m for m in mensajes)
+    assert not any("'fd'" in m for m in mensajes)
+

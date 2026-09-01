@@ -460,10 +460,41 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     CANONICAL_INDICES = {"i", "j", "k", "n", "x", "y", "z", "f", "c", "r"}
     MATH_PARAM_NAMES = {"a", "b"}
+    ALLOWED_SHORT_EXCEPTIONS = {"fd", "fp", "in", "ok"}
     CRYPTIC_SHORT_NAMES = {
         "aux", "tmp", "val", "res", "cnt", "ptr", "num", "idx", "buf", "str", "vec", "len", "pos"
     }
     IGNORED_VAR_NAMES = {"main", "argc", "argv", "envp", "void", "NULL", "stdin", "stdout", "stderr"}
+
+    def _split_decl_items(decl: str) -> List[str]:
+        items: List[str] = []
+        current: List[str] = []
+        depth = 0
+        in_quote = False
+        quote_char = ""
+        for char in decl:
+            if in_quote:
+                current.append(char)
+                if char == quote_char:
+                    in_quote = False
+            elif char in ('"', "'"):
+                in_quote = True
+                quote_char = char
+                current.append(char)
+            elif char in ("(", "[", "{"):
+                depth += 1
+                current.append(char)
+            elif char in (")", "]", "}"):
+                depth = max(0, depth - 1)
+                current.append(char)
+            elif char == "," and depth == 0:
+                items.append("".join(current).strip())
+                current = []
+            else:
+                current.append(char)
+        if current:
+            items.append("".join(current).strip())
+        return [it for it in items if it]
 
     # 1. Nombres de funciones y parámetros
     re_fn_header = re.compile(
@@ -511,7 +542,7 @@ def analizar_archivo(
 
         # Parámetros de la función
         params_str = m_fh.group(2)
-        for p in params_str.split(","):
+        for p in _split_decl_items(params_str):
             p_strip = p.strip()
             if not p_strip or p_strip == "void" or "..." in p_strip:
                 continue
@@ -555,7 +586,7 @@ def analizar_archivo(
                             codigo_linea=lineas[line_fn - 1] if line_fn <= len(lineas) else "",
                             es_autofixable=False,
                         ))
-                elif len(p_name) < 4 and p_name.lower() in CRYPTIC_SHORT_NAMES:
+                elif 1 < len(p_name) < 4 and p_name.lower() not in ALLOWED_SHORT_EXCEPTIONS:
                     rcode, tit = _regla_info("0x0001h", "GAFF011")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
@@ -584,7 +615,7 @@ def analizar_archivo(
 
     # 2. Declaraciones de variables
     re_var_stmt = re.compile(
-        rf"^\s*(?:static\s+|const\s+|volatile\s+|register\s+)*(?:(?:struct|union|enum)\s+[a-zA-Z_]\w*|{TIPOS_BASICOS})\s+(?!\()([^;{{}}]+);",
+        rf"^\s*(?:static\s+|const\s+|volatile\s+|register\s+)*(?:(?:struct|union|enum)\s+[a-zA-Z_]\w*|{TIPOS_BASICOS}|[A-Z]\w*)\s+(?!\()([^;{{}}]+);",
         re.MULTILINE
     )
     for m_vs in re_var_stmt.finditer(codigo_sin_comentarios):
@@ -594,9 +625,9 @@ def analizar_archivo(
             continue
         is_const = line_txt.startswith("const") or line_txt.startswith("static const")
         decl_content = m_vs.group(1)
-        for item in decl_content.split(","):
+        for item in _split_decl_items(decl_content):
             has_init = "=" in item or "{" in item
-            clean_item = re.sub(r"=.*$", "", item)
+            clean_item = re.sub(r"=.*$", "", item, flags=re.DOTALL)
             clean_item = re.sub(r"\[.*?\]", "", clean_item).strip()
             m_v = re.search(r"[*]*\s*([a-zA-Z_]\w*)$", clean_item)
             if not m_v:
@@ -638,7 +669,7 @@ def analizar_archivo(
                             codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
                             es_autofixable=False,
                         ))
-                elif len(var_name) < 4 and var_name.lower() in CRYPTIC_SHORT_NAMES:
+                elif 1 < len(var_name) < 4 and var_name.lower() not in ALLOWED_SHORT_EXCEPTIONS:
                     rcode, tit = _regla_info("0x0001h", "GAFF011")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
@@ -716,6 +747,19 @@ def analizar_archivo(
                     columna=col_vl,
                     mensaje=f"Identificador de lazo no descriptivo de una sola letra '{var_lazo}'.",
                     sugerencia="Utilizá índices canónicos (i, j, k, n) para lazos.",
+                    codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+            elif 1 < len(var_lazo) < 4 and var_lazo.lower() not in ALLOWED_SHORT_EXCEPTIONS:
+                rcode, tit = _regla_info("0x0001h", "GAFF011")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=col_vl,
+                    mensaje=f"Identificador de variable de lazo corto y poco expresivo '{var_lazo}' ({len(var_lazo)} caracteres).",
+                    sugerencia="Se recomienda utilizar identificadores más descriptivos del dominio del problema o índices canónicos.",
                     codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
                     es_autofixable=False,
                 ))

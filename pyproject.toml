@@ -17,6 +17,9 @@ dependencies = [
 [project.scripts]
 gaff = "gaff.cli:main"
 
+[project.entry-points."ripley.plugins"]
+style = "gaff.ripley_plugin:GaffPlugin"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/gaff"]
 

@@ -32,6 +32,57 @@ def _enmascarar_literales(texto: str) -> str:
     return pattern.sub(lambda m: "".join("\n" if c == "\n" else " " for c in m.group(0)), texto)
 
 
+def _tiene_comentario_documentacion(lineas: List[str], line_idx: int) -> bool:
+    """Verifica si la línea (0-indexed) está precedida inmediatamente por un comentario de documentación."""
+    idx = line_idx - 1
+    blank_lines = 0
+    while idx >= 0 and not lineas[idx].strip():
+        blank_lines += 1
+        idx -= 1
+        if blank_lines > 2:
+            return False
+
+    if idx < 0:
+        return False
+
+    linea_anterior = lineas[idx].strip()
+
+    if linea_anterior.endswith("*/"):
+        inicio_idx = idx
+        bloque_lineas = [lineas[inicio_idx]]
+        while inicio_idx >= 0 and "/*" not in lineas[inicio_idx]:
+            inicio_idx -= 1
+            if inicio_idx >= 0:
+                bloque_lineas.append(lineas[inicio_idx])
+
+        if inicio_idx >= 0:
+            texto_bloque = "\n".join(reversed(bloque_lineas))
+            if "/**" in texto_bloque or "/*!" in texto_bloque:
+                return True
+            if any(tag in texto_bloque for tag in ("@brief", r"\brief", "@param", r"\param", "@return", r"\return", "@pre", "@post")):
+                return True
+            contenido_limpio = re.sub(r"/\*+|\*+/|\*", " ", texto_bloque).strip()
+            if len(contenido_limpio) >= 8 and not contenido_limpio.startswith(("#", "//", "int ", "void ")):
+                return True
+
+    if linea_anterior.startswith("//"):
+        bloque_lineas = []
+        curr = idx
+        while curr >= 0 and lineas[curr].strip().startswith("//"):
+            bloque_lineas.append(lineas[curr].strip())
+            curr -= 1
+        texto_lineas = " ".join(reversed(bloque_lineas))
+        if "///" in texto_lineas or "//!" in texto_lineas:
+            return True
+        if any(tag in texto_lineas for tag in ("@brief", r"\brief", "@param", r"\param", "@return", r"\return")):
+            return True
+        contenido_limpio = re.sub(r"^/+\s*", "", texto_lineas).strip()
+        if len(contenido_limpio) >= 8 and not contenido_limpio.startswith(("#", "int ", "void ", "return ")):
+            return True
+
+    return False
+
+
 # Tipos básicos de C
 TIPOS_BASICOS = r"(?:int|unsigned\s+int|short|unsigned\s+short|long|unsigned\s+long|long\s+long|char|unsigned\s+char|float|double|long\s+double|size_t|ssize_t|bool|_Bool|void|FILE|\w+_t|t_\w+)"
 
@@ -891,6 +942,132 @@ def analizar_archivo(
                     mensaje=f"Función auxiliar de cálculo '{fn_name}' contiene llamadas directas a '{m_io.group(1)}'.",
                     sugerencia="Separá la lógica computacional del código de entrada/salida por consola.",
                     codigo_linea=lineas[line_no - 1],
+                    es_autofixable=False,
+                ))
+
+    # 0x2003h: Documentación completa de funciones y prototipos
+    if _esta_activa("0x2003h"):
+        def _obtener_prototipos_documentados_header(ruta_h: Path) -> Set[str]:
+            if not ruta_h.is_file():
+                return set()
+            try:
+                txt_h = ruta_h.read_text(encoding="utf-8")
+            except Exception:
+                try:
+                    txt_h = ruta_h.read_text(encoding="latin-1")
+                except Exception:
+                    return set()
+            lines_h = txt_h.splitlines()
+            code_h_sin_comentarios = _eliminar_comentarios(txt_h)
+            doc_fns: Set[str] = set()
+            re_proto_h = re.compile(
+                rf"^[ \t]*(?!(?:typedef|return)\b)(?:(?:static|inline|extern|const)[ \t]+)*(?:struct[ \t]+\w+|enum[ \t]+\w+|union[ \t]+\w+|{TIPOS_BASICOS}|[a-zA-Z_]\w*)[ \t]*(\*+[ \t]*|[ \t]+\*?)([a-zA-Z_]\w*)[ \t]*\(([\s\S]*?)\)[ \t]*;",
+                re.MULTILINE
+            )
+            for m_p in re_proto_h.finditer(code_h_sin_comentarios):
+                fn_nom = m_p.group(2)
+                l_idx = code_h_sin_comentarios[:m_p.start()].count("\n")
+                if _tiene_comentario_documentacion(lines_h, l_idx):
+                    doc_fns.add(fn_nom)
+            return doc_fns
+
+        prototipos_doc_header: Set[str] = set()
+        if not es_header:
+            comp_h = ruta.with_suffix(".h")
+            prototipos_doc_header.update(_obtener_prototipos_documentados_header(comp_h))
+            for inc in re.findall(r'#include\s+"([^"]+\.h)"', contenido_original):
+                inc_path = ruta.parent / inc
+                prototipos_doc_header.update(_obtener_prototipos_documentados_header(inc_path))
+
+        re_fn_decl_all = re.compile(
+            rf"^[ \t]*(?!(?:typedef|return)\b)(?:(?:static|inline|extern|const)[ \t]+)*(?:struct[ \t]+\w+|enum[ \t]+\w+|union[ \t]+\w+|{TIPOS_BASICOS}|[a-zA-Z_]\w*)[ \t]*(\*+[ \t]*|[ \t]+\*?)([a-zA-Z_]\w*)[ \t]*\(([\s\S]*?)\)[ \t]*([;{{])?",
+            re.MULTILINE
+        )
+
+        prototipos_documentados_mismo_archivo: Set[str] = set()
+        prototipos_no_documentados: List[Tuple[str, int, int]] = []
+        definiciones_no_documentadas: List[Tuple[str, int, int]] = []
+
+        for m_fn in re_fn_decl_all.finditer(codigo_sin_comentarios):
+            fn_name = m_fn.group(2)
+            if fn_name in ("if", "for", "while", "switch", "return", "sizeof", "main"):
+                continue
+
+            line_fn = codigo_sin_comentarios[:m_fn.start(2)].count("\n") + 1
+            col_fn = m_fn.start(2) - codigo_sin_comentarios.rfind("\n", 0, m_fn.start(2))
+            line_idx_start = codigo_sin_comentarios[:m_fn.start()].count("\n")
+
+            tiene_doc = _tiene_comentario_documentacion(lineas, line_idx_start)
+
+            char_cierre = m_fn.group(4)
+            pos_despues_paren = m_fn.end()
+
+            if char_cierre == ";":
+                es_prototipo = True
+            elif char_cierre == "{":
+                es_prototipo = False
+            else:
+                resto = codigo_sin_comentarios[pos_despues_paren:pos_despues_paren + 100].lstrip()
+                if resto.startswith(";"):
+                    es_prototipo = True
+                elif resto.startswith("{") or "{" in resto[:60]:
+                    es_prototipo = False
+                else:
+                    continue
+
+            if es_prototipo:
+                if tiene_doc:
+                    prototipos_documentados_mismo_archivo.add(fn_name)
+                else:
+                    prototipos_no_documentados.append((fn_name, line_fn, col_fn))
+            else:
+                if not tiene_doc:
+                    definiciones_no_documentadas.append((fn_name, line_fn, col_fn))
+
+        rcode, tit = _regla_info("0x2003h")
+
+        if es_header:
+            for fn_name, l_no, c_no in prototipos_no_documentados:
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=l_no,
+                    columna=c_no,
+                    mensaje=f"El prototipo de la función '{fn_name}' no incluye comentario de documentación.",
+                    sugerencia="Documentá la función con @brief, @param y @return en formato Doxygen (/** ... */).",
+                    codigo_linea=lineas[l_no - 1] if l_no <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+        else:
+            for fn_name, l_no, c_no in prototipos_no_documentados:
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=l_no,
+                    columna=c_no,
+                    mensaje=f"El prototipo de la función '{fn_name}' no incluye comentario de documentación.",
+                    sugerencia="Documentá la función con @brief, @param y @return en formato Doxygen (/** ... */).",
+                    codigo_linea=lineas[l_no - 1] if l_no <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+            for fn_name, l_no, c_no in definiciones_no_documentadas:
+                if fn_name in prototipos_documentados_mismo_archivo or fn_name in prototipos_doc_header:
+                    continue
+                if any(p[0] == fn_name for p in prototipos_no_documentados):
+                    continue
+
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=l_no,
+                    columna=c_no,
+                    mensaje=f"La función '{fn_name}' no incluye comentario de documentación.",
+                    sugerencia="Documentá la función con @brief, @param y @return en formato Doxygen (/** ... */).",
+                    codigo_linea=lineas[l_no - 1] if l_no <= len(lineas) else "",
                     es_autofixable=False,
                 ))
 

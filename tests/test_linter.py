@@ -55,6 +55,12 @@ def test_archivo_limpio_sin_violaciones(tmp_path):
     fuente = tmp_path / "limpio.c"
     fuente.write_text("""#include <stdio.h>
 
+/**
+ * @brief Calcula la suma de dos enteros.
+ * @param a Primer sumando.
+ * @param b Segundo sumando.
+ * @return La suma si a es mayor a cero, o cero.
+ */
 int calcular_suma(int a, int b)
 {
     if (a > 0)

@@ -147,15 +147,19 @@ def report_cmd(
 @app.command("rules")
 def rules_cmd() -> None:
     """Lista todas las reglas de estilo y arquitectura del catálogo de GAFF."""
-    tabla = Table(title=f"Catálogo de Reglas de Cátedra GAFF ({len(CATALOGO_REGLAS)} reglas)")
+    reglas_hex = {k: v for k, v in CATALOGO_REGLAS.items() if k.startswith("0x")}
+    tabla = Table(title=f"Catálogo de Reglas de Cátedra GAFF ({len(reglas_hex)} reglas)")
     tabla.add_column("Código", style="bold cyan", justify="center")
+    tabla.add_column("Alias", style="cyan", justify="center")
     tabla.add_column("Título", style="bold")
-    tabla.add_column("Descripción")
+    tabla.add_column("Categoría / Origen", style="dim")
     tabla.add_column("Autofix", justify="center")
 
-    for cod, info in sorted(CATALOGO_REGLAS.items()):
-        fix_str = "[green]Sí[/green]" if info["autofix"] == "Sí" else "[dim]No[/dim]"
-        tabla.add_row(cod, info["titulo"], info["descripcion"], fix_str)
+    for cod, info in sorted(reglas_hex.items()):
+        fix_str = "[green]Sí[/green]" if info.get("autofix") == "Sí" else "[dim]No[/dim]"
+        alias = info.get("alias", "-")
+        cat = info.get("categoria") or info.get("archivo_apunte", "-")
+        tabla.add_row(cod, alias, info["titulo"], cat, fix_str)
 
     console.print(tabla)
 

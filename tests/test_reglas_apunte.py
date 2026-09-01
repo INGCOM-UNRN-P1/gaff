@@ -480,3 +480,33 @@ int sumar(int a, int b) {
     assert not any(v.codigo == "0x000Bh" for v in viols_despues)
 
 
+def test_sincronizacion_apunte_reglas():
+    """Verifica que GAFF cargue y sincronice las 60 reglas canónicas de p1-apunte/reglas."""
+    from gaff.core.rules import CATALOGO_REGLAS, cargar_reglas_desde_apunte, obtener_regla
+
+    reglas = cargar_reglas_desde_apunte()
+    assert len(reglas) >= 60
+
+    # Verificar presencia de reglas representativas de cada categoría
+    assert "0x0001h" in CATALOGO_REGLAS
+    assert "0x1002h" in CATALOGO_REGLAS
+    assert "0x2001h" in CATALOGO_REGLAS
+    assert "0x300Dh" in CATALOGO_REGLAS
+    assert "0x4001h" in CATALOGO_REGLAS
+    assert "0x5003h" in CATALOGO_REGLAS
+
+    # Verificar coincidencia de títulos con p1-apunte/reglas
+    r_0x0001 = obtener_regla("0x0001h")
+    assert r_0x0001 is not None
+    assert r_0x0001["titulo"] == "Los identificadores deben ser descriptivos"
+
+    r_0x1002 = obtener_regla("0x1002h")
+    assert r_0x1002 is not None
+    assert "break y continue" in r_0x1002["titulo"]
+
+    r_0x300d = obtener_regla("0x300Dh")
+    assert r_0x300d is not None
+    assert "números mágicos" in r_0x300d["titulo"].lower()
+
+
+

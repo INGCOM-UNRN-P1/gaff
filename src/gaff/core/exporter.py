@@ -23,11 +23,13 @@ def generar_guia_estilo_markdown() -> str:
     ]
     
     for cod, regla in sorted(CATALOGO_REGLAS.items()):
+        if not cod.startswith("0x"):
+            continue
         alias = regla.get("alias", "-")
         sev = regla.get("severidad", "ADVERTENCIA")
         titulo = regla.get("titulo", "Regla")
         desc = regla.get("descripcion", "").replace("\n", " ")
-        fix = "✓ Sí" if regla.get("autofixable", False) else "No"
+        fix = "✓ Sí" if regla.get("autofixable", False) or regla.get("autofix") == "Sí" else "No"
         lineas.append(f"| `{cod}` | `{alias}` | **{sev}** | **{titulo}** | {desc} | {fix} |")
         
     lineas.append("")

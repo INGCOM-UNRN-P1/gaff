@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+import re
 from typing import Any, Dict, Optional
 
 CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
@@ -702,13 +705,115 @@ ALIAS_MAP: Dict[str, str] = {
 }
 
 
+def cargar_reglas_desde_apunte(directorio_apunte: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+    """Carga y sincroniza las reglas canónicas directamente desde p1-apunte/reglas."""
+    rutas_candidatas = [
+        Path(os.environ.get("P1_REGLAS_DIR", "")) if os.environ.get("P1_REGLAS_DIR") else None,
+        directorio_apunte,
+        Path("/home/mrtin/dev/edu-sitios/p1-apunte/reglas"),
+        Path.cwd().parents[1] / "edu-sitios" / "p1-apunte" / "reglas",
+        Path(__file__).resolve().parents[5] / "edu-sitios" / "p1-apunte" / "reglas",
+    ]
+    dir_valido: Optional[Path] = None
+    for r in rutas_candidatas:
+        if r and r.is_dir():
+            dir_valido = r
+            break
+
+    if not dir_valido:
+        return CATALOGO_REGLAS
+
+    CATEGORIAS = {
+        "0_sintaxis.md": "Sintaxis Básica y Nomenclatura (0x00XX)",
+        "1_control.md": "Estructuras de Control y Lazos (0x10XX)",
+        "2_funciones.md": "Funciones y Modularización (0x20XX)",
+        "3_punteros.md": "Punteros y Gestión de Memoria (0x30XX)",
+        "4_archivos.md": "Gestión de Archivos y Errores (0x40XX)",
+        "5_buenas_practicas.md": "Compilación y Buenas Prácticas de Ingeniería (0x50XX)",
+    }
+
+    pattern = r"(?:(?:\([0-9a-fA-FxX]+h?\)\s*=\s*)?##\s*Regla\s*`?(0x[0-9a-fA-F]+h)`?\s*(?::|\n\s*:)\s*)"
+
+    for fname, cat in CATEGORIAS.items():
+        fpath = dir_valido / fname
+        if not fpath.is_file():
+            continue
+        try:
+            content = fpath.read_text(encoding="utf-8")
+        except Exception:
+            continue
+
+        parts = re.split(pattern, content)
+        for i in range(1, len(parts), 2):
+            code = parts[i].strip()
+            body = parts[i + 1]
+            lines = body.strip().splitlines()
+            title = lines[0].strip().rstrip(":").replace("`", "")
+
+            desc_parts = []
+            for p in re.split(r"\n\s*\n", "\n".join(lines[1:])):
+                p_s = p.strip()
+                if p_s.startswith("```") or p_s.startswith("- ") or p_s.startswith("###") or p_s.startswith("<!--"):
+                    break
+                desc_parts.append(p_s)
+            desc = " ".join(desc_parts).replace("\n", " ").strip()
+
+            ejemplo_inc = ""
+            ejemplo_corr = ""
+            diff_m = re.search(r"```\s*diff\s*\n(.*?)\n```", body, re.DOTALL)
+            if diff_m:
+                d_lines = diff_m.group(1).splitlines()
+                ejemplo_inc = "\n".join(l[1:].strip() for l in d_lines if l.startswith("-"))
+                ejemplo_corr = "\n".join(l[1:].strip() for l in d_lines if l.startswith("+"))
+            else:
+                inc_m = re.search(r"(?:-|\*\*)\s*(?:Identificadores\s+inadecuados?|Inadecuados?|Incorrecto[^:]*):\s*\n+```[a-zA-Z]*\s*\n(.*?)\n```", body, re.DOTALL | re.IGNORECASE)
+                corr_m = re.search(r"(?:-|\*\*)\s*(?:Identificadores\s+adecuados?|Adecuados?|Correcto[^:]*):\s*\n+```[a-zA-Z]*\s*\n(.*?)\n```", body, re.DOTALL | re.IGNORECASE)
+                if inc_m:
+                    ejemplo_inc = inc_m.group(1).strip()
+                if corr_m:
+                    ejemplo_corr = corr_m.group(1).strip()
+
+            if code in CATALOGO_REGLAS:
+                CATALOGO_REGLAS[code]["titulo"] = title
+                CATALOGO_REGLAS[code]["categoria"] = cat
+                CATALOGO_REGLAS[code]["archivo_apunte"] = fname
+                if desc:
+                    CATALOGO_REGLAS[code]["descripcion"] = desc
+                if ejemplo_corr:
+                    CATALOGO_REGLAS[code]["ejemplo_correcto"] = ejemplo_corr
+                if ejemplo_inc:
+                    CATALOGO_REGLAS[code]["ejemplo_incorrecto"] = ejemplo_inc
+            else:
+                CATALOGO_REGLAS[code] = {
+                    "codigo": code,
+                    "alias": f"GAFF_{code}",
+                    "titulo": title,
+                    "categoria": cat,
+                    "archivo_apunte": fname,
+                    "descripcion": desc,
+                    "ejemplo_correcto": ejemplo_corr or "// Código conforme a cátedra",
+                    "ejemplo_incorrecto": ejemplo_inc or "// Código no conforme",
+                    "autofix": "Sí" if code in ("0x0004h", "0x0005h", "0x0006h", "0x000Bh", "0x5003h") else "No",
+                }
+
+    # Re-sincronizar alias mapeados
+    for k, v in ALIAS_MAP.items():
+        if v in CATALOGO_REGLAS:
+            CATALOGO_REGLAS[k] = CATALOGO_REGLAS[v]
+
+    return CATALOGO_REGLAS
+
+
 def obtener_regla(codigo: str) -> Optional[Dict[str, Any]]:
-    """Busca una regla por código hex (0xXXXXh) o alias (GAFFxxx) de forma insensible a mayúsculas."""
+    """Busca una regla por código hex (0xXXXXh, 0xXXXX) o alias (GAFFxxx) de forma insensible a mayúsculas."""
     cod = codigo.strip().lower()
+    cod_h = cod + "h" if (cod.startswith("0x") and not cod.endswith("h")) else cod
+
     for k, info in CATALOGO_REGLAS.items():
-        if k.lower() == cod:
+        k_low = k.lower()
+        if k_low in (cod, cod_h):
             return info
-        if info.get("codigo", "").lower() == cod:
+        if info.get("codigo", "").lower() in (cod, cod_h):
             return info
         if info.get("alias", "").lower() == cod:
             return info
@@ -723,3 +828,6 @@ def obtener_regla(codigo: str) -> Optional[Dict[str, Any]]:
 for k, v in ALIAS_MAP.items():
     if v in CATALOGO_REGLAS:
         CATALOGO_REGLAS[k] = CATALOGO_REGLAS[v]
+
+# Carga y sincronización inicial con p1-apunte/reglas
+cargar_reglas_desde_apunte()

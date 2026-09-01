@@ -513,11 +513,26 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     CANONICAL_INDICES = {"i", "j", "k", "n", "x", "y", "z", "f", "c", "r"}
     MATH_PARAM_NAMES = {"a", "b"}
-    ALLOWED_SHORT_EXCEPTIONS = {"fd", "fp", "in", "ok"}
+    ALLOWED_SHORT_EXCEPTIONS = {"fd", "fp", "in", "ok", "x1", "y1", "z1", "x2", "y2", "z2"}
     CRYPTIC_SHORT_NAMES = {
         "aux", "tmp", "val", "res", "cnt", "ptr", "num", "idx", "buf", "str", "vec", "len", "pos"
     }
     IGNORED_VAR_NAMES = {"main", "argc", "argv", "envp", "void", "NULL", "stdin", "stdout", "stderr"}
+    RE_GENERIC_NUMBERED_IDENTIFIER = re.compile(
+        r"^(?:"
+        r"numero|numeros|num|nums|nro|nros|n|"
+        r"var|variable|variables|"
+        r"dato|datos|val|valor|valores|"
+        r"elem|elemento|elementos|"
+        r"aux|auxiliar|tmp|temp|"
+        r"arg|param|parametro|parametros|"
+        r"item|items|cosa|cosas|obj|objeto|objetos|"
+        r"entrada|salida|texto|str|string|"
+        r"res|resultado|resultados|"
+        r"vec|vector|vectores|arr|array|arreglo|arreglos"
+        r")_?[0-9]+$",
+        re.IGNORECASE,
+    )
 
     def _split_decl_items(decl: str) -> List[str]:
         items: List[str] = []
@@ -623,8 +638,24 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
 
+            # 0x0037h / 0x0001h: Identificadores genéricos con sufijo numérico (numero1, num_1, etc.)
+            if (_esta_activa("0x0037h") or _esta_activa("0x0001h")) and RE_GENERIC_NUMBERED_IDENTIFIER.match(p_name):
+                rule_target = "0x0037h" if _esta_activa("0x0037h") else "0x0001h"
+                rcode, tit = _regla_info(rule_target)
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_fn,
+                    columna=col_p,
+                    mensaje=f"Identificador de parámetro '{p_name}' con sufijo numérico genérico denota una elección pobre de nombre.",
+                    sugerencia="Elegí un nombre semántico que describa el rol específico del parámetro (ej: 'dividendo', 'divisor') o utilizá un arreglo/estructura.",
+                    codigo_linea=lineas[line_fn - 1] if line_fn <= len(lineas) else "",
+                    es_autofixable=False,
+                    severidad="ADVERTENCIA",
+                ))
             # 0x0001h: Parámetros descriptivos (cortos y largos)
-            if _esta_activa("0x0001h"):
+            elif _esta_activa("0x0001h"):
                 if len(p_name) == 1:
                     if p_name.lower() not in CANONICAL_INDICES and p_name.lower() not in MATH_PARAM_NAMES:
                         rcode, tit = _regla_info("0x0001h")
@@ -706,8 +737,24 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
 
+            # 0x0037h / 0x0001h: Variables genéricas con sufijo numérico (numero1, num_1, etc.)
+            if (_esta_activa("0x0037h") or _esta_activa("0x0001h")) and RE_GENERIC_NUMBERED_IDENTIFIER.match(var_name):
+                rule_target = "0x0037h" if _esta_activa("0x0037h") else "0x0001h"
+                rcode, tit = _regla_info(rule_target)
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=col_v,
+                    mensaje=f"Identificador de variable '{var_name}' con sufijo numérico genérico denota una elección pobre de nombre.",
+                    sugerencia="Elegí un nombre semántico que describa su rol específico en el algoritmo o utilizá un arreglo/estructura si representan datos homogéneos.",
+                    codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                    es_autofixable=False,
+                    severidad="ADVERTENCIA",
+                ))
             # 0x0001h: Variables cortas y largas
-            if _esta_activa("0x0001h"):
+            elif _esta_activa("0x0001h"):
                 if len(var_name) == 1:
                     if var_name.lower() not in CANONICAL_INDICES:
                         rcode, tit = _regla_info("0x0001h")
@@ -789,7 +836,23 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-        if _esta_activa("0x0001h"):
+        # 0x0037h / 0x0001h: Variables de lazo genéricas con sufijo numérico
+        if (_esta_activa("0x0037h") or _esta_activa("0x0001h")) and RE_GENERIC_NUMBERED_IDENTIFIER.match(var_lazo):
+            rule_target = "0x0037h" if _esta_activa("0x0037h") else "0x0001h"
+            rcode, tit = _regla_info(rule_target)
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=line_no,
+                columna=col_vl,
+                mensaje=f"Identificador de lazo '{var_lazo}' con sufijo numérico genérico denota una elección pobre de nombre.",
+                sugerencia="Utilizá índices canónicos (i, j, k, n) o identificadores con significado en el dominio.",
+                codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                es_autofixable=False,
+                severidad="ADVERTENCIA",
+            ))
+        elif _esta_activa("0x0001h"):
             if len(var_lazo) == 1 and var_lazo.lower() not in CANONICAL_INDICES:
                 rcode, tit = _regla_info("0x0001h")
                 violaciones.append(ViolacionRegla(

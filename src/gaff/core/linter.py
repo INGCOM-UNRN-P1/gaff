@@ -454,23 +454,282 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x0007h / 0x200Ah (GAFF001 / GAFF032): CamelCase en funciones o variables
-    if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
-        re_camel = re.compile(r"\b(?:int|void|char|float|double|size_t|bool|\w+_t|t_\w+)\s+([a-z]+[A-Z]\w*)\s*\(")
-        for idx, linea in enumerate(lineas_sin_comentarios, 1):
-            m_fn = re_camel.search(linea)
-            if m_fn:
-                fn_name = m_fn.group(1)
+    # -------------------------------------------------------------------------
+    # 0x0001h (GAFF011), 0x0003h (GAFF013), 0x0007h (GAFF001 / GAFF032)
+    # Inspección Exhaustiva de Identificadores (Funciones, Variables, Parámetros y Lazos)
+    # -------------------------------------------------------------------------
+    CANONICAL_INDICES = {"i", "j", "k", "n", "x", "y", "z", "f", "c", "r"}
+    MATH_PARAM_NAMES = {"a", "b"}
+    CRYPTIC_SHORT_NAMES = {
+        "aux", "tmp", "val", "res", "cnt", "ptr", "num", "idx", "buf", "str", "vec", "len", "pos"
+    }
+    IGNORED_VAR_NAMES = {"main", "argc", "argv", "envp", "void", "NULL", "stdin", "stdout", "stderr"}
+
+    # 1. Nombres de funciones y parámetros
+    re_fn_header = re.compile(
+        rf"^\s*(?:static\s+|inline\s+|extern\s+)*(?:{TIPOS_BASICOS}|[a-zA-Z_]\w*)\s+(\*?\s*[a-zA-Z_]\w*)\s*\(([^;{{)]*)\)",
+        re.MULTILINE
+    )
+    for m_fh in re_fn_header.finditer(codigo_sin_comentarios):
+        raw_fn = m_fh.group(1).lstrip("*").strip()
+        if raw_fn in ("if", "for", "while", "switch", "return", "sizeof"):
+            continue
+        line_fn = codigo_sin_comentarios[:m_fh.start(1)].count("\n") + 1
+        col_fn = m_fh.start(1) - codigo_sin_comentarios.rfind("\n", 0, m_fh.start(1))
+
+        # 0x0007h / 0x200Ah: camelCase en funciones
+        if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
+            if raw_fn not in IGNORED_VAR_NAMES and any(c.isupper() for c in raw_fn) and any(c.islower() for c in raw_fn):
                 rcode, tit = _regla_info("0x0007h", "GAFF001")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
                     archivo=ruta,
-                    linea=idx,
-                    columna=m_fn.start(1) + 1,
-                    mensaje=f"Nombre de función '{fn_name}' escrito en camelCase.",
+                    linea=line_fn,
+                    columna=col_fn,
+                    mensaje=f"Nombre de función '{raw_fn}' escrito en camelCase.",
                     sugerencia="Usá snake_case (todo en minúsculas con guiones bajos).",
-                    codigo_linea=lineas[idx - 1],
+                    codigo_linea=lineas[line_fn - 1] if line_fn <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+        # 0x0001h (GAFF011): Nombres de función excesivamente largos (> 31 caracteres)
+        if _esta_activa("0x0001h", "GAFF011"):
+            if len(raw_fn) > 31:
+                rcode, tit = _regla_info("0x0001h", "GAFF011")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_fn,
+                    columna=col_fn,
+                    mensaje=f"Nombre de función excesivamente largo '{raw_fn}' ({len(raw_fn)} caracteres).",
+                    sugerencia="Los identificadores no deben superar los 31 caracteres para mantener la legibilidad y compatibilidad con el estándar ISO C.",
+                    codigo_linea=lineas[line_fn - 1] if line_fn <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+        # Parámetros de la función
+        params_str = m_fh.group(2)
+        for p in params_str.split(","):
+            p_strip = p.strip()
+            if not p_strip or p_strip == "void" or "..." in p_strip:
+                continue
+            m_p = re.search(r"[*]*\s*([a-zA-Z_]\w*)$", p_strip)
+            if not m_p:
+                continue
+            p_name = m_p.group(1)
+            if p_name in IGNORED_VAR_NAMES:
+                continue
+            col_p = lineas[line_fn - 1].find(p_name) + 1 if line_fn <= len(lineas) and p_name in lineas[line_fn - 1] else 1
+
+            # camelCase en parámetros
+            if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
+                if any(c.isupper() for c in p_name) and any(c.islower() for c in p_name):
+                    rcode, tit = _regla_info("0x0007h", "GAFF001")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=line_fn,
+                        columna=col_p,
+                        mensaje=f"Identificador de parámetro '{p_name}' escrito en camelCase.",
+                        sugerencia="Usá snake_case en minúsculas con guiones bajos.",
+                        codigo_linea=lineas[line_fn - 1] if line_fn <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+
+            # 0x0001h (GAFF011): Parámetros descriptivos (cortos y largos)
+            if _esta_activa("0x0001h", "GAFF011"):
+                if len(p_name) == 1:
+                    if p_name.lower() not in CANONICAL_INDICES and p_name.lower() not in MATH_PARAM_NAMES:
+                        rcode, tit = _regla_info("0x0001h", "GAFF011")
+                        violaciones.append(ViolacionRegla(
+                            codigo=rcode,
+                            titulo=tit,
+                            archivo=ruta,
+                            linea=line_fn,
+                            columna=col_p,
+                            mensaje=f"Identificador de parámetro no descriptivo de una sola letra '{p_name}'.",
+                            sugerencia="Los nombres de argumentos deben reflejar con precisión su propósito.",
+                            codigo_linea=lineas[line_fn - 1] if line_fn <= len(lineas) else "",
+                            es_autofixable=False,
+                        ))
+                elif len(p_name) < 4 and p_name.lower() in CRYPTIC_SHORT_NAMES:
+                    rcode, tit = _regla_info("0x0001h", "GAFF011")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=line_fn,
+                        columna=col_p,
+                        mensaje=f"Identificador de parámetro corto y poco expresivo '{p_name}' ({len(p_name)} caracteres).",
+                        sugerencia="Se recomienda utilizar identificadores más descriptivos del dominio del problema.",
+                        codigo_linea=lineas[line_fn - 1] if line_fn <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+                elif len(p_name) > 31:
+                    rcode, tit = _regla_info("0x0001h", "GAFF011")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=line_fn,
+                        columna=col_p,
+                        mensaje=f"Identificador de parámetro excesivamente largo '{p_name}' ({len(p_name)} caracteres).",
+                        sugerencia="Los identificadores no deben superar los 31 caracteres para cumplir el estándar ISO C.",
+                        codigo_linea=lineas[line_fn - 1] if line_fn <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+
+    # 2. Declaraciones de variables
+    re_var_stmt = re.compile(
+        rf"^\s*(?:static\s+|const\s+|volatile\s+|register\s+)*(?:(?:struct|union|enum)\s+[a-zA-Z_]\w*|{TIPOS_BASICOS})\s+(?!\()([^;{{}}]+);",
+        re.MULTILINE
+    )
+    for m_vs in re_var_stmt.finditer(codigo_sin_comentarios):
+        line_no = codigo_sin_comentarios[:m_vs.start()].count("\n") + 1
+        line_txt = lineas_sin_comentarios[line_no - 1].strip()
+        if line_txt.startswith("typedef") or line_txt.startswith("return") or line_txt.startswith("#"):
+            continue
+        is_const = line_txt.startswith("const") or line_txt.startswith("static const")
+        decl_content = m_vs.group(1)
+        for item in decl_content.split(","):
+            has_init = "=" in item or "{" in item
+            clean_item = re.sub(r"=.*$", "", item)
+            clean_item = re.sub(r"\[.*?\]", "", clean_item).strip()
+            m_v = re.search(r"[*]*\s*([a-zA-Z_]\w*)$", clean_item)
+            if not m_v:
+                continue
+            var_name = m_v.group(1)
+            if var_name in IGNORED_VAR_NAMES or is_const:
+                continue
+            col_v = lineas[line_no - 1].find(var_name) + 1 if line_no <= len(lineas) and var_name in lineas[line_no - 1] else 1
+
+            # 0x0007h: camelCase en variables locales y globales
+            if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
+                if any(c.isupper() for c in var_name) and any(c.islower() for c in var_name):
+                    rcode, tit = _regla_info("0x0007h", "GAFF001")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=line_no,
+                        columna=col_v,
+                        mensaje=f"Identificador de variable '{var_name}' escrito en camelCase.",
+                        sugerencia="Usá snake_case (todo en minúsculas con guiones bajos).",
+                        codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+
+            # 0x0001h (GAFF011): Variables cortas y largas
+            if _esta_activa("0x0001h", "GAFF011"):
+                if len(var_name) == 1:
+                    if var_name.lower() not in CANONICAL_INDICES:
+                        rcode, tit = _regla_info("0x0001h", "GAFF011")
+                        violaciones.append(ViolacionRegla(
+                            codigo=rcode,
+                            titulo=tit,
+                            archivo=ruta,
+                            linea=line_no,
+                            columna=col_v,
+                            mensaje=f"Identificador de variable no descriptivo de una sola letra '{var_name}'.",
+                            sugerencia="Los nombres de variables deben reflejar con precisión su propósito (salvo índices canónicos i, j, k, n, x, y, z, f, c, r).",
+                            codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                            es_autofixable=False,
+                        ))
+                elif len(var_name) < 4 and var_name.lower() in CRYPTIC_SHORT_NAMES:
+                    rcode, tit = _regla_info("0x0001h", "GAFF011")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=line_no,
+                        columna=col_v,
+                        mensaje=f"Identificador corto y poco expresivo '{var_name}' ({len(var_name)} caracteres).",
+                        sugerencia="Se recomienda utilizar identificadores más descriptivos del dominio del problema.",
+                        codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+                elif len(var_name) > 31:
+                    rcode, tit = _regla_info("0x0001h", "GAFF011")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=line_no,
+                        columna=col_v,
+                        mensaje=f"Identificador excesivamente largo '{var_name}' ({len(var_name)} caracteres).",
+                        sugerencia="Los identificadores no deben superar los 31 caracteres para mantener la legibilidad y cumplir el estándar ISO C.",
+                        codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+
+            # 0x0003h (GAFF013): Inicialización obligatoria
+            if _esta_activa("0x0003h", "GAFF013") and not has_init:
+                rcode, tit = _regla_info("0x0003h", "GAFF013")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=col_v,
+                    mensaje=f"Variable '{var_name}' declarada sin inicializar a un valor conocido.",
+                    sugerencia="Inicializá las variables locales al declararlas (ej: 'int x = 0;').",
+                    codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+    # 3. Variables de lazo for (ej: for (int i = 0; ...))
+    re_for_decl = re.compile(
+        rf"\bfor\s*\(\s*(?:{TIPOS_BASICOS})\s+([a-zA-Z_]\w*)\s*=",
+        re.MULTILINE
+    )
+    for m_fd in re_for_decl.finditer(codigo_sin_comentarios):
+        var_lazo = m_fd.group(1)
+        line_no = codigo_sin_comentarios[:m_fd.start(1)].count("\n") + 1
+        col_vl = lineas[line_no - 1].find(var_lazo) + 1 if line_no <= len(lineas) and var_lazo in lineas[line_no - 1] else 1
+
+        if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
+            if any(c.isupper() for c in var_lazo) and any(c.islower() for c in var_lazo):
+                rcode, tit = _regla_info("0x0007h", "GAFF001")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=col_vl,
+                    mensaje=f"Identificador de variable de lazo '{var_lazo}' escrito en camelCase.",
+                    sugerencia="Usá snake_case en minúsculas.",
+                    codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+        if _esta_activa("0x0001h", "GAFF011"):
+            if len(var_lazo) == 1 and var_lazo.lower() not in CANONICAL_INDICES:
+                rcode, tit = _regla_info("0x0001h", "GAFF011")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=col_vl,
+                    mensaje=f"Identificador de lazo no descriptivo de una sola letra '{var_lazo}'.",
+                    sugerencia="Utilizá índices canónicos (i, j, k, n) para lazos.",
+                    codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+            elif len(var_lazo) > 31:
+                rcode, tit = _regla_info("0x0001h", "GAFF011")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=col_vl,
+                    mensaje=f"Identificador de variable de lazo excesivamente largo '{var_lazo}' ({len(var_lazo)} caracteres).",
+                    sugerencia="Los identificadores no deben superar los 31 caracteres.",
+                    codigo_linea=lineas[line_no - 1] if line_no <= len(lineas) else "",
                     es_autofixable=False,
                 ))
 
@@ -722,7 +981,11 @@ def analizar_archivo(
             r"(?<![\w.])(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:[uUlLfF]+)?"
         )
         for idx, linea in enumerate(codigo_magicos.splitlines(), 1):
-            if linea.strip().startswith("#"):
+            linea_strip = linea.strip()
+            if linea_strip.startswith("#"):
+                continue
+            # Ignorar líneas que definen constantes
+            if re.match(r"^\s*(?:static\s+)?const\s+", linea):
                 continue
             for m in re_num_magico.finditer(linea):
                 literal = m.group(0)
@@ -731,6 +994,9 @@ def analizar_archivo(
                 else:
                     valor = float(literal.rstrip("uUlLfF"))
                 if valor in (0.0, 1.0, 2.0):
+                    continue
+                col_start = m.start()
+                if col_start > 0 and linea[col_start - 1] == "-" and valor == 1.0:
                     continue
                 rcode, tit = _regla_info("0x300Dh", "GAFF006")
                 violaciones.append(ViolacionRegla(
@@ -741,7 +1007,7 @@ def analizar_archivo(
                     columna=m.start() + 1,
                     mensaje=f"Número mágico '{literal}' sin contexto: no está definido como constante.",
                     sugerencia=f"Definí una constante descriptiva con #define o enum (ej: '#define MAX_INTENTOS {literal}') y usala en su lugar.",
-                    codigo_linea=lineas[idx - 1],
+                    codigo_linea=lineas[idx - 1] if idx - 1 < len(lineas) else "",
                     es_autofixable=False,
                 ))
 

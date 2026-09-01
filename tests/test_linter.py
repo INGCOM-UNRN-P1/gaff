@@ -6,7 +6,7 @@ from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo, ejecutar
 
 
 def test_detectar_goto(tmp_path):
-    """Verifica la detección de la sentencia goto (GAFF008)."""
+    """Verifica la detección de la sentencia goto (0x1006h)."""
     fuente = tmp_path / "goto.c"
     fuente.write_text("""
     int main(void) {
@@ -17,19 +17,19 @@ def test_detectar_goto(tmp_path):
     }
     """)
     viols = analizar_archivo(fuente)
-    assert any(v.codigo == "GAFF008" for v in viols)
+    assert any(v.codigo == "0x1006h" for v in viols)
 
 
 def test_detectar_guardas_faltantes(tmp_path):
-    """Verifica detección de guardas de inclusión en .h (GAFF005)."""
+    """Verifica detección de guardas de inclusión en .h (0x5003h)."""
     header = tmp_path / "lista.h"
     header.write_text("typedef struct nodo t_nodo;\n")
     viols = analizar_archivo(header)
-    assert any(v.codigo == "GAFF005" for v in viols)
+    assert any(v.codigo == "0x5003h" for v in viols)
 
 
 def test_autofix_keyword_spacing_y_guardas(tmp_path):
-    """Verifica la aplicación de correcciones automáticas (GAFF005, GAFF007, GAFF010)."""
+    """Verifica la aplicación de correcciones automáticas (0x5003h, 0x0004h, 0x0005h)."""
     header = tmp_path / "vector.h"
     header.write_text("void f(void){\n    if(1){\n        int x = 2;   \n    }\n}\n")
 
@@ -43,11 +43,11 @@ def test_autofix_keyword_spacing_y_guardas(tmp_path):
 
 
 def test_detectar_camel_case_en_funciones(tmp_path):
-    """Verifica detección de camelCase en nombres de funciones (GAFF001)."""
+    """Verifica detección de camelCase en nombres de funciones (0x0007h)."""
     fuente = tmp_path / "camel.c"
     fuente.write_text("int calcularPromedio(int a, int b) { return a + b; }\n")
     viols = analizar_archivo(fuente)
-    assert any(v.codigo == "GAFF001" for v in viols)
+    assert any(v.codigo == "0x0007h" for v in viols)
 
 
 def test_archivo_limpio_sin_violaciones(tmp_path):

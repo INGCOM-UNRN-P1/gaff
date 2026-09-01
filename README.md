@@ -4,16 +4,17 @@ GAFF es un linter pedagógico de código C y cabeceras H diseñado para hacer cu
 
 ## Reglas Principales
 
-- **`GAFF001`**: Nombres de variables y funciones en `snake_case`.
-- **`GAFF002`**: Nombres de `typedef` con prefijo `t_` o sufijo `_t`.
-- **`GAFF003`**: Prohibición de variables globales mutables fuera de funciones.
-- **`GAFF004`**: Longitud máxima de función $\le 50$ líneas.
-- **`GAFF005`**: Guardas de inclusión obligatorias en cabeceras `.h` *(Autofix)*.
-- **`GAFF006`**: Prohibición de números mágicos sin constante definida.
-- **`GAFF007`**: Espaciado correcto de palabras clave `if (`, `for (` *(Autofix)*.
-- **`GAFF008`**: Prohibición de la sentencia `goto`.
-- **`GAFF009`**: Longitud de línea $\le 100$ caracteres.
-- **`GAFF010`**: Limpieza de trailing whitespace y tabuladores duros *(Autofix)*.
+- **`0x0001h`**: Identificadores descriptivos (sin variables cortas no canónicas).
+- **`0x0007h`**: Nombres de variables y funciones en `snake_case`.
+- **`0x3004h`**: Nombres de `typedef` con prefijo `t_` o sufijo `_t`.
+- **`0x2004h`**: Prohibición de variables globales mutables fuera de funciones.
+- **`0x2005h`**: Longitud máxima de función $\le 50$ líneas.
+- **`0x5003h`**: Guardas de inclusión obligatorias en cabeceras `.h` *(Autofix)*.
+- **`0x300Dh`**: Prohibición de números mágicos sin constante definida.
+- **`0x0004h`**: Espaciado correcto de palabras clave `if (`, `for (` *(Autofix)*.
+- **`0x1006h`**: Prohibición de la sentencia `goto`.
+- **`0x0009h`**: Longitud de línea $\le 100$ caracteres.
+- **`0x0005h`**: Limpieza de trailing whitespace y tabuladores duros *(Autofix)*.
 
 ## Uso Rápido
 
@@ -32,5 +33,5 @@ gaff check src/ --json
 
 # 5. Listar o explicar reglas del catálogo
 gaff rules
-gaff explain GAFF001
+gaff explain 0x0001h
 ```

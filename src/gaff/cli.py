@@ -72,7 +72,7 @@ def check_cmd(
     rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a analizar."),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     fix: bool = typer.Option(False, "--fix", "-f", help="Aplica automáticamente correcciones en reglas autofixables."),
-    rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Lista de códigos de regla separados por comas (ej: 'GAFF001,GAFF005')."),
+    rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Lista de códigos de regla separados por comas (ej: '0x0001h,0x5003h')."),
     json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en JSON."),
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", "-o", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Ocultar advertencias y solo mostrar errores críticos."),
@@ -146,46 +146,43 @@ def report_cmd(
 
 @app.command("rules")
 def rules_cmd() -> None:
-    """Lista todas las reglas de estilo y arquitectura del catálogo de GAFF."""
+    """Lista todas las reglas de estilo y arquitectura del catálogo de cátedra."""
     reglas_hex = {k: v for k, v in CATALOGO_REGLAS.items() if k.startswith("0x")}
-    tabla = Table(title=f"Catálogo de Reglas de Cátedra GAFF ({len(reglas_hex)} reglas)")
+    tabla = Table(title=f"Catálogo de Reglas de Cátedra ({len(reglas_hex)} reglas)")
     tabla.add_column("Código", style="bold cyan", justify="center")
-    tabla.add_column("Alias", style="cyan", justify="center")
     tabla.add_column("Título", style="bold")
     tabla.add_column("Categoría / Origen", style="dim")
     tabla.add_column("Autofix", justify="center")
 
     for cod, info in sorted(reglas_hex.items()):
         fix_str = "[green]Sí[/green]" if info.get("autofix") == "Sí" else "[dim]No[/dim]"
-        alias = info.get("alias", "-")
         cat = info.get("categoria") or info.get("archivo_apunte", "-")
-        tabla.add_row(cod, alias, info["titulo"], cat, fix_str)
+        tabla.add_row(cod, info["titulo"], cat, fix_str)
 
     console.print(tabla)
 
 
 @app.command("explain")
 def explain_cmd(
-    codigo: str = typer.Argument(..., help="Código de la regla a explicar (ej: 'GAFF001' o '0x0001h')."),
+    codigo: str = typer.Argument(..., help="Código de cátedra de la regla a explicar (ej: '0x0001h')."),
 ) -> None:
     """Explica en detalle una regla de cátedra con ejemplos de código correctos e incorrectos."""
     from gaff.core.rules import obtener_regla
 
     info = obtener_regla(codigo)
     if not info:
-        err_console.print(f"[red]Error:[/red] La regla '{codigo}' no existe en el catálogo de GAFF.")
+        err_console.print(f"[red]Error:[/red] La regla '{codigo}' no existe en el catálogo de cátedra.")
         raise typer.Exit(code=2)
 
     cod = info.get("codigo", codigo)
-    alias = info.get("alias", "")
     cuerpo = (
         f"[bold]{info['titulo']}[/bold]\n\n"
         f"{info['descripcion']}\n\n"
         f"[bold green]✓ Ejemplo Correcto:[/bold green]\n```c\n{info['ejemplo_correcto']}\n```\n\n"
         f"[bold red]✗ Ejemplo Incorrecto:[/bold red]\n```c\n{info['ejemplo_incorrecto']}\n```\n\n"
-        f"[dim]Capacidad de Autofix: {info['autofix']} | Alias: {alias}[/dim]"
+        f"[dim]Capacidad de Autofix: {info['autofix']}[/dim]"
     )
-    console.print(Panel(cuerpo, title=f"📘 Regla {cod} ({alias})", border_style="cyan"))
+    console.print(Panel(cuerpo, title=f"📘 Regla {cod}", border_style="cyan"))
 
 
 CLANG_FORMAT_CATEDRA = """# Configuración canónica de formato para Cátedra de Programación 1 / Algoritmos

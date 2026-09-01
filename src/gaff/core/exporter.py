@@ -18,19 +18,18 @@ def generar_guia_estilo_markdown() -> str:
         "",
         "## Catálogo Oficial de Reglas",
         "",
-        "| Código Hex | Alias | Severidad | Nombre / Título | Descripción y Sugerencia | Autofix |",
-        "| :---: | :---: | :---: | :--- | :--- | :---: |",
+        "| Código Hex | Severidad | Nombre / Título | Descripción y Sugerencia | Autofix |",
+        "| :---: | :---: | :--- | :--- | :---: |",
     ]
     
     for cod, regla in sorted(CATALOGO_REGLAS.items()):
         if not cod.startswith("0x"):
             continue
-        alias = regla.get("alias", "-")
         sev = regla.get("severidad", "ADVERTENCIA")
         titulo = regla.get("titulo", "Regla")
         desc = regla.get("descripcion", "").replace("\n", " ")
         fix = "✓ Sí" if regla.get("autofixable", False) or regla.get("autofix") == "Sí" else "No"
-        lineas.append(f"| `{cod}` | `{alias}` | **{sev}** | **{titulo}** | {desc} | {fix} |")
+        lineas.append(f"| `{cod}` | **{sev}** | **{titulo}** | {desc} | {fix} |")
         
     lineas.append("")
     lineas.append("---")

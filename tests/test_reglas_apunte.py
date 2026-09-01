@@ -287,19 +287,13 @@ def test_regla_0x000Ch_nombre_archivo_con_espacios_y_mayusculas(tmp_path):
     viols_camel = analizar_archivo(fuente_camel)
     assert any(v.codigo == "0x000Ch" for v in viols_camel)
 
-def test_catalogo_serie_gaff06x():
-    """Verifica el alta de los alias GAFF061-GAFF066 en el catálogo."""
-    from gaff.core.rules import ALIAS_MAP, CATALOGO_REGLAS, obtener_regla
+def test_catalogo_reglas_adicionales_catedra():
+    """Verifica el alta de las reglas de cátedra 0x300Dh, 0x1007h, 0x3004h, 0x5003h, 0x2001h, 0x000Dh."""
+    from gaff.core.rules import CATALOGO_REGLAS, obtener_regla
 
-    assert ALIAS_MAP["GAFF061"] == "0x300Dh"
-    assert ALIAS_MAP["GAFF062"] == "0x1007h"
-    assert ALIAS_MAP["GAFF063"] == "0x3004h"
-    assert ALIAS_MAP["GAFF064"] == "0x5003h"
-    assert ALIAS_MAP["GAFF065"] == "0x2001h"
-    assert ALIAS_MAP["GAFF066"] == "0x000Dh"
-    assert obtener_regla("GAFF061")["titulo"]
-    assert obtener_regla("gaff066")["codigo"] == "0x000Dh"
-    assert "GAFF065" in CATALOGO_REGLAS
+    for cod in ("0x300Dh", "0x1007h", "0x3004h", "0x5003h", "0x2001h", "0x000Dh"):
+        assert cod in CATALOGO_REGLAS
+        assert obtener_regla(cod)["titulo"]
 
 
 def test_regla_gaff061_numero_magico(tmp_path):
@@ -313,7 +307,7 @@ void test(void)
     }
 }
 """)
-    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF061"})
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x300Dh"})
     magicos = [v for v in viols if v.codigo == "0x300Dh"]
     assert len(magicos) == 2
     assert any("'5'" in v.mensaje for v in magicos)
@@ -332,7 +326,7 @@ int main(void)
     return 0;
 }
 """)
-    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF061"})
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x300Dh"})
     assert viols == []
 
 
@@ -344,7 +338,7 @@ int maximo(int a, int b)
     return (a > b) ? a : b;
 }
 """)
-    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF062"})
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x1007h"})
     assert any(v.codigo == "0x1007h" for v in viols)
 
 
@@ -358,14 +352,14 @@ typedef struct nodo Nodo;
 
 #endif
 """)
-    viols = analizar_archivo(header, reglas_habilitadas={"GAFF063"})
+    viols = analizar_archivo(header, reglas_habilitadas={"0x3004h"})
     assert any(v.codigo == "0x3004h" for v in viols)
 
 
 def test_regla_gaff064_alias_guardas(tmp_path):
     header = tmp_path / "sin_guarda.h"
     header.write_text("void funcion(void);\n")
-    viols = analizar_archivo(header, reglas_habilitadas={"GAFF064"})
+    viols = analizar_archivo(header, reglas_habilitadas={"0x5003h"})
     assert any(v.codigo == "0x5003h" for v in viols)
 
 
@@ -389,7 +383,7 @@ void proceso(int a, int b, int c, int d)
     }
 }
 """)
-    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF065"})
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x2001h"})
     assert any(v.codigo == "0x2001h" for v in viols)
 
 
@@ -410,7 +404,7 @@ void proceso(int a, int b, int c)
     }
 }
 """)
-    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF065"})
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x2001h"})
     assert viols == []
 
 
@@ -430,7 +424,7 @@ int main(void)
     return resultado;
 }
 """)
-    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF066"})
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x000Dh"})
     assert sum(1 for v in viols if v.codigo == "0x000Dh") == 2
 
 
@@ -447,7 +441,7 @@ int sumar(int a, int b)
     return a + b;
 }
 """)
-    viols = analizar_archivo(fuente, reglas_habilitadas={"GAFF066"})
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x000Dh"})
     assert viols == []
 
 

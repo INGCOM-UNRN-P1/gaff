@@ -17,12 +17,12 @@ def test_cli_version():
 def test_cli_rules():
     res = runner.invoke(app, ["rules"])
     assert res.exit_code == 0
-    assert "GAFF001" in res.stdout
-    assert "GAFF005" in res.stdout
+    assert "0x0007h" in res.stdout
+    assert "0x5003h" in res.stdout
 
 
 def test_cli_explain():
-    res = runner.invoke(app, ["explain", "GAFF001"])
+    res = runner.invoke(app, ["explain", "0x0007h"])
     assert res.exit_code == 0
     assert "snake_case" in res.stdout
 
@@ -45,7 +45,7 @@ def test_cli_check_con_violaciones_y_json(tmp_path):
     data = json.loads(res.stdout)
     assert data["ok"] is False
     assert data["total_violaciones"] >= 1
-    assert any(v["codigo"] in ("0x1006h", "GAFF008") or v.get("alias") == "GAFF008" for a in data["archivos"] for v in a["violaciones"])
+    assert any(v["codigo"] == "0x1006h" for a in data["archivos"] for v in a["violaciones"])
 
 
 def test_cli_fix(tmp_path):

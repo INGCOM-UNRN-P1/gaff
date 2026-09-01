@@ -11,7 +11,7 @@ from gaff.core.linter import analizar_archivo
 
 
 def test_gaff_identificadores_una_letra_no_descriptiva(tmp_path: Path):
-    """Regla 0x0001h (GAFF011): variables de una sola letra no canónicas."""
+    """Regla 0x0001h: variables de una sola letra no canónicas."""
     fuente = tmp_path / "una_letra.c"
     fuente.write_text("""
 int procesar(int d)
@@ -34,7 +34,7 @@ int procesar(int d)
 
 
 def test_gaff_identificadores_canonicos_permitidos(tmp_path: Path):
-    """Regla 0x0001h (GAFF011): índices de lazo canónicos (i, j, k, n, x, y, z) permitidos."""
+    """Regla 0x0001h: índices de lazo canónicos (i, j, k, n, x, y, z) permitidos."""
     fuente = tmp_path / "canonicos.c"
     fuente.write_text("""
 int recorrido(int n)
@@ -55,7 +55,7 @@ int recorrido(int n)
 
 
 def test_gaff_identificadores_cortos_cripticos(tmp_path: Path):
-    """Regla 0x0001h (GAFF011): identificadores crípticos (aux, tmp, val, res)."""
+    """Regla 0x0001h: identificadores crípticos (aux, tmp, val, res)."""
     fuente = tmp_path / "cripticos.c"
     fuente.write_text("""
 int swap(int primer_valor, int segundo_valor)
@@ -74,7 +74,7 @@ int swap(int primer_valor, int segundo_valor)
 
 
 def test_gaff_identificadores_largos_exceden_limite_iso(tmp_path: Path):
-    """Regla 0x0001h (GAFF011): identificadores de variables y funciones que superan 31 caracteres."""
+    """Regla 0x0001h: identificadores de variables y funciones que superan 31 caracteres."""
     fuente = tmp_path / "largos.c"
     fuente.write_text("""
 void funcion_con_un_nombre_demasiado_largo_que_supera_treinta_y_un_caracteres(void)
@@ -90,7 +90,7 @@ void funcion_con_un_nombre_demasiado_largo_que_supera_treinta_y_un_caracteres(vo
 
 
 def test_gaff_camel_case_en_variables_y_parametros(tmp_path: Path):
-    """Regla 0x0007h (GAFF001): variables locales y parámetros en camelCase."""
+    """Regla 0x0007h: variables locales y parámetros en camelCase."""
     fuente = tmp_path / "camel_vars.c"
     fuente.write_text("""
 int calcular(int precioBase, float tasaIva)
@@ -112,7 +112,7 @@ int calcular(int precioBase, float tasaIva)
 
 
 def test_gaff_inicializacion_variables(tmp_path: Path):
-    """Regla 0x0003h (GAFF013): variables locales sin inicializar."""
+    """Regla 0x0003h: variables locales sin inicializar."""
     fuente = tmp_path / "sin_init.c"
     fuente.write_text("""
 int calcular(void)
@@ -128,7 +128,7 @@ int calcular(void)
 
 
 def test_gaff_numeros_magicos_exhaustivo(tmp_path: Path):
-    """Regla 0x300Dh (GAFF006 / GAFF061): números mágicos enteros, flotantes y hex."""
+    """Regla 0x300Dh: números mágicos enteros, flotantes y hex."""
     fuente = tmp_path / "magicos_full.c"
     fuente.write_text("""
 #define LIMITE_BUFFER 1024

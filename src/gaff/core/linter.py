@@ -61,35 +61,37 @@ def analizar_archivo(
 
     es_header = ruta.suffix.lower() in (".h", ".hpp")
 
-    # Normalizar conjunto de reglas habilitadas para aceptar '0xXXXXh' y 'GAFFXXX'
+    # Normalizar conjunto de reglas habilitadas para aceptar códigos de cátedra '0xXXXXh' o '0xXXXX'
     reglas_norm = set()
     if reglas_habilitadas:
         for r in reglas_habilitadas:
-            reglas_norm.add(r.lower())
+            r_low = r.lower()
+            reglas_norm.add(r_low)
+            if r_low.startswith("0x") and not r_low.endswith("h"):
+                reglas_norm.add(r_low + "h")
             if r in CATALOGO_REGLAS:
                 reglas_norm.add(CATALOGO_REGLAS[r].get("codigo", "").lower())
-                reglas_norm.add(CATALOGO_REGLAS[r].get("alias", "").lower())
     else:
         reglas_norm = {k.lower() for k in CATALOGO_REGLAS.keys()}
 
-    def _esta_activa(codigo_hex: str, alias_gaff: str) -> bool:
-        return codigo_hex.lower() in reglas_norm or alias_gaff.lower() in reglas_norm
+    def _esta_activa(codigo_hex: str) -> bool:
+        return codigo_hex.lower() in reglas_norm
 
-    def _regla_info(codigo_hex: str, alias_gaff: str) -> Tuple[RuleCode, str]:
+    def _regla_info(codigo_hex: str) -> Tuple[RuleCode, str]:
         info = CATALOGO_REGLAS.get(codigo_hex, {})
         titulo = info.get("titulo", f"Regla {codigo_hex}")
-        return RuleCode(codigo_hex, alias_gaff), titulo
+        return RuleCode(codigo_hex), titulo
 
     # -------------------------------------------------------------------------
-    # 0x000Ch (GAFF060): Nombres de archivo en snake_case en minúsculas (sin espacios)
+    # 0x000Ch: Nombres de archivo en snake_case en minúsculas (sin espacios)
     # -------------------------------------------------------------------------
-    if _esta_activa("0x000Ch", "GAFF060"):
+    if _esta_activa("0x000Ch"):
         nombre_archivo = ruta.name
         es_valido_snake = bool(re.match(r"^[a-z0-9_]+(?:\.[a-z0-9_]+)+$", nombre_archivo))
         if not es_valido_snake:
             sugerido = re.sub(r"[-\s]+", "_", nombre_archivo.lower())
             sugerido = re.sub(r"[^a-z0-9_\.]", "", sugerido)
-            rcode, tit = _regla_info("0x000Ch", "GAFF060")
+            rcode, tit = _regla_info("0x000Ch")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -105,12 +107,12 @@ def analizar_archivo(
     # 0x50XXh: Compilación y Buenas Prácticas
     # -------------------------------------------------------------------------
 
-    # 0x5003h (GAFF005): Guardas de inclusión en cabeceras (.h)
-    if _esta_activa("0x5003h", "GAFF005") and es_header:
+    # 0x5003h: Guardas de inclusión en cabeceras (.h)
+    if _esta_activa("0x5003h") and es_header:
         tiene_pragma = "#pragma once" in contenido_original
         tiene_ifndef = bool(re.search(r"#ifndef\s+\w+", contenido_original) and re.search(r"#define\s+\w+", contenido_original))
         if not (tiene_pragma or tiene_ifndef):
-            rcode, tit = _regla_info("0x5003h", "GAFF005")
+            rcode, tit = _regla_info("0x5003h")
             stem_h = ruta.stem.upper()
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
@@ -123,14 +125,14 @@ def analizar_archivo(
                 es_autofixable=True,
             ))
 
-    # 0x5004h (GAFF057): Operaciones de cadenas inseguras (strcpy, strcat, sprintf)
-    if _esta_activa("0x5004h", "GAFF057"):
+    # 0x5004h: Operaciones de cadenas inseguras (strcpy, strcat, sprintf)
+    if _esta_activa("0x5004h"):
         re_str_inseguro = re.compile(r"\b(strcpy|strcat|sprintf)\s*\(")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m = re_str_inseguro.search(linea)
             if m:
                 fn = m.group(1)
-                rcode, tit = _regla_info("0x5004h", "GAFF057")
+                rcode, tit = _regla_info("0x5004h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -143,14 +145,14 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x5006h (GAFF059): gets() prohibida y scanf("%s") inseguro
-    if _esta_activa("0x5006h", "GAFF059"):
+    # 0x5006h: gets() prohibida y scanf("%s") inseguro
+    if _esta_activa("0x5006h"):
         re_gets = re.compile(r"\bgets\s*\(")
         re_scanf_s = re.compile(r'\bscanf\s*\(\s*"[^"]*%s[^"]*"')
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_gets = re_gets.search(linea)
             if m_gets:
-                rcode, tit = _regla_info("0x5006h", "GAFF059")
+                rcode, tit = _regla_info("0x5006h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -164,7 +166,7 @@ def analizar_archivo(
                 ))
             m_scanf = re_scanf_s.search(linea)
             if m_scanf:
-                rcode, tit = _regla_info("0x5006h", "GAFF059")
+                rcode, tit = _regla_info("0x5006h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -177,15 +179,15 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x5001h (GAFF055): Arreglos de longitud variable (VLAs)
-    if _esta_activa("0x5001h", "GAFF055") and not es_header:
+    # 0x5001h: Arreglos de longitud variable (VLAs)
+    if _esta_activa("0x5001h") and not es_header:
         re_vla = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\w+\s*\[\s*([a-zA-Z_]\w*)\s*\]\s*;", re.MULTILINE)
         for m in re_vla.finditer(codigo_sin_comentarios):
             var_name = m.group(1)
             # Si el tamaño es una variable con letras minúsculas (no constante en mayúsculas)
             if var_name != var_name.upper():
                 line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
-                rcode, tit = _regla_info("0x5001h", "GAFF055")
+                rcode, tit = _regla_info("0x5001h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -201,12 +203,12 @@ def analizar_archivo(
     # 0x10XXh: Estructuras de Control y Lazos
     # -------------------------------------------------------------------------
 
-    # 0x1006h (GAFF008): Prohibición de goto
-    if _esta_activa("0x1006h", "GAFF008"):
+    # 0x1006h: Prohibición de goto
+    if _esta_activa("0x1006h"):
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_goto = re.search(r"\bgoto\s+\w+", linea)
             if m_goto:
-                rcode, tit = _regla_info("0x1006h", "GAFF008")
+                rcode, tit = _regla_info("0x1006h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -219,12 +221,12 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x1002h (GAFF019): Prohibición de continue
-    if _esta_activa("0x1002h", "GAFF019"):
+    # 0x1002h: Prohibición de continue
+    if _esta_activa("0x1002h"):
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_cont = re.search(r"\bcontinue\s*;", linea)
             if m_cont:
-                rcode, tit = _regla_info("0x1002h", "GAFF019")
+                rcode, tit = _regla_info("0x1002h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -237,13 +239,13 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x1007h (GAFF023): Prohibición de operador ternario ?:
-    if _esta_activa("0x1007h", "GAFF023"):
+    # 0x1007h: Prohibición de operador ternario ?:
+    if _esta_activa("0x1007h"):
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             if not linea.strip().startswith("#"):
                 m_tern = re.search(r"(?<=\w|\))\s*\?\s*[^:]+\s*:\s*", linea)
                 if m_tern:
-                    rcode, tit = _regla_info("0x1007h", "GAFF023")
+                    rcode, tit = _regla_info("0x1007h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -256,13 +258,13 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
 
-    # 0x1001h (GAFF018): Estructuras de control sin llaves
-    if _esta_activa("0x1001h", "GAFF018"):
+    # 0x1001h: Estructuras de control sin llaves
+    if _esta_activa("0x1001h"):
         re_if_sin_llaves = re.compile(r"^\s*(?:if\s*\([^)]+\)|for\s*\([^)]+\)|while\s*\([^)]+\)|else)\s*([^{};\s][^;]*;)", re.MULTILINE)
         for m in re_if_sin_llaves.finditer(codigo_sin_comentarios):
             line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
             line_txt = lineas[line_no - 1]
-            rcode, tit = _regla_info("0x1001h", "GAFF018")
+            rcode, tit = _regla_info("0x1001h")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -275,8 +277,8 @@ def analizar_archivo(
                 es_autofixable=False,
             ))
 
-    # 0x1008h (GAFF024): Switch sin default
-    if _esta_activa("0x1008h", "GAFF024"):
+    # 0x1008h: Switch sin default
+    if _esta_activa("0x1008h"):
         re_switch = re.compile(r"\bswitch\s*\([^)]+\)\s*\{", re.MULTILINE)
         for m in re_switch.finditer(codigo_sin_comentarios):
             start_pos = m.end() - 1
@@ -293,7 +295,7 @@ def analizar_archivo(
                         break
             switch_body = codigo_sin_comentarios[start_pos:end_pos]
             if "default:" not in switch_body and "default :" not in switch_body:
-                rcode, tit = _regla_info("0x1008h", "GAFF024")
+                rcode, tit = _regla_info("0x1008h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -305,13 +307,13 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x1003h (GAFF020): for(;;) o for(; cond;)
-    if _esta_activa("0x1003h", "GAFF020"):
+    # 0x1003h: for(;;) o for(; cond;)
+    if _esta_activa("0x1003h"):
         re_for_empty = re.compile(r"\bfor\s*\(\s*;\s*;\s*\)|\bfor\s*\(\s*;\s*[^;]+;\s*\)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m = re_for_empty.search(linea)
             if m:
-                rcode, tit = _regla_info("0x1003h", "GAFF020")
+                rcode, tit = _regla_info("0x1003h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -328,14 +330,14 @@ def analizar_archivo(
     # 0x00XXh: Sintaxis Básica y Nomenclatura
     # -------------------------------------------------------------------------
 
-    # 0x0004h (GAFF007): Espaciado en palabras clave (if, for, while, switch)
-    if _esta_activa("0x0004h", "GAFF007"):
+    # 0x0004h: Espaciado en palabras clave (if, for, while, switch)
+    if _esta_activa("0x0004h"):
         re_kw = re.compile(r"\b(if|for|while|switch)\(")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_kw = re_kw.search(linea)
             if m_kw:
                 kw = m_kw.group(1)
-                rcode, tit = _regla_info("0x0004h", "GAFF007")
+                rcode, tit = _regla_info("0x0004h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -348,13 +350,13 @@ def analizar_archivo(
                     es_autofixable=True,
                 ))
 
-    # 0x0006h (GAFF014): Asterisco junto al identificador (int* ptr -> int *ptr)
-    if _esta_activa("0x0006h", "GAFF014"):
+    # 0x0006h: Asterisco junto al identificador (int* ptr -> int *ptr)
+    if _esta_activa("0x0006h"):
         re_ptr_junto_tipo = re.compile(rf"\b{TIPOS_BASICOS}\*\s+([a-zA-Z_]\w*)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m = re_ptr_junto_tipo.search(linea)
             if m and not linea.strip().startswith("#"):
-                rcode, tit = _regla_info("0x0006h", "GAFF014")
+                rcode, tit = _regla_info("0x0006h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -367,11 +369,11 @@ def analizar_archivo(
                     es_autofixable=True,
                 ))
 
-    # 0x0009h (GAFF009): Longitud de línea (> 80 chars)
-    if _esta_activa("0x0009h", "GAFF009"):
+    # 0x0009h: Longitud de línea (> 80 chars)
+    if _esta_activa("0x0009h"):
         for idx, linea in enumerate(lineas, 1):
             if len(linea) > 80:
-                rcode, tit = _regla_info("0x0009h", "GAFF009")
+                rcode, tit = _regla_info("0x0009h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -384,11 +386,11 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x0005h (GAFF010): Espacios finales y mezcla de tabuladores
-    if _esta_activa("0x0005h", "GAFF010"):
+    # 0x0005h: Espacios finales y mezcla de tabuladores
+    if _esta_activa("0x0005h"):
         for idx, linea in enumerate(lineas, 1):
             if linea.endswith(" ") or linea.endswith("\t"):
-                rcode, tit = _regla_info("0x0005h", "GAFF010")
+                rcode, tit = _regla_info("0x0005h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -401,7 +403,7 @@ def analizar_archivo(
                     es_autofixable=True,
                 ))
             elif "\t" in linea:
-                rcode, tit = _regla_info("0x0005h", "GAFF010")
+                rcode, tit = _regla_info("0x0005h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -414,14 +416,14 @@ def analizar_archivo(
                     es_autofixable=True,
                 ))
 
-    # 0x0002h (GAFF012): Múltiples declaraciones de variables por línea
-    if _esta_activa("0x0002h", "GAFF012"):
+    # 0x0002h: Múltiples declaraciones de variables por línea
+    if _esta_activa("0x0002h"):
         re_mult_decl = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\*?[a-zA-Z_]\w*(?:\s*=\s*[^,;]+)?\s*,\s*\*?[a-zA-Z_]\w*", re.MULTILINE)
         for m in re_mult_decl.finditer(codigo_sin_comentarios):
             line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
             line_txt = lineas[line_no - 1]
             if not line_txt.strip().startswith("typedef") and "(" not in line_txt:
-                rcode, tit = _regla_info("0x0002h", "GAFF012")
+                rcode, tit = _regla_info("0x0002h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -434,14 +436,14 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x0008h (GAFF015): Constantes en MAYUSCULAS_SNAKE_CASE
-    if _esta_activa("0x0008h", "GAFF015"):
+    # 0x0008h: Constantes en MAYUSCULAS_SNAKE_CASE
+    if _esta_activa("0x0008h"):
         re_define_const = re.compile(r"^\s*#\s*define\s+([a-zA-Z_]\w*)\s+[\d\.\"\']", re.MULTILINE)
         for m in re_define_const.finditer(codigo_sin_comentarios):
             name = m.group(1)
             if name != name.upper():
                 line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
-                rcode, tit = _regla_info("0x0008h", "GAFF015")
+                rcode, tit = _regla_info("0x0008h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -455,7 +457,7 @@ def analizar_archivo(
                 ))
 
     # -------------------------------------------------------------------------
-    # 0x0001h (GAFF011), 0x0003h (GAFF013), 0x0007h (GAFF001 / GAFF032)
+    # 0x0001h, 0x0003h, 0x0007h (GAFF001 / GAFF032)
     # Inspección Exhaustiva de Identificadores (Funciones, Variables, Parámetros y Lazos)
     # -------------------------------------------------------------------------
     CANONICAL_INDICES = {"i", "j", "k", "n", "x", "y", "z", "f", "c", "r"}
@@ -509,9 +511,9 @@ def analizar_archivo(
         col_fn = m_fh.start(1) - codigo_sin_comentarios.rfind("\n", 0, m_fh.start(1))
 
         # 0x0007h / 0x200Ah: camelCase en funciones
-        if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
+        if _esta_activa("0x0007h") or _esta_activa("0x200Ah"):
             if raw_fn not in IGNORED_VAR_NAMES and any(c.isupper() for c in raw_fn) and any(c.islower() for c in raw_fn):
-                rcode, tit = _regla_info("0x0007h", "GAFF001")
+                rcode, tit = _regla_info("0x0007h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -524,10 +526,10 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-        # 0x0001h (GAFF011): Nombres de función excesivamente largos (> 31 caracteres)
-        if _esta_activa("0x0001h", "GAFF011"):
+        # 0x0001h: Nombres de función excesivamente largos (> 31 caracteres)
+        if _esta_activa("0x0001h"):
             if len(raw_fn) > 31:
-                rcode, tit = _regla_info("0x0001h", "GAFF011")
+                rcode, tit = _regla_info("0x0001h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -555,9 +557,9 @@ def analizar_archivo(
             col_p = lineas[line_fn - 1].find(p_name) + 1 if line_fn <= len(lineas) and p_name in lineas[line_fn - 1] else 1
 
             # camelCase en parámetros
-            if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
+            if _esta_activa("0x0007h") or _esta_activa("0x200Ah"):
                 if any(c.isupper() for c in p_name) and any(c.islower() for c in p_name):
-                    rcode, tit = _regla_info("0x0007h", "GAFF001")
+                    rcode, tit = _regla_info("0x0007h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -570,11 +572,11 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
 
-            # 0x0001h (GAFF011): Parámetros descriptivos (cortos y largos)
-            if _esta_activa("0x0001h", "GAFF011"):
+            # 0x0001h: Parámetros descriptivos (cortos y largos)
+            if _esta_activa("0x0001h"):
                 if len(p_name) == 1:
                     if p_name.lower() not in CANONICAL_INDICES and p_name.lower() not in MATH_PARAM_NAMES:
-                        rcode, tit = _regla_info("0x0001h", "GAFF011")
+                        rcode, tit = _regla_info("0x0001h")
                         violaciones.append(ViolacionRegla(
                             codigo=rcode,
                             titulo=tit,
@@ -587,7 +589,7 @@ def analizar_archivo(
                             es_autofixable=False,
                         ))
                 elif 1 < len(p_name) < 4 and p_name.lower() not in ALLOWED_SHORT_EXCEPTIONS:
-                    rcode, tit = _regla_info("0x0001h", "GAFF011")
+                    rcode, tit = _regla_info("0x0001h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -600,7 +602,7 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
                 elif len(p_name) > 31:
-                    rcode, tit = _regla_info("0x0001h", "GAFF011")
+                    rcode, tit = _regla_info("0x0001h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -638,9 +640,9 @@ def analizar_archivo(
             col_v = lineas[line_no - 1].find(var_name) + 1 if line_no <= len(lineas) and var_name in lineas[line_no - 1] else 1
 
             # 0x0007h: camelCase en variables locales y globales
-            if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
+            if _esta_activa("0x0007h") or _esta_activa("0x200Ah"):
                 if any(c.isupper() for c in var_name) and any(c.islower() for c in var_name):
-                    rcode, tit = _regla_info("0x0007h", "GAFF001")
+                    rcode, tit = _regla_info("0x0007h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -653,11 +655,11 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
 
-            # 0x0001h (GAFF011): Variables cortas y largas
-            if _esta_activa("0x0001h", "GAFF011"):
+            # 0x0001h: Variables cortas y largas
+            if _esta_activa("0x0001h"):
                 if len(var_name) == 1:
                     if var_name.lower() not in CANONICAL_INDICES:
-                        rcode, tit = _regla_info("0x0001h", "GAFF011")
+                        rcode, tit = _regla_info("0x0001h")
                         violaciones.append(ViolacionRegla(
                             codigo=rcode,
                             titulo=tit,
@@ -670,7 +672,7 @@ def analizar_archivo(
                             es_autofixable=False,
                         ))
                 elif 1 < len(var_name) < 4 and var_name.lower() not in ALLOWED_SHORT_EXCEPTIONS:
-                    rcode, tit = _regla_info("0x0001h", "GAFF011")
+                    rcode, tit = _regla_info("0x0001h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -683,7 +685,7 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
                 elif len(var_name) > 31:
-                    rcode, tit = _regla_info("0x0001h", "GAFF011")
+                    rcode, tit = _regla_info("0x0001h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -696,9 +698,9 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
 
-            # 0x0003h (GAFF013): Inicialización obligatoria
-            if _esta_activa("0x0003h", "GAFF013") and not has_init:
-                rcode, tit = _regla_info("0x0003h", "GAFF013")
+            # 0x0003h: Inicialización obligatoria
+            if _esta_activa("0x0003h") and not has_init:
+                rcode, tit = _regla_info("0x0003h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -721,9 +723,9 @@ def analizar_archivo(
         line_no = codigo_sin_comentarios[:m_fd.start(1)].count("\n") + 1
         col_vl = lineas[line_no - 1].find(var_lazo) + 1 if line_no <= len(lineas) and var_lazo in lineas[line_no - 1] else 1
 
-        if _esta_activa("0x0007h", "GAFF001") or _esta_activa("0x200Ah", "GAFF032"):
+        if _esta_activa("0x0007h") or _esta_activa("0x200Ah"):
             if any(c.isupper() for c in var_lazo) and any(c.islower() for c in var_lazo):
-                rcode, tit = _regla_info("0x0007h", "GAFF001")
+                rcode, tit = _regla_info("0x0007h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -736,9 +738,9 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-        if _esta_activa("0x0001h", "GAFF011"):
+        if _esta_activa("0x0001h"):
             if len(var_lazo) == 1 and var_lazo.lower() not in CANONICAL_INDICES:
-                rcode, tit = _regla_info("0x0001h", "GAFF011")
+                rcode, tit = _regla_info("0x0001h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -751,7 +753,7 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
             elif 1 < len(var_lazo) < 4 and var_lazo.lower() not in ALLOWED_SHORT_EXCEPTIONS:
-                rcode, tit = _regla_info("0x0001h", "GAFF011")
+                rcode, tit = _regla_info("0x0001h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -764,7 +766,7 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
             elif len(var_lazo) > 31:
-                rcode, tit = _regla_info("0x0001h", "GAFF011")
+                rcode, tit = _regla_info("0x0001h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -777,12 +779,12 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x000Bh (GAFF017): Llaves en la misma línea (estilo K&R en vez de Allman)
-    if _esta_activa("0x000Bh", "GAFF017"):
+    # 0x000Bh: Llaves en la misma línea (estilo K&R en vez de Allman)
+    if _esta_activa("0x000Bh"):
         re_knr = re.compile(r"(?:if|for|while|switch|\))\s*\{$")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             if re_knr.search(linea.rstrip()) and not linea.strip().startswith("struct") and not linea.strip().startswith("enum"):
-                rcode, tit = _regla_info("0x000Bh", "GAFF017")
+                rcode, tit = _regla_info("0x000Bh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -799,14 +801,14 @@ def analizar_archivo(
     # 0x20XXh: Funciones y Modularización
     # -------------------------------------------------------------------------
 
-    # 0x2004h (GAFF003): Variables globales mutables
-    if _esta_activa("0x2004h", "GAFF003") and not es_header:
+    # 0x2004h: Variables globales mutables
+    if _esta_activa("0x2004h") and not es_header:
         re_global = re.compile(rf"^({TIPOS_BASICOS})\s+(\*?[a-zA-Z_]\w*)\s*(?:=\s*[^;]+)?\s*;", re.MULTILINE)
         for m in re_global.finditer(codigo_sin_comentarios):
             line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
             line_txt = lineas[line_no - 1].strip()
             if not line_txt.startswith("const") and not line_txt.startswith("typedef") and not line_txt.startswith("static const"):
-                rcode, tit = _regla_info("0x2004h", "GAFF003")
+                rcode, tit = _regla_info("0x2004h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -819,8 +821,8 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x2005h (GAFF004): Longitud máxima de función (> 50 líneas)
-    if _esta_activa("0x2005h", "GAFF004"):
+    # 0x2005h: Longitud máxima de función (> 50 líneas)
+    if _esta_activa("0x2005h"):
         re_fn_start = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^)]*\)\s*\{?", re.MULTILINE)
         for m in re_fn_start.finditer(codigo_sin_comentarios):
             fn_name = m.group(1)
@@ -842,7 +844,7 @@ def analizar_archivo(
             line_end = codigo_sin_comentarios[:end_pos].count("\n") + 1
             total_lines = line_end - line_start + 1
             if total_lines > 50:
-                rcode, tit = _regla_info("0x2005h", "GAFF004")
+                rcode, tit = _regla_info("0x2005h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -854,8 +856,8 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x2002h (GAFF026): printf/scanf en funciones auxiliares
-    if _esta_activa("0x2002h", "GAFF026") and not es_header:
+    # 0x2002h: printf/scanf en funciones auxiliares
+    if _esta_activa("0x2002h") and not es_header:
         re_fn_any = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^)]*\)\s*\{?", re.MULTILINE)
         for m in re_fn_any.finditer(codigo_sin_comentarios):
             fn_name = m.group(1)
@@ -879,7 +881,7 @@ def analizar_archivo(
             if m_io:
                 io_pos = start_pos + m_io.start()
                 line_no = codigo_sin_comentarios[:io_pos].count("\n") + 1
-                rcode, tit = _regla_info("0x2002h", "GAFF026")
+                rcode, tit = _regla_info("0x2002h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -896,14 +898,14 @@ def analizar_archivo(
     # 0x30XXh: Punteros y Gestión de Memoria
     # -------------------------------------------------------------------------
 
-    # 0x3004h (GAFF002): Nomenclatura de typedef con _t o t_
-    if _esta_activa("0x3004h", "GAFF002"):
+    # 0x3004h: Nomenclatura de typedef con _t o t_
+    if _esta_activa("0x3004h"):
         re_typedef = re.compile(r"\btypedef\s+(?:struct|enum|union)\s*(?:\w*\s*\{[^}]*\}|\w+)\s+(\w+)\s*;", re.DOTALL)
         for m in re_typedef.finditer(codigo_sin_comentarios):
             tipo_name = m.group(1)
             if not (tipo_name.startswith("t_") or tipo_name.endswith("_t") or tipo_name.startswith("T_")):
                 line_no = codigo_sin_comentarios[:m.start(1)].count("\n") + 1
-                rcode, tit = _regla_info("0x3004h", "GAFF002")
+                rcode, tit = _regla_info("0x3004h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -915,13 +917,13 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x3003h (GAFF035): No mezclar asignación y comparación en la misma línea
-    if _esta_activa("0x3003h", "GAFF035"):
+    # 0x3003h: No mezclar asignación y comparación en la misma línea
+    if _esta_activa("0x3003h"):
         re_asig_comp = re.compile(r"\b(?:if|while)\s*\(\s*\(\s*[a-zA-Z_]\w*\s*=\s*.+?\)\s*(?:==|!=|<|>|<=|>=)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m = re_asig_comp.search(linea)
             if m:
-                rcode, tit = _regla_info("0x3003h", "GAFF035")
+                rcode, tit = _regla_info("0x3003h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -934,13 +936,13 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x3008h (GAFF039): Comparación de punteros contra 0 en vez de NULL
-    if _esta_activa("0x3008h", "GAFF039"):
+    # 0x3008h: Comparación de punteros contra 0 en vez de NULL
+    if _esta_activa("0x3008h"):
         re_ptr_zero = re.compile(r"\b\w*(?:ptr|nodo|lista|buffer|puntero|archivo|file)\w*\s*(?:==|!=)\s*0\b", re.IGNORECASE)
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m = re_ptr_zero.search(linea)
             if m:
-                rcode, tit = _regla_info("0x3008h", "GAFF039")
+                rcode, tit = _regla_info("0x3008h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -953,13 +955,13 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x3005h (GAFF036): Punteros triples (***) o más niveles de indirección
-    if _esta_activa("0x3005h", "GAFF036"):
+    # 0x3005h: Punteros triples (***) o más niveles de indirección
+    if _esta_activa("0x3005h"):
         re_triple_ptr = re.compile(r"\b\w+\s*\*\*\*\s*\w+")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m = re_triple_ptr.search(linea)
             if m:
-                rcode, tit = _regla_info("0x3005h", "GAFF036")
+                rcode, tit = _regla_info("0x3005h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -972,13 +974,13 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x300Bh (GAFF042): malloc(literal) sin sizeof
-    if _esta_activa("0x300Bh", "GAFF042"):
+    # 0x300Bh: malloc(literal) sin sizeof
+    if _esta_activa("0x300Bh"):
         re_malloc_literal = re.compile(r"\bmalloc\s*\(\s*\d+\s*\)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m = re_malloc_literal.search(linea)
             if m:
-                rcode, tit = _regla_info("0x300Bh", "GAFF042")
+                rcode, tit = _regla_info("0x300Bh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -991,12 +993,12 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x0035h (GAFF048): TDA con struct no opaco en archivo .h
-    if _esta_activa("0x0035h", "GAFF048") and es_header:
+    # 0x0035h: TDA con struct no opaco en archivo .h
+    if _esta_activa("0x0035h") and es_header:
         re_struct_body = re.compile(r"^\s*struct\s+\w+\s*\{[^}]+\}\s*;", re.MULTILINE)
         for m in re_struct_body.finditer(codigo_sin_comentarios):
             line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
-            rcode, tit = _regla_info("0x0035h", "GAFF048")
+            rcode, tit = _regla_info("0x0035h")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -1009,11 +1011,11 @@ def analizar_archivo(
             ))
 
     # -------------------------------------------------------------------------
-    # Serie GAFF06x: 0x300Dh (GAFF061), 0x2001h (GAFF065), 0x000Dh (GAFF066)
+    # Serie GAFF06x: 0x300Dh, 0x2001h, 0x000Dh
     # -------------------------------------------------------------------------
 
     # 0x300Dh (GAFF006 / GAFF061): Números mágicos (literales fuera de 0, 1, 2, -1)
-    if _esta_activa("0x300Dh", "GAFF006"):
+    if _esta_activa("0x300Dh"):
         codigo_magicos = codigo_sin_comentarios
         # Los bloques enum son contexto válido para literales numéricos
         for m_enum in list(re.finditer(r"\benum\b[^{;]*\{[^}]*\}", codigo_magicos, re.DOTALL)):
@@ -1042,7 +1044,7 @@ def analizar_archivo(
                 col_start = m.start()
                 if col_start > 0 and linea[col_start - 1] == "-" and valor == 1.0:
                     continue
-                rcode, tit = _regla_info("0x300Dh", "GAFF006")
+                rcode, tit = _regla_info("0x300Dh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1056,7 +1058,7 @@ def analizar_archivo(
                 ))
 
     # 0x2001h (GAFF025 / GAFF065): Anidación máxima de 3 niveles dentro de funciones
-    if _esta_activa("0x2001h", "GAFF025"):
+    if _esta_activa("0x2001h"):
         codigo_nesting = _enmascarar_literales(codigo_sin_comentarios)
         re_no_funcion = re.compile(r"^\s*(?:typedef\s+)?(?:struct|enum|union)\b")
         profundidad = 0
@@ -1076,7 +1078,7 @@ def analizar_archivo(
                     texto_previo = codigo_nesting[ultimo_hito:i].strip()
                     if not texto_previo.endswith("="):
                         line_no = codigo_nesting[:i].count("\n") + 1
-                        rcode, tit = _regla_info("0x2001h", "GAFF025")
+                        rcode, tit = _regla_info("0x2001h")
                         violaciones.append(ViolacionRegla(
                             codigo=rcode,
                             titulo=tit,
@@ -1097,8 +1099,8 @@ def analizar_archivo(
             elif ch == ";":
                 ultimo_hito = i + 1
 
-    # 0x000Dh (GAFF066): Código comentado (dead code)
-    if _esta_activa("0x000Dh", "GAFF066"):
+    # 0x000Dh: Código comentado (dead code)
+    if _esta_activa("0x000Dh"):
         re_codigo_comentado = re.compile(
             r"^\s*(?:"
             r"(?:if|for|while|switch|return|break|continue|else|do)\b"
@@ -1128,7 +1130,7 @@ def analizar_archivo(
                 continue
             line_no = contenido_original[:m.start()].count("\n") + 1
             columna = m.start() - contenido_original.rfind("\n", 0, m.start())
-            rcode, tit = _regla_info("0x000Dh", "GAFF066")
+            rcode, tit = _regla_info("0x000Dh")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -1142,9 +1144,9 @@ def analizar_archivo(
             ))
 
     # -------------------------------------------------------------------------
-    # 0x000Eh (GAFF067): Nombres de funciones en snake_case estricto
+    # 0x000Eh: Nombres de funciones en snake_case estricto
     # -------------------------------------------------------------------------
-    if _esta_activa("0x000Eh", "GAFF067"):
+    if _esta_activa("0x000Eh"):
         re_fn_decl = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^;{)]*\)\s*\{", re.MULTILINE)
         for m in re_fn_decl.finditer(codigo_sin_comentarios):
             fn_name = m.group(1)
@@ -1155,7 +1157,7 @@ def analizar_archivo(
                 line_no = codigo_sin_comentarios[:m.start(1)].count("\n") + 1
                 col = m.start(1) - codigo_sin_comentarios.rfind("\n", 0, m.start(1))
                 sugerido_fn = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", fn_name).lower()
-                rcode, tit = _regla_info("0x000Eh", "GAFF067")
+                rcode, tit = _regla_info("0x000Eh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1169,15 +1171,15 @@ def analizar_archivo(
                 ))
 
     # -------------------------------------------------------------------------
-    # 0x000Fh (GAFF068): Evitá comentarios obvios, redundantes o vacíos
+    # 0x000Fh: Evitá comentarios obvios, redundantes o vacíos
     # -------------------------------------------------------------------------
-    if _esta_activa("0x000Fh", "GAFF068"):
+    if _esta_activa("0x000Fh"):
         re_comentarios_obvios = re.compile(r"//\s*(?:incrementa|suma|retorna|asigna|TODO|FIXME|\s*$)", re.IGNORECASE)
         for i, l in enumerate(lineas):
             if "//" in l:
                 coment = l.split("//", 1)[1].strip()
                 if not coment or coment.lower() in ("todo", "fixme") or re.search(r"^(?:incrementa|suma|guarda|asigna|imprime|retorna)\s+\w+", coment, re.IGNORECASE):
-                    rcode, tit = _regla_info("0x000Fh", "GAFF068")
+                    rcode, tit = _regla_info("0x000Fh")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -1191,10 +1193,10 @@ def analizar_archivo(
                     ))
 
     # -------------------------------------------------------------------------
-    # 0x0010h (GAFF069): Longitud máxima de archivos (máx 500 líneas)
+    # 0x0010h: Longitud máxima de archivos (máx 500 líneas)
     # -------------------------------------------------------------------------
-    if _esta_activa("0x0010h", "GAFF069") and len(lineas) > 500:
-        rcode, tit = _regla_info("0x0010h", "GAFF069")
+    if _esta_activa("0x0010h") and len(lineas) > 500:
+        rcode, tit = _regla_info("0x0010h")
         violaciones.append(ViolacionRegla(
             codigo=rcode,
             titulo=tit,
@@ -1208,9 +1210,9 @@ def analizar_archivo(
         ))
 
     # -------------------------------------------------------------------------
-    # 0x0011h (GAFF070): Inclusión de cabecera propia en primer lugar en .c
+    # 0x0011h: Inclusión de cabecera propia en primer lugar en .c
     # -------------------------------------------------------------------------
-    if _esta_activa("0x0011h", "GAFF070") and ruta.suffix.lower() == ".c":
+    if _esta_activa("0x0011h") and ruta.suffix.lower() == ".c":
         header_propio = f'"{ruta.stem}.h"'
         headers_encontrados = []
         for i, l in enumerate(lineas):
@@ -1220,7 +1222,7 @@ def analizar_archivo(
         if headers_encontrados and (ruta.parent / f"{ruta.stem}.h").is_file():
             primero_lin, primero_txt = headers_encontrados[0]
             if header_propio not in primero_txt:
-                rcode, tit = _regla_info("0x0011h", "GAFF070")
+                rcode, tit = _regla_info("0x0011h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1234,9 +1236,9 @@ def analizar_archivo(
                 ))
 
     # -------------------------------------------------------------------------
-    # 0x0012h (GAFF071): Variables globales deben ser static o usar prefijo g_
+    # 0x0012h: Variables globales deben ser static o usar prefijo g_
     # -------------------------------------------------------------------------
-    if _esta_activa("0x0012h", "GAFF071"):
+    if _esta_activa("0x0012h"):
         re_global_var = re.compile(rf"^(?!static|const|extern|typedef)\s*{TIPOS_BASICOS}\s+([a-zA-Z_]\w*)\s*(?:=|;)", re.MULTILINE)
         # Buscar declaraciones fuera de funciones (al nivel de indentación 0)
         for i, l in enumerate(lineas):
@@ -1248,7 +1250,7 @@ def analizar_archivo(
             if m:
                 var_name = m.group(1)
                 if not var_name.startswith("g_"):
-                    rcode, tit = _regla_info("0x0012h", "GAFF071")
+                    rcode, tit = _regla_info("0x0012h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,

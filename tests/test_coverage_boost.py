@@ -36,18 +36,18 @@ def test_cli_fix_command(tmp_path):
 
 
 def test_cli_explain_command():
-    res1 = runner.invoke(app, ["explain", "GAFF001"])
+    res1 = runner.invoke(app, ["explain", "0x0007h"])
     assert res1.exit_code == 0
-    assert "GAFF001" in res1.stdout
+    assert "0x0007h" in res1.stdout
 
-    res2 = runner.invoke(app, ["explain", "GAFF999"])
+    res2 = runner.invoke(app, ["explain", "0x9999h"])
     assert res2.exit_code == 2
 
 
 def test_cli_rules_command():
     res = runner.invoke(app, ["rules"])
     assert res.exit_code == 0
-    assert "GAFF001" in res.stdout
+    assert "0x0007h" in res.stdout
 
 
 def test_linter_nonexistent_and_directory(tmp_path):
@@ -67,7 +67,7 @@ def test_linter_nonexistent_and_directory(tmp_path):
 
 
 def test_linter_all_rules_trigger(tmp_path):
-    # Long lines (GAFF009), long function (GAFF004), camelCase (GAFF001), typedef (GAFF002)
+    # Long lines (0x0009h), long function (0x2005h), camelCase (0x0007h), typedef (0x3004h)
     fuente = tmp_path / "all_bad.c"
     long_line = "int " + "x" * 120 + " = 10;\n"
     lines = ["typedef struct nodo { int a; } MiNodo;\n"]
@@ -79,10 +79,10 @@ def test_linter_all_rules_trigger(tmp_path):
 
     rep = ejecutar_linter([fuente])
     codigos = [v.codigo for v in rep.archivos[0].violaciones]
-    assert "GAFF001" in codigos
-    assert "GAFF002" in codigos
-    assert "GAFF004" in codigos
-    assert "GAFF009" in codigos
+    assert "0x0007h" in codigos
+    assert "0x3004h" in codigos
+    assert "0x2005h" in codigos
+    assert "0x0009h" in codigos
 
 
 def test_autofix_header_guard(tmp_path):
@@ -117,5 +117,5 @@ def test_cli_export_rules(tmp_path):
     assert out.is_file()
     content = out.read_text(encoding="utf-8")
     assert "Manual de Convenciones y Estilo" in content
-    assert "GAFF001" in content or "0x1001h" in content
+    assert "0x0007h" in content or "0x1001h" in content
 

@@ -8,20 +8,10 @@ from typing import Any, Dict, List, Optional
 
 
 class RuleCode(str):
-    """Representa un código de regla de cátedra (ej. '0x0007h') con alias retrocompatible ('GAFF001')."""
+    """Representa un código de regla de cátedra (ej. '0x0007h')."""
 
-    def __new__(cls, code: str, alias: Optional[str] = None):
-        obj = super().__new__(cls, code)
-        obj._alias = alias or ""
-        return obj
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, str):
-            return super().__eq__(other) or (bool(getattr(self, "_alias", None)) and self._alias.lower() == other.lower())
-        return super().__eq__(other)
-
-    def __hash__(self) -> int:
-        return super().__hash__()
+    def __new__(cls, code: str, *args, **kwargs):
+        return super().__new__(cls, code)
 
 
 @dataclass
@@ -41,7 +31,6 @@ class ViolacionRegla:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "codigo": str(self.codigo),
-            "alias": getattr(self.codigo, "_alias", ""),
             "titulo": self.titulo,
             "archivo": str(self.archivo),
             "linea": self.linea,

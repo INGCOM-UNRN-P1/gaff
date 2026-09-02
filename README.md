@@ -2,6 +2,37 @@
 
 GAFF es un linter pedagógico de código C y cabeceras H diseñado para hacer cumplir de forma automatizada las convenciones de nomenclatura, diseño estructurado y arquitectura obligatorias de la cátedra de Programación en C.
 
+---
+
+## 🎯 Alcance
+
+### Qué cubre
+- Linter pedagógico de estilo y convenciones arquitectónicas obligatorias de la cátedra (`0x00XXh`).
+- Validación de sangría estricta de 4 espacios, llaves estilo Allman en funciones y bloques de control.
+- Prohibición absoluta de variables globales mutables.
+- Regla de una única sentencia por línea, nombres de identificadores en `snake_case`, y presencia de guardas de inclusión en cabeceras.
+- Formateo automático de código C mediante archivo de configuración `.clang-format` institucional.
+
+### Qué no cubre (Límites y Delegación)
+- Auditoría de seguridad de memoria o llamadas a funciones peligrosas (delegado a `kaneda`).
+- Detección de antipatrones pedagógicos como casteo de `malloc` (delegado a `spunkmeyer`).
+- Verificación de opacidad de TDAs (delegado a `motoko`).
+
+---
+
+## 📋 Requisitos
+
+### Requisitos de Sistema y Entorno
+- Multiplataforma. Python >= 3.10.
+
+### Dependencias Externas y Binarios
+- `clang-format` (opcional, para modo `--fix`).
+
+### Integración en el Ecosistema
+- CLI `gaff`. Plugin registrado en `ripley.plugins` (`style`).
+
+---
+
 ## Reglas Principales
 
 - **`0x0001h`**: Identificadores descriptivos (sin variables cortas no canónicas).

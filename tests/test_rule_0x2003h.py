@@ -136,3 +136,93 @@ def test_comentario_descriptivo_valido(tmp_path: Path):
     )
     viols = analizar_archivo(src, reglas_habilitadas={"0x2003h"})
     assert len(viols) == 0
+
+
+def test_autofix_genera_esqueleto_doxygen_con_argumentos(tmp_path: Path):
+    from gaff.core.linter import aplicar_autofix_archivo
+
+    src = tmp_path / "calc_fix.c"
+    src.write_text(
+        "int sumar(int a, int b)\n"
+        "{\n"
+        "    return a + b;\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    # 1. Verificar que la violación es reportada como autofixable
+    viols = analizar_archivo(src, reglas_habilitadas={"0x2003h"})
+    assert len(viols) == 1
+    assert viols[0].codigo == "0x2003h"
+    assert viols[0].es_autofixable is True
+
+    # 2. Aplicar autofix
+    arreglos = aplicar_autofix_archivo(src)
+    assert arreglos > 0
+
+    # 3. Comprobar que el contenido ahora incluye el esqueleto Doxygen
+    contenido = src.read_text(encoding="utf-8")
+    assert "/**" in contenido
+    assert "@brief Descripción de la función sumar." in contenido
+    assert "@param a Descripción del parámetro a." in contenido
+    assert "@param b Descripción del parámetro b." in contenido
+    assert "@return Descripción del valor de retorno." in contenido
+
+    # 4. El archivo ya no debe tener violaciones de 0x2003h
+    viols_post = analizar_archivo(src, reglas_habilitadas={"0x2003h"})
+    assert len(viols_post) == 0
+
+
+def test_autofix_prototipo_en_header(tmp_path: Path):
+    from gaff.core.linter import aplicar_autofix_archivo
+
+    hdr = tmp_path / "vector.h"
+    hdr.write_text(
+        "#ifndef VECTOR_H\n"
+        "#define VECTOR_H\n"
+        "\n"
+        "void procesar_vector(int *vector, size_t longitud);\n"
+        "\n"
+        "#endif\n",
+        encoding="utf-8",
+    )
+    viols = analizar_archivo(hdr, reglas_habilitadas={"0x2003h"})
+    assert len(viols) == 1
+    assert viols[0].es_autofixable is True
+
+    arreglos = aplicar_autofix_archivo(hdr)
+    assert arreglos > 0
+
+    contenido = hdr.read_text(encoding="utf-8")
+    assert "/**" in contenido
+    assert "@brief Descripción de la función procesar_vector." in contenido
+    assert "@param vector Descripción del parámetro vector." in contenido
+    assert "@param longitud Descripción del parámetro longitud." in contenido
+    # void no debe incluir @return
+    assert "@return" not in contenido
+
+    viols_post = analizar_archivo(hdr, reglas_habilitadas={"0x2003h"})
+    assert len(viols_post) == 0
+
+
+def test_autofix_funcion_void_sin_parametros(tmp_path: Path):
+    from gaff.core.linter import aplicar_autofix_archivo
+
+    src = tmp_path / "reset.c"
+    src.write_text(
+        "void reiniciar(void)\n"
+        "{\n"
+        "    return;\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    arreglos = aplicar_autofix_archivo(src)
+    assert arreglos > 0
+
+    contenido = src.read_text(encoding="utf-8")
+    assert "/**" in contenido
+    assert "@brief Descripción de la función reiniciar." in contenido
+    assert "@param" not in contenido
+    assert "@return" not in contenido
+
+    viols_post = analizar_archivo(src, reglas_habilitadas={"0x2003h"})
+    assert len(viols_post) == 0

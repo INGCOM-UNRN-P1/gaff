@@ -1132,7 +1132,7 @@ def analizar_archivo(
                     mensaje=f"El prototipo de la función '{fn_name}' no incluye comentario de documentación.",
                     sugerencia="Documentá la función con @brief, @param y @return en formato Doxygen (/** ... */).",
                     codigo_linea=lineas[l_no - 1] if l_no <= len(lineas) else "",
-                    es_autofixable=False,
+                    es_autofixable=True,
                 ))
         else:
             for fn_name, l_no, c_no in prototipos_no_documentados:
@@ -1145,7 +1145,7 @@ def analizar_archivo(
                     mensaje=f"El prototipo de la función '{fn_name}' no incluye comentario de documentación.",
                     sugerencia="Documentá la función con @brief, @param y @return en formato Doxygen (/** ... */).",
                     codigo_linea=lineas[l_no - 1] if l_no <= len(lineas) else "",
-                    es_autofixable=False,
+                    es_autofixable=True,
                 ))
 
             for fn_name, l_no, c_no in definiciones_no_documentadas:
@@ -1163,7 +1163,7 @@ def analizar_archivo(
                     mensaje=f"La función '{fn_name}' no incluye comentario de documentación.",
                     sugerencia="Documentá la función con @brief, @param y @return en formato Doxygen (/** ... */).",
                     codigo_linea=lineas[l_no - 1] if l_no <= len(lineas) else "",
-                    es_autofixable=False,
+                    es_autofixable=True,
                 ))
 
     # -------------------------------------------------------------------------
@@ -2321,6 +2321,94 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
             guard_name = f"{ruta.stem.upper()}_H"
             contenido_mod = f"#ifndef {guard_name}\n#define {guard_name}\n\n{contenido_mod.strip()}\n\n#endif // {guard_name}\n"
             arreglos += 1
+
+
+    # GAFF018 / 0x2003h: Autofix de esqueleto de documentación Doxygen para funciones no documentadas
+    lineas_actuales = contenido_mod.splitlines()
+    codigo_sin_coments = _eliminar_comentarios(contenido_mod)
+
+    pattern_fn = (
+        r"^([ \t]*)(?!(?:typedef|return)\b)((?:(?:static|inline|extern|const)[ \t]+)*(?:struct[ \t]+\w+|enum[ \t]+\w+|union[ \t]+\w+|"
+        + TIPOS_BASICOS
+        + r"|[a-zA-Z_]\w*)[ \t]*(\*+[ \t]*|[ \t]+\*?))([a-zA-Z_]\w*)[ \t]*\(([\s\S]*?)\)[ \t]*([;{])?"
+    )
+    re_fn_fix = re.compile(pattern_fn, re.MULTILINE)
+
+    inserciones: List[Tuple[int, str]] = []
+    prototipos_doc: Set[str] = set()
+    if not ruta.suffix.lower() in (".h", ".hpp"):
+        comp_h = ruta.with_suffix(".h")
+        if comp_h.is_file():
+            try:
+                txt_h = comp_h.read_text(encoding="utf-8", errors="replace")
+                lines_h = txt_h.splitlines()
+                code_h = _eliminar_comentarios(txt_h)
+                for m_ph in re_fn_fix.finditer(code_h):
+                    nom = m_ph.group(4)
+                    l_i = code_h[:m_ph.start()].count("\n")
+                    if _tiene_comentario_documentacion(lines_h, l_i):
+                        prototipos_doc.add(nom)
+            except Exception:
+                pass
+
+    for m_fn in re_fn_fix.finditer(codigo_sin_coments):
+        indent = m_fn.group(1)
+        ret_type = m_fn.group(2)
+        fn_name = m_fn.group(4)
+        params_str = m_fn.group(5)
+        char_cierre = m_fn.group(6)
+
+        if fn_name in ("if", "for", "while", "switch", "return", "sizeof", "main"):
+            continue
+
+        pos_despues = m_fn.end()
+        if char_cierre == ";":
+            es_proto = True
+        elif char_cierre == "{":
+            es_proto = False
+        else:
+            resto = codigo_sin_coments[pos_despues:pos_despues + 100].lstrip()
+            if resto.startswith(";"):
+                es_proto = True
+            elif resto.startswith("{") or "{" in resto[:60]:
+                es_proto = False
+            else:
+                continue
+
+        line_idx_start = codigo_sin_coments[:m_fn.start()].count("\n")
+        if _tiene_comentario_documentacion(lineas_actuales, line_idx_start):
+            prototipos_doc.add(fn_name)
+            continue
+
+        if not es_proto and fn_name in prototipos_doc:
+            continue
+
+        lineas_doc = [f"{indent}/**", f"{indent} * @brief Descripción de la función {fn_name}."]
+
+        raw_params = [p.strip() for p in params_str.split(",") if p.strip()]
+        if raw_params and not (len(raw_params) == 1 and raw_params[0] == "void"):
+            lineas_doc.append(f"{indent} *")
+            for p in raw_params:
+                m_arg = re.search(r"([a-zA-Z_]\w*)\s*(?:\[[^\]]*\])?$", p)
+                arg_name = m_arg.group(1) if m_arg else "param"
+                lineas_doc.append(f"{indent} * @param {arg_name} Descripción del parámetro {arg_name}.")
+
+        ret_clean = ret_type.strip()
+        es_void = ret_clean == "void" or ret_clean.endswith(" void") or ret_clean.endswith("\tvoid")
+        if not es_void:
+            lineas_doc.append(f"{indent} * @return Descripción del valor de retorno.")
+
+        lineas_doc.append(f"{indent} */")
+        texto_doc = "\n".join(lineas_doc)
+
+        inserciones.append((line_idx_start, texto_doc))
+        prototipos_doc.add(fn_name)
+
+    if inserciones:
+        for l_idx, doc_block in sorted(inserciones, key=lambda x: x[0], reverse=True):
+            lineas_actuales.insert(l_idx, doc_block)
+            arreglos += 1
+        contenido_mod = "\n".join(lineas_actuales) + "\n"
 
     ruta.write_text(contenido_mod, encoding="utf-8")
 

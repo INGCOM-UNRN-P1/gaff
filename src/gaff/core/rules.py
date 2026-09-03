@@ -203,7 +203,7 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
         "descripcion": "Documentar funciones con @brief, @param y @return en formato Doxygen.",
         "ejemplo_correcto": "/**\n * @brief Suma dos enteros.\n * @param a Primer sumando.\n * @param b Segundo sumando.\n * @return Resultado de la suma.\n */",
         "ejemplo_incorrecto": "int suma(int a, int b);",
-        "autofix": "No",
+        "autofix": "Sí",
     },
     "0x2004h": {
         "codigo": "0x2004h",

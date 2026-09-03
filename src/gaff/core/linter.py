@@ -2506,6 +2506,245 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
+    # -------------------------------------------------------------------------
+    # 0x0014h: Prohibición de identificadores con caracteres no ASCII
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0014h"):
+        re_non_ascii_ident = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+([a-zA-Z0-9_]*[áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_]*)")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_na = re_non_ascii_ident.search(l)
+            if m_na:
+                nom = m_na.group(1)
+                rcode, tit = _regla_info("0x0014h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_na.start(1) + 1,
+                    mensaje=f"Identificador '{nom}' contiene caracteres no ASCII (tildes o 'ñ').",
+                    sugerencia="Utilizá únicamente caracteres alfanuméricos ASCII estándar [a-z0-9_] para garantizar portabilidad.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0015h: Prohibición del operador coma para encadenar sentencias independientes
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0015h"):
+        re_comma_stmt = re.compile(r"^[ \t]*[a-zA-Z_]\w*\s*=[^,;]+,\s*[a-zA-Z_]\w*\s*=[^;]+;", re.MULTILINE)
+        for i, l in enumerate(lineas_sin_comentarios):
+            if l.strip().startswith("for"):
+                continue
+            m_cs = re_comma_stmt.match(l)
+            if m_cs:
+                rcode, tit = _regla_info("0x0015h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=1,
+                    mensaje="Uso del operador coma ',' para encadenar sentencias independientes.",
+                    sugerencia="Dividí las asignaciones en líneas separadas terminadas en punto y coma ';' para mayor claridad.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Ch: Exigencia de break explícito o comentario de fallthrough en bloques switch case
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Ch"):
+        re_case_block = re.compile(r"\bcase\s+[^:]+:\s*\n((?:[^\n]+\n)*?)(?=\s*(?:case\s+[^:]+|default)\s*:)", re.MULTILINE)
+        for m_cb in re_case_block.finditer(codigo_sin_comentarios):
+            c_body = m_cb.group(1).strip()
+            if c_body:
+                if not (re.search(r"\b(?:break|return)\s*;", c_body) or "fallthrough" in c_body.lower()):
+                    linea_num = contenido_original[:m_cb.start()].count("\n") + 1
+                    rcode, tit = _regla_info("0x100Ch")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=linea_num,
+                        columna=1,
+                        mensaje="Cláusula 'case' finaliza sin sentencia 'break;' ni 'return;'.",
+                        sugerencia="Agregá 'break;' al final del caso o documentá la caída deliberada con '// fallthrough'.",
+                        codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Dh: Prohibición de modificar la variable de control dentro del cuerpo del for
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Dh"):
+        re_for_head = re.compile(r"\bfor\s*\(\s*(?:int|size_t)?\s*([a-zA-Z_]\w*)\s*=[^;]*;[^;]*;\s*[^)]*\)\s*\{", re.MULTILINE)
+        for m_fh in re_for_head.finditer(codigo_sin_comentarios):
+            idx_var = m_fh.group(1)
+            start_idx = m_fh.end()
+            brace_count = 1
+            curr_idx = start_idx
+            while curr_idx < len(codigo_sin_comentarios) and brace_count > 0:
+                ch = codigo_sin_comentarios[curr_idx]
+                if ch == "{":
+                    brace_count += 1
+                elif ch == "}":
+                    brace_count -= 1
+                curr_idx += 1
+            body_for = codigo_sin_comentarios[start_idx:curr_idx]
+            if re.search(rf"\b{idx_var}\s*(?:\+\+|\-\-|\+=|\-=|=)\s*[^=]", body_for):
+                linea_num = contenido_original[:m_fh.start()].count("\n") + 1
+                rcode, tit = _regla_info("0x100Dh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=linea_num,
+                    columna=1,
+                    mensaje=f"Modificación de la variable de iteración '{idx_var}' dentro del cuerpo del lazo 'for'.",
+                    sugerencia="Modificá el contador únicamente en la cabecera del lazo o reemplazá el 'for' por un 'while'.",
+                    codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x200Ch: Prohibición de retornar la dirección de una variable local de stack
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x200Ch"):
+        re_ret_addr = re.compile(r"^\s*return\s+&\s*([a-zA-Z_]\w*)\s*;", re.MULTILINE)
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_ra = re_ret_addr.match(l)
+            if m_ra:
+                vnom = m_ra.group(1)
+                rcode, tit = _regla_info("0x200Ch")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_ra.start() + 1,
+                    mensaje=f"Retorno de dirección de variable local '&{vnom}'; produce puntero colgante (dangling pointer) al destruirse el marco del stack.",
+                    sugerencia="Alocá la variable dinámicamente con malloc() o pasala como parámetro de salida por referencia.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x3013h: Asignación de memoria con sizeof sobre puntero en lugar del tipo apuntado
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3013h"):
+        re_sizeof_ptr = re.compile(r"\b([a-zA-Z_]\w*)\s*=\s*(?:\([a-zA-Z0-9_* ]+\)\s*)?(?:malloc|calloc)\s*\([^)]*sizeof\s*\(\s*\1\s*\)")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_sp = re_sizeof_ptr.search(l)
+            if m_sp:
+                pnom = m_sp.group(1)
+                rcode, tit = _regla_info("0x3013h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_sp.start() + 1,
+                    mensaje=f"Uso erróneo de 'sizeof({pnom})' sobre el propio puntero en asignación de memoria.",
+                    sugerencia=f"Utilizá 'sizeof(*{pnom})' para alocar según el tamaño del tipo apuntado y no del puntero.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x3014h: Prohibición de doble liberación de memoria (double free)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3014h"):
+        re_double_free = re.compile(r"\bfree\s*\(\s*([a-zA-Z_]\w*)\s*\)\s*;(?:\s*\n)+\s*free\s*\(\s*\1\s*\)\s*;")
+        for m_df in re_double_free.finditer(codigo_sin_comentarios):
+            pnom = m_df.group(1)
+            linea_num = contenido_original[:m_df.start()].count("\n") + 1
+            rcode, tit = _regla_info("0x3014h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=linea_num,
+                columna=1,
+                mensaje=f"Doble liberación de memoria consecutiva sobre '{pnom}'.",
+                sugerencia=f"Eliminá la segunda llamada y asigná '{pnom} = NULL;' tras el primer free.",
+                codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                es_autofixable=False,
+            ))
+
+    # -------------------------------------------------------------------------
+    # 0x4006h: Prohibición del antipatrón while (!feof(f))
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x4006h"):
+        re_while_feof = re.compile(r"\bwhile\s*\(\s*!feof\s*\(")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_wf = re_while_feof.search(l)
+            if m_wf:
+                rcode, tit = _regla_info("0x4006h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_wf.start() + 1,
+                    mensaje="Antipatrón de lectura: 'while (!feof(...))' evalúa EOF antes de intentar leer.",
+                    sugerencia="Controlá el lazo evaluando el retorno de la operación de lectura: 'while (fgets(...) != NULL)' o 'while (fread(...) == 1)'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x500Ah: Protección obligatoria de parámetros en macros funcionales mediante paréntesis
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x500Ah"):
+        re_macro_fn = re.compile(r"^[ \t]*#define\s+([a-zA-Z_]\w*)\s*\(([^)]+)\)\s+([^\n]+)", re.MULTILINE)
+        for m_mf in re_macro_fn.finditer(codigo_sin_comentarios):
+            m_name = m_mf.group(1)
+            m_params = [p.strip() for p in m_mf.group(2).split(",") if p.strip()]
+            m_body = m_mf.group(3).strip()
+            for p in m_params:
+                if re.search(rf"(?<!\()\b{p}\b(?!\))", m_body):
+                    linea_num = contenido_original[:m_mf.start()].count("\n") + 1
+                    rcode, tit = _regla_info("0x500Ah")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=linea_num,
+                        columna=1,
+                        mensaje=f"El parámetro '{p}' en la macro funcional '{m_name}' no está protegido entre paréntesis.",
+                        sugerencia=f"Encerrá cada ocurrencia del parámetro entre paréntesis '({p})' en la expansión de la macro.",
+                        codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+                    break
+
+    # -------------------------------------------------------------------------
+    # 0x500Bh: Inclusión obligatoria de cabeceras estándar para funciones estándar
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x500Bh") and ruta.suffix.lower() == ".c":
+        chequeos_headers = [
+            (r"\b(?:printf|scanf|puts|getchar|putchar)\s*\(", "<stdio.h>"),
+            (r"\b(?:malloc|calloc|realloc|free|exit|qsort)\s*\(", "<stdlib.h>"),
+            (r"\b(?:strlen|strcpy|strncpy|strcat|strcmp|strncmp|memcpy|memset)\s*\(", "<string.h>"),
+            (r"\b(?:assert)\s*\(", "<assert.h>"),
+        ]
+        for pat_fn, h_req in chequeos_headers:
+            if re.search(pat_fn, codigo_sin_comentarios):
+                if h_req not in contenido_original:
+                    rcode, tit = _regla_info("0x500Bh")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=1,
+                        columna=1,
+                        mensaje=f"Uso de funciones de la biblioteca estándar de C sin incluir la cabecera '{h_req}'.",
+                        sugerencia=f"Agregá '#include {h_req}' en la sección de cabecera del archivo.",
+                        codigo_linea=lineas[0] if lineas else "",
+                        es_autofixable=False,
+                    ))
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 

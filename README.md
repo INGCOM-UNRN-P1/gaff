@@ -7,16 +7,19 @@ GAFF es un linter pedagógico de código C y cabeceras H diseñado para hacer cu
 ## 🎯 Alcance
 
 ### Qué cubre
-- Linter pedagógico de estilo y convenciones arquitectónicas obligatorias de la cátedra (`0x00XXh`).
-- Validación de sangría estricta de 4 espacios, llaves estilo Allman en funciones y bloques de control.
-- Prohibición absoluta de variables globales mutables.
-- Regla de una única sentencia por línea, nombres de identificadores en `snake_case`, y presencia de guardas de inclusión en cabeceras.
+- Linter pedagógico de estilo y convenciones arquitectónicas obligatorias de la cátedra, cubriendo las 68 reglas del catálogo oficial (`0x00XXh` a `0x50XXh`).
+- Validación de sintaxis básica (`0x00XXh`): sangría de 4 espacios, llaves estilo Allman, prolijidad, una variable por línea y nombres en `snake_case`.
+- Control de flujo y lazos (`0x10XXh`): llaves obligatorias, simplificación de condiciones complejas, erradicación de `goto`, desuso de ternarios y prevención de truthiness implícito.
+- Modularización y funciones (`0x20XXh`): contratos documentados, cláusulas de guarda, una única aserción por función de test y retornos estructurados.
+- Punteros y memoria dinámica (`0x30XXh`): validación inmediata contra `NULL` tras `malloc`, prevención de punteros colgantes (`free(p); p = NULL;`), simetría, `sizeof(*ptr)`, límites de arreglos y tipado con `size_t`.
+- Gestión de archivos y errores (`0x40XXh`): validación estricta de `fopen`, verificación de retornos de `fread`/`fwrite`, uso de `perror`/`strerror`/`errno`, simetría de recursos y control de offsets en `fseek`.
+- Buenas prácticas de compilación (`0x50XXh`): guardas en cabeceras, cadenas seguras (`fgets`/`snprintf`), estructura canónica de archivos `.c` y prohibición de silenciar diagnósticos del compilador.
 - Formateo automático de código C mediante archivo de configuración `.clang-format` institucional.
 
 ### Qué no cubre (Límites y Delegación)
-- Auditoría de seguridad de memoria o llamadas a funciones peligrosas (delegado a `kaneda`).
-- Detección de antipatrones pedagógicos como casteo de `malloc` (delegado a `spunkmeyer`).
-- Verificación de opacidad de TDAs (delegado a `motoko`).
+- Auditoría profunda de vulnerabilidades de seguridad de memoria o llamadas a funciones prohibidas complejas (delegado a `kaneda`).
+- Fuzzing de memoria extrema (delegado a `drake`).
+- Verificación formal con Frama-C (delegado a `callahan`).
 
 ---
 

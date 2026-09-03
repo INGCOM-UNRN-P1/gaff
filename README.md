@@ -7,13 +7,13 @@ GAFF es un linter pedagógico de código C y cabeceras H diseñado para hacer cu
 ## 🎯 Alcance
 
 ### Qué cubre
-- Linter pedagógico de estilo y convenciones arquitectónicas obligatorias de la cátedra, cubriendo las 68 reglas del catálogo oficial (`0x00XXh` a `0x50XXh`).
-- Validación de sintaxis básica (`0x00XXh`): sangría de 4 espacios, llaves estilo Allman, prolijidad, una variable por línea y nombres en `snake_case`.
-- Control de flujo y lazos (`0x10XXh`): llaves obligatorias, simplificación de condiciones complejas, erradicación de `goto`, desuso de ternarios y prevención de truthiness implícito.
-- Modularización y funciones (`0x20XXh`): contratos documentados, cláusulas de guarda, una única aserción por función de test y retornos estructurados.
-- Punteros y memoria dinámica (`0x30XXh`): validación inmediata contra `NULL` tras `malloc`, prevención de punteros colgantes (`free(p); p = NULL;`), simetría, `sizeof(*ptr)`, límites de arreglos y tipado con `size_t`.
-- Gestión de archivos y errores (`0x40XXh`): validación estricta de `fopen`, verificación de retornos de `fread`/`fwrite`, uso de `perror`/`strerror`/`errno`, simetría de recursos y control de offsets en `fseek`.
-- Buenas prácticas de compilación (`0x50XXh`): guardas en cabeceras, cadenas seguras (`fgets`/`snprintf`), estructura canónica de archivos `.c` y prohibición de silenciar diagnósticos del compilador.
+- Linter pedagógico de estilo y convenciones arquitectónicas obligatorias de la cátedra, cubriendo 78 reglas de catálogo (`0x00XXh` a `0x50XXh`).
+- Validación de sintaxis básica (`0x00XXh`): sangría de 4 espacios, llaves estilo Allman, prolijidad, una variable por línea, macros `#define` en mayúsculas sostenidas (`0x0013h`) y nombres en `snake_case`.
+- Control de flujo y lazos (`0x10XXh`): llaves obligatorias, simplificación de condiciones complejas, erradicación de `goto`, desuso de ternarios, prevención de truthiness implícito, prohibición de asignaciones en condicionales (`0x100Ah`) y control de cuerpos vacíos (`0x100Bh`).
+- Modularización y funciones (`0x20XXh`): contratos documentados Doxygen con autofix (`0x2003h`), cláusulas de guarda, una única aserción por función de test, límite de 4 parámetros por función (`0x200Bh`) y retornos estructurados.
+- Punteros y memoria dinámica (`0x30XXh`): validación inmediata contra `NULL` tras `malloc`, prevención de punteros colgantes (`free(p); p = NULL;`), reallocación segura con puntero temporal (`0x3015h`), prohibición de aritmética sobre `void *` (`0x3012h`), simetría, `sizeof(*ptr)`, límites de arreglos y tipado con `size_t`.
+- Gestión de archivos y errores (`0x40XXh`): validación estricta de `fopen`, prohibición de rutas absolutas locales (`0x4007h`), verificación de retornos de `fread`/`fwrite`, uso de `perror`/`strerror`/`errno`, simetría de recursos y control de offsets en `fseek`.
+- Buenas prácticas de compilación (`0x50XXh`): guardas en cabeceras, deduplicación de inclusiones redundantes con autofix (`0x5007h`), prohibición de funciones obsoletas (`gets`, `atoi`) (`0x5008h`), advertencia de división entera a flotante (`0x5009h`), cadenas seguras y estructura canónica de archivos `.c`.
 - Formateo automático de código C mediante archivo de configuración `.clang-format` institucional.
 
 ### Qué no cubre (Límites y Delegación)

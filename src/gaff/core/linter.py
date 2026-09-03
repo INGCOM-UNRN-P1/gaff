@@ -2276,6 +2276,236 @@ def analizar_archivo(
                     ))
                     break
 
+    # -------------------------------------------------------------------------
+    # 0x0013h: Macros #define deben nombrarse en MAYUSCULAS_SNAKE_CASE
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0013h"):
+        re_macro_min = re.compile(r"^[ \t]*#define[ \t]+([a-z]\w*)", re.MULTILINE)
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_mac = re_macro_min.match(l)
+            if m_mac:
+                macro_nom = m_mac.group(1)
+                rcode, tit = _regla_info("0x0013h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_mac.start(1) + 1,
+                    mensaje=f"La macro o constante '#define {macro_nom}' contiene letras minúsculas; debe nombrarse en MAYUSCULAS_SNAKE_CASE.",
+                    sugerencia=f"Renombrala en mayúsculas: '#define {macro_nom.upper()}'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Ah: Prohibición de asignaciones simples dentro de condiciones lógicas
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Ah"):
+        re_assign_in_cond = re.compile(r"\b(?:if|while)\s*\(\s*([a-zA-Z_]\w*)\s*=\s*([^=;()]+)\s*\)")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_as = re_assign_in_cond.search(l)
+            if m_as:
+                var_nom = m_as.group(1)
+                val_expr = m_as.group(2).strip()
+                rcode, tit = _regla_info("0x100Ah")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_as.start() + 1,
+                    mensaje=f"Asignación simple '=' dentro de condición lógica: 'if ({var_nom} = {val_expr})'. ¿Quisiste usar '=='?",
+                    sugerencia=f"Cambiá a comparación de igualdad 'if ({var_nom} == {val_expr})' o extraé la asignación antes del condicional.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Bh: Prohibición de estructuras de control con cuerpo vacío (if (...);)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Bh"):
+        re_empty_body = re.compile(r"^[ \t]*(?:if|while|for)\s*\([^)]*\)\s*;\s*$", re.MULTILINE)
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_eb = re_empty_body.match(l)
+            if m_eb:
+                rcode, tit = _regla_info("0x100Bh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_eb.end() - 1,
+                    mensaje="Estructura de control con cuerpo nulo: punto y coma ';' inmediatamente después de la condición.",
+                    sugerencia="Eliminá el punto y coma ';' y utilizá un bloque con llaves '{ ... }' para encerrar el cuerpo.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x200Bh: Modularización: una función no debe exceder 4 parámetros de entrada
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x200Bh"):
+        re_fn_params = re.compile(rf"^(?!typedef|extern)[ \t]*{TIPOS_BASICOS}\s+(\w+)\s*\(([^)]+)\)\s*(?:\{{|;)", re.MULTILINE)
+        for m_fp in re_fn_params.finditer(codigo_sin_comentarios):
+            fn_name = m_fp.group(1)
+            params_raw = [p.strip() for p in m_fp.group(2).split(",") if p.strip()]
+            if len(params_raw) > 4:
+                linea_num = contenido_original[:m_fp.start()].count("\n") + 1
+                rcode, tit = _regla_info("0x200Bh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=linea_num,
+                    columna=1,
+                    mensaje=f"La función '{fn_name}' recibe {len(params_raw)} parámetros (máximo recomendado: 4).",
+                    sugerencia="Empaquetá los parámetros relacionados en una estructura 'struct' o TDA para reducir el acoplamiento.",
+                    codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x3012h: Prohibición de aritmética de punteros sobre void*
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3012h"):
+        re_void_decl = re.compile(r"\bvoid\s*\*\s*([a-zA-Z_]\w*)\b")
+        void_ptrs = set(re_void_decl.findall(codigo_sin_comentarios))
+        for vp in void_ptrs:
+            re_void_arith = re.compile(rf"\b{vp}\s*(?:\+\+|\-\-|\+\s*\d+|\-\s*\d+)")
+            for i, l in enumerate(lineas_sin_comentarios):
+                if "void *" in l:
+                    continue
+                m_va = re_void_arith.search(l)
+                if m_va:
+                    rcode, tit = _regla_info("0x3012h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=m_va.start() + 1,
+                        mensaje=f"Aritmética de punteros sobre 'void *{vp}'. El tipo void carece de tamaño definido en C estándar.",
+                        sugerencia=f"Casteá explícitamente a '(char *){vp}' o '(uint8_t *){vp}' antes de sumar offsets.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x3015h: Reallocación segura: no sobreescribir el puntero original directamente
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3015h"):
+        re_unsafe_realloc = re.compile(r"\b([a-zA-Z_]\w*)\s*=\s*(?:\([a-zA-Z0-9_* ]+\)\s*)?realloc\s*\(\s*\1\s*,")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_re = re_unsafe_realloc.search(l)
+            if m_re:
+                pname = m_re.group(1)
+                rcode, tit = _regla_info("0x3015h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_re.start() + 1,
+                    mensaje=f"Reasignación insegura con realloc: '{pname} = realloc({pname}, ...)'. Provoca fuga si realloc falla y retorna NULL.",
+                    sugerencia=f"Asigná a una variable temporal: 'void *tmp = realloc({pname}, ...); if (tmp) {pname} = tmp;'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x4007h: Prohibición de rutas absolutas hardcodeadas en llamadas de archivo
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x4007h"):
+        re_abs_path = re.compile(r'\bfopen\s*\(\s*"(?:/(?:home|etc|var|tmp|usr|opt)|[a-zA-Z]:\\\\)')
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_ap = re_abs_path.search(l)
+            if m_ap:
+                rcode, tit = _regla_info("0x4007h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_ap.start() + 1,
+                    mensaje="Ruta absoluta hardcodeada en llamada a 'fopen()'. Afecta la portabilidad del programa.",
+                    sugerencia="Utilizá rutas relativas o recibí el nombre del archivo como argumento en 'argv' o parámetro de función.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x5007h: Inclusiones redundantes o duplicadas de la misma cabecera #include
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5007h"):
+        headers_vistos: Dict[str, int] = {}
+        re_inc_line = re.compile(r"^[ \t]*#include[ \t]+([<\"].+[>\"])")
+        for i, l in enumerate(lineas):
+            m_inc = re_inc_line.match(l)
+            if m_inc:
+                h_name = m_inc.group(1)
+                if h_name in headers_vistos:
+                    rcode, tit = _regla_info("0x5007h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=1,
+                        mensaje=f"Inclusión duplicada de la cabecera #include {h_name} (previamente incluida en la línea {headers_vistos[h_name]}).",
+                        sugerencia="Eliminá la directiva de inclusión redundante.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=True,
+                    ))
+                else:
+                    headers_vistos[h_name] = i + 1
+
+    # -------------------------------------------------------------------------
+    # 0x5008h: Prohibición de funciones obsoletas o inseguras (gets, atoi)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5008h"):
+        re_unsafe_fn = re.compile(r"\b(gets|atoi)\s*\(")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_uf = re_unsafe_fn.search(l)
+            if m_uf:
+                bad_fn = m_uf.group(1)
+                sug = "fgets(buf, sizeof(buf), stdin)" if bad_fn == "gets" else "strtol(str, &endptr, 10)"
+                rcode, tit = _regla_info("0x5008h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_uf.start() + 1,
+                    mensaje=f"Uso de la función obsoleta o insegura '{bad_fn}()'.",
+                    sugerencia=f"Reemplazala por '{sug}'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x5009h: Prohibición de división entera no intencional asignada a flotantes
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5009h"):
+        re_int_div_float = re.compile(r"\b(?:float|double)\s+[a-zA-Z_]\w*\s*=\s*(\d+)\s*/\s*(\d+)\s*;")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_idf = re_int_div_float.search(l)
+            if m_idf:
+                n1 = m_idf.group(1)
+                n2 = m_idf.group(2)
+                rcode, tit = _regla_info("0x5009h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_idf.start() + 1,
+                    mensaje=f"División entera '{n1} / {n2}' asignada a tipo flotante; trunca a entero antes de la asignación.",
+                    sugerencia=f"Usá literales flotantes: '{n1}.0 / {n2}.0' o casteo '(double){n1} / {n2}'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 
@@ -2292,6 +2522,20 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
 
     arreglos = 0
     lineas = contenido.splitlines()
+    # GAFF019 / 0x5007h: Deduplicación de #include redundantes
+    headers_vistos_fix = set()
+    lineas_dedup = []
+    for l in lineas:
+        m_inc = re.match(r"^[ \t]*#include[ \t]+([<\"].+[>\"])", l)
+        if m_inc:
+            h_nom = m_inc.group(1)
+            if h_nom in headers_vistos_fix:
+                arreglos += 1
+                continue
+            headers_vistos_fix.add(h_nom)
+        lineas_dedup.append(l)
+    lineas = lineas_dedup
+
     nuevas_lineas = []
 
     re_kw = re.compile(r"\b(if|for|while|switch)\(")

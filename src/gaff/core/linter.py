@@ -192,8 +192,8 @@ def analizar_archivo(
 
     # 0x5003h: Guardas de inclusión en cabeceras (.h)
     if _esta_activa("0x5003h") and es_header:
-        tiene_pragma = "#pragma once" in contenido_original
-        tiene_ifndef = bool(re.search(r"#ifndef\s+\w+", contenido_original) and re.search(r"#define\s+\w+", contenido_original))
+        tiene_pragma = bool(re.search(r"^[ 	]*#pragma\s+once", codigo_sin_comentarios, re.MULTILINE))
+        tiene_ifndef = bool(re.search(r"^[ 	]*#ifndef\s+\w+", codigo_sin_comentarios, re.MULTILINE) and re.search(r"^[ 	]*#define\s+\w+", codigo_sin_comentarios, re.MULTILINE))
         if not (tiene_pragma or tiene_ifndef):
             rcode, tit = _regla_info("0x5003h")
             stem_h = ruta.stem.upper()
@@ -611,7 +611,8 @@ def analizar_archivo(
         # 0x0007h / 0x200Ah: camelCase en funciones
         if _esta_activa("0x0007h") or _esta_activa("0x200Ah"):
             if raw_fn not in IGNORED_VAR_NAMES and any(c.isupper() for c in raw_fn) and any(c.islower() for c in raw_fn):
-                rcode, tit = _regla_info("0x0007h")
+                rcode_target = "0x200Ah" if (_esta_activa("0x200Ah") and not _esta_activa("0x0007h")) else "0x0007h"
+                rcode, tit = _regla_info(rcode_target)
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -969,7 +970,7 @@ def analizar_archivo(
 
     # 0x2005h: Longitud máxima de función (> 50 líneas)
     if _esta_activa("0x2005h"):
-        re_fn_start = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^)]*\)\s*\{?", re.MULTILINE)
+        re_fn_start = re.compile(r"^[ 	]*(?:[a-zA-Z0-9_*]+[ 	]+)+([a-zA-Z0-9_]+)[ 	]*\([^)]*\)[ 	]*\{?", re.MULTILINE)
         for m in re_fn_start.finditer(codigo_sin_comentarios):
             fn_name = m.group(1)
             start_pos = codigo_sin_comentarios.find("{", m.end() - 1)
@@ -1004,7 +1005,7 @@ def analizar_archivo(
 
     # 0x2002h: printf/scanf en funciones auxiliares
     if _esta_activa("0x2002h") and not es_header:
-        re_fn_any = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^)]*\)\s*\{?", re.MULTILINE)
+        re_fn_any = re.compile(r"^[ 	]*(?:[a-zA-Z0-9_*]+[ 	]+)+([a-zA-Z0-9_]+)[ 	]*\([^)]*\)[ 	]*\{?", re.MULTILINE)
         for m in re_fn_any.finditer(codigo_sin_comentarios):
             fn_name = m.group(1)
             if fn_name in ("main",) or fn_name.startswith(("imprimir_", "mostrar_", "print_", "mostrar", "imprimir", "leer_", "pedir_", "log_", "reportar_")):
@@ -2731,7 +2732,7 @@ def analizar_archivo(
         ]
         for pat_fn, h_req in chequeos_headers:
             if re.search(pat_fn, codigo_sin_comentarios):
-                if h_req not in contenido_original:
+                if not re.search(rf"^[ \t]*#include[ \t]+{re.escape(h_req)}", codigo_sin_comentarios, re.MULTILINE):
                     rcode, tit = _regla_info("0x500Bh")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
@@ -3014,6 +3015,270 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
+    # -------------------------------------------------------------------------
+    # 0x0018h: Prohibición de identificadores con prefijos reservados (__ o _[A-Z])
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0018h"):
+        re_res_pref = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+(__\w+|_([A-Z]\w*))\b")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_rp = re_res_pref.search(l)
+            if m_rp:
+                nom = m_rp.group(1)
+                rcode, tit = _regla_info("0x0018h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_rp.start(1) + 1,
+                    mensaje=f"Identificador '{nom}' comienza con prefijo reservado para el compilador o libc ('__' o '_[A-Z]').",
+                    sugerencia="Utilizá nombres en snake_case sin prefijos de guiones bajos reservados.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0019h: Prohibición de espacios en blanco antes de separadores de sintaxis (; y ,)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0019h"):
+        re_space_sep = re.compile(r"[ \t]+([;,])")
+        for i, l in enumerate(lineas_sin_comentarios):
+            if l.strip().startswith("for") or l.strip().startswith("/*") or l.strip().startswith("*"):
+                continue
+            for m_ss in re_space_sep.finditer(l):
+                sep = m_ss.group(1)
+                rcode, tit = _regla_info("0x0019h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_ss.start() + 1,
+                    mensaje=f"Espacio en blanco innecesario antes del separador '{sep}'.",
+                    sugerencia="Pegá el separador directamente al identificador o expresión precedente.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x1010h: Delimitación obligatoria con bloque de llaves en lazos do-while
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x1010h"):
+        re_do_nok = re.compile(r"^[ \t]*do[ \t]+(?!\{)[a-zA-Z_]\w*", re.MULTILINE)
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_dn = re_do_nok.match(l)
+            if m_dn:
+                rcode, tit = _regla_info("0x1010h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=1,
+                    mensaje="Lazo 'do ... while' sin bloque de llaves '{ ... }' delimitador.",
+                    sugerencia="Encerrá siempre el cuerpo de 'do' entre llaves explícitas.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x1011h: Prohibición de cláusula else redundante tras sentencia de retorno anticipado
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x1011h"):
+        re_else_ret = re.compile(r"\breturn\s*[^;]*;\s*\}\s*else\b", re.MULTILINE)
+        for m_er in re_else_ret.finditer(codigo_sin_comentarios):
+            linea_num = contenido_original[:m_er.start()].count("\n") + 1
+            rcode, tit = _regla_info("0x1011h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=linea_num,
+                columna=1,
+                mensaje="Cláusula 'else' redundante tras bloque finalizado incondicionalmente con 'return'.",
+                sugerencia="Desanidá el bloque posterior eliminando el 'else' innecesario.",
+                codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                es_autofixable=False,
+            ))
+
+    # -------------------------------------------------------------------------
+    # 0x2010h: Prohibición de sombreado de parámetros mediante variables locales con el mismo nombre
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x2010h"):
+        re_fn_with_params = re.compile(rf"^[ \t]*(?!typedef|extern){TIPOS_BASICOS}\s+(\w+)\s*\(([^)]+)\)\s*\{{", re.MULTILINE)
+        for m_fwp in re_fn_with_params.finditer(codigo_sin_comentarios):
+            fn_params_raw = m_fwp.group(2)
+            params_set = set(re.findall(r"\b([a-zA-Z_]\w*)\s*(?:,|$)", fn_params_raw))
+            params_set.discard("void")
+            start_idx = m_fwp.end()
+            brace_count = 1
+            curr_idx = start_idx
+            while curr_idx < len(codigo_sin_comentarios) and brace_count > 0:
+                ch = codigo_sin_comentarios[curr_idx]
+                if ch == '{':
+                    brace_count += 1
+                elif ch == '}':
+                    brace_count -= 1
+                curr_idx += 1
+            body_fn = codigo_sin_comentarios[start_idx:curr_idx]
+            for p in params_set:
+                if re.search(rf"\b(?:{TIPOS_BASICOS})\s+(?:\*+\s*)?{p}\b\s*[=;]", body_fn):
+                    linea_num = contenido_original[:m_fwp.start()].count("\n") + 1
+                    rcode, tit = _regla_info("0x2010h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=linea_num,
+                        columna=1,
+                        mensaje=f"Variable local sombrea (shadows) al parámetro '{p}' de la función.",
+                        sugerencia="Renombrá la variable local para no ocultar el parámetro de entrada.",
+                        codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x2011h: Prohibición de reasignar o modificar parámetros recibidos por valor dentro de la función
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x2011h"):
+        re_fn_val_params = re.compile(rf"^[ \t]*(?!typedef|extern){TIPOS_BASICOS}\s+(\w+)\s*\(([^)]+)\)\s*\{{", re.MULTILINE)
+        for m_fvp in re_fn_val_params.finditer(codigo_sin_comentarios):
+            raw_params = m_fvp.group(2)
+            val_params = []
+            for p_decl in raw_params.split(","):
+                p_decl = p_decl.strip()
+                if "*" not in p_decl and p_decl != "void":
+                    m_pname = re.search(r"\b([a-zA-Z_]\w*)$", p_decl)
+                    if m_pname:
+                        val_params.append(m_pname.group(1))
+            start_idx = m_fvp.end()
+            brace_count = 1
+            curr_idx = start_idx
+            while curr_idx < len(codigo_sin_comentarios) and brace_count > 0:
+                ch = codigo_sin_comentarios[curr_idx]
+                if ch == '{':
+                    brace_count += 1
+                elif ch == '}':
+                    brace_count -= 1
+                curr_idx += 1
+            body_fn = codigo_sin_comentarios[start_idx:curr_idx]
+            for vp in val_params:
+                if re.search(rf"\b{vp}\s*(?:\+\+|\-\-|\+=|\-=|=)\s*[^=]", body_fn):
+                    linea_num = contenido_original[:m_fvp.start()].count("\n") + 1
+                    rcode, tit = _regla_info("0x2011h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=linea_num,
+                        columna=1,
+                        mensaje=f"Modificación del parámetro recibido por valor '{vp}'.",
+                        sugerencia="Utilizá una variable local explícita para evitar mutar el valor del parámetro de entrada.",
+                        codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                        es_autofixable=False,
+                    ))
+                    break
+
+    # -------------------------------------------------------------------------
+    # 0x3018h: Prohibición de invocar free() sobre punteros declarados con calificador const
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3018h"):
+        re_const_ptr = re.compile(r"\bconst\s+(?:[a-zA-Z0-9_*]+\s+)?\*?\s*([a-zA-Z_]\w*)\s*[=;]")
+        const_ptrs = set()
+        for l in lineas_sin_comentarios:
+            m_cp = re_const_ptr.search(l)
+            if m_cp:
+                const_ptrs.add(m_cp.group(1))
+        if const_ptrs:
+            for i, l in enumerate(lineas_sin_comentarios):
+                for cp in const_ptrs:
+                    if re.search(rf"\bfree\s*\(\s*(?:\([a-zA-Z0-9_* ]+\)\s*)?{cp}\s*\)", l):
+                        rcode, tit = _regla_info("0x3018h")
+                        violaciones.append(ViolacionRegla(
+                            codigo=rcode,
+                            titulo=tit,
+                            archivo=ruta,
+                            linea=i + 1,
+                            columna=1,
+                            mensaje=f"Invocación de 'free()' sobre el puntero constante '{cp}'.",
+                            sugerencia="Los punteros 'const' representan datos de sólo lectura o estáticos que no deben ser liberados.",
+                            codigo_linea=lineas[i],
+                            es_autofixable=False,
+                        ))
+
+    # -------------------------------------------------------------------------
+    # 0x3019h: Prohibición de comparar punteros contra constantes numéricas distintas de NULL o cero
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3019h"):
+        re_ptr_decl = re.compile(rf"\b(?:{TIPOS_BASICOS}|[a-zA-Z_]\w*)\s*\*\s*([a-zA-Z_]\w*)\s*[=;,\)]")
+        declared_ptrs = set()
+        for l in lineas_sin_comentarios:
+            for m_pd in re_ptr_decl.finditer(l):
+                declared_ptrs.add(m_pd.group(1))
+        for i, l in enumerate(lineas_sin_comentarios):
+            for dp in declared_ptrs:
+                m_cmp = re.search(rf"\b{dp}\s*(?:==|!=|<|>|<=|>=)\s*([1-9]\d*)\b", l)
+                if m_cmp:
+                    val = m_cmp.group(1)
+                    rcode, tit = _regla_info("0x3019h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=m_cmp.start() + 1,
+                        mensaje=f"Comparación ilegítima de puntero '{dp}' contra el literal numérico '{val}'.",
+                        sugerencia="Compará los punteros únicamente contra 'NULL' u otros punteros del mismo bloque.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x400Ah: Prohibición de operar sobre flujos de archivo tras haber invocado fclose() (use-after-close)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x400Ah"):
+        re_fclose_var = re.compile(r"\bfclose\s*\(\s*([a-zA-Z_]\w*)\s*\)\s*;")
+        for m_fc in re_fclose_var.finditer(codigo_sin_comentarios):
+            fvar = m_fc.group(1)
+            after_text = codigo_sin_comentarios[m_fc.end():]
+            m_uac = re.search(rf"\b(?:fread|fwrite|fgets|fgetc|fputc|fscanf|fprintf|fseek|ftell)\s*\([^)]*\b{fvar}\b", after_text)
+            if m_uac:
+                pos = m_fc.end() + m_uac.start()
+                linea_num = contenido_original[:pos].count("\n") + 1
+                rcode, tit = _regla_info("0x400Ah")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=linea_num,
+                    columna=1,
+                    mensaje=f"Operación de E/S sobre el descriptor de archivo cerrado '{fvar}' (use-after-close).",
+                    sugerencia=f"Anulá el puntero '{fvar} = NULL;' tras fclose() y no intentes acceder al flujo cerrado.",
+                    codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x500Eh: Prohibición de la biblioteca obsoleta y no estándar <conio.h>
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x500Eh"):
+        re_conio = re.compile(r"^[ \t]*#include[ \t]+<conio\.h>|\b(?:getch|getche|clrscr|gotoxy)\s*\(", re.MULTILINE)
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_co = re_conio.search(l)
+            if m_co:
+                rcode, tit = _regla_info("0x500Eh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_co.start() + 1,
+                    mensaje="Uso de la biblioteca obsoleta y no estándar '<conio.h>' o sus funciones asociadas.",
+                    sugerencia="Utilizá funciones estándar de '<stdio.h>' (como getchar()) o secuencias de escape ANSI.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 
@@ -3071,6 +3336,11 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
         # GAFF014 / 0x0006h: pointer asterisk spacing
         if not linea.strip().startswith("#"):
             linea = re_ptr_fix.sub(r"\1 *\2", linea)
+
+
+        # GAFF / 0x0019h: Espacios antes de ; y ,
+        if not linea.strip().startswith("#") and not linea.strip().startswith("/*") and not linea.strip().startswith("*"):
+            linea = re.sub(r"[ 	]+([;,])", r"\1", linea)
 
         if linea != orig:
             arreglos += 1

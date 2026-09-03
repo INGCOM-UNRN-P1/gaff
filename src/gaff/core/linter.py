@@ -2745,6 +2745,275 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
 
+    # -------------------------------------------------------------------------
+    # 0x0016h: Prohibición de identificadores que colisionen con palabras clave o tipos estándar
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0016h"):
+        re_res_id = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+(restrict|inline|bool|true|false|nullptr|alignas)\b")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_ri = re_res_id.search(l)
+            if m_ri:
+                nom = m_ri.group(1)
+                rcode, tit = _regla_info("0x0016h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_ri.start(1) + 1,
+                    mensaje=f"Identificador '{nom}' colisiona con palabra clave o tipo estándar de C99/C11/POSIX.",
+                    sugerencia=f"Renombrá el identificador (ej: '{nom}_val') para evitar ambigüedades.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0017h: Prohibición de notación húngara o prefijos redundantes de tipo en identificadores
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0017h"):
+        re_hungarian = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+((?:int|float|str|arr|char|p_str)_\w+)")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_hu = re_hungarian.search(l)
+            if m_hu:
+                nom = m_hu.group(1)
+                rcode, tit = _regla_info("0x0017h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_hu.start(1) + 1,
+                    mensaje=f"Identificador '{nom}' utiliza notación húngara o prefijos de tipo redundantes.",
+                    sugerencia="Elegí nombres basados en el significado o rol semántico de la variable, no en su tipo primitivo.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Eh: Prohibición de condiciones constantes o tautológicas en sentencias if
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Eh"):
+        re_const_if = re.compile(r"\bif\s*\(\s*(1|0|true|false)\s*\)")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_ci = re_const_if.search(l)
+            if m_ci:
+                val = m_ci.group(1)
+                rcode, tit = _regla_info("0x100Eh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_ci.start() + 1,
+                    mensaje=f"Condición constante tautológica 'if ({val})' detectada.",
+                    sugerencia="Eliminá la rama condicional muerta o reemplazala por una expresión lógica variable.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Fh: Prohibición de condiciones de parada compuestas complejas en lazos for
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Fh"):
+        re_for_complex = re.compile(r"\bfor\s*\([^;]*;([^;]*(?:&&|\|\|)[^;]*);[^)]*\)")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_fc = re_for_complex.search(l)
+            if m_fc:
+                rcode, tit = _regla_info("0x100Fh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_fc.start() + 1,
+                    mensaje="Lazo 'for' con condición de parada lógica compuesta (operadores && / ||).",
+                    sugerencia="Mantené el lazo 'for' con una comprobación simple de cota; utilizá 'while' para lazos con condiciones de parada complejas.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x200Eh: Declaración explícita de (void) en funciones que no reciben parámetros
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x200Eh"):
+        re_empty_paren_fn = re.compile(rf"^[ \t]*(?!typedef|extern){TIPOS_BASICOS}\s+(\w+)\s*\(\s*\)\s*(?:\{{|;)", re.MULTILINE)
+        for m_ep in re_empty_paren_fn.finditer(codigo_sin_comentarios):
+            fn_name = m_ep.group(1)
+            linea_num = contenido_original[:m_ep.start()].count("\n") + 1
+            rcode, tit = _regla_info("0x200Eh")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=linea_num,
+                columna=1,
+                mensaje=f"Función '{fn_name}()' declarada sin parámetros. En C debe especificarse '(void)' explícitamente.",
+                sugerencia=f"Declarala como '{fn_name}(void)' para habilitar el prototipado estricto.",
+                codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                es_autofixable=True,
+            ))
+
+    # -------------------------------------------------------------------------
+    # 0x200Fh: Calificador static obligatorio en funciones auxiliares privadas de archivo
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x200Fh") and ruta.suffix.lower() == ".c":
+        re_public_fn = re.compile(rf"^(?!static|typedef|extern)[ \t]*{TIPOS_BASICOS}\s+(\w+)\s*\([^)]*\)\s*\{{", re.MULTILINE)
+        header_declaraciones = set()
+        comp_h = ruta.with_suffix(".h")
+        if comp_h.is_file():
+            try:
+                txt_h = comp_h.read_text(encoding="utf-8", errors="replace")
+                header_declaraciones = set(re.findall(rf"\b{TIPOS_BASICOS}\s+(\w+)\s*\(", _eliminar_comentarios(txt_h)))
+            except Exception:
+                pass
+        for m_pf in re_public_fn.finditer(codigo_sin_comentarios):
+            fn_name = m_pf.group(1)
+            if fn_name in ("main", "if", "for", "while") or fn_name.startswith("test_"):
+                continue
+            if comp_h.is_file() and fn_name not in header_declaraciones:
+                linea_num = contenido_original[:m_pf.start()].count("\n") + 1
+                rcode, tit = _regla_info("0x200Fh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=linea_num,
+                    columna=1,
+                    mensaje=f"Función auxiliar '{fn_name}' no exportada en cabecera ni calificada como 'static'.",
+                    sugerencia=f"Declarala como 'static {fn_name}(...)' para encapsular su enlace al archivo.",
+                    codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x3016h: Prohibición de desreferencia directa de memoria dinámica sin check a NULL previo
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3016h"):
+        re_alloc_deref = re.compile(r"\b([a-zA-Z_]\w*)\s*=\s*(?:\([a-zA-Z0-9_* ]+\)\s*)?(?:malloc|calloc)\s*\([^;]*\)\s*;\s*\n\s*(?:\*\1\b|\1->)")
+        for m_ad in re_alloc_deref.finditer(codigo_sin_comentarios):
+            pname = m_ad.group(1)
+            linea_num = contenido_original[:m_ad.start()].count("\n") + 1
+            rcode, tit = _regla_info("0x3016h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=linea_num,
+                columna=1,
+                mensaje=f"Desreferencia inmediata de '{pname}' tras alocación sin verificación contra NULL.",
+                sugerencia=f"Verificá 'if ({pname} == NULL)' antes de desreferenciar el bloque alocado.",
+                codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                es_autofixable=False,
+            ))
+
+    # -------------------------------------------------------------------------
+    # 0x3017h: Prohibición de utilizar free() como valor o dentro de expresiones compuestas
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3017h"):
+        re_free_val = re.compile(r"(?:\b[a-zA-Z_]\w*\s*=\s*free\s*\(|\(\s*free\s*\([^)]+\)\s*,)")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_fv = re_free_val.search(l)
+            if m_fv:
+                rcode, tit = _regla_info("0x3017h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_fv.start() + 1,
+                    mensaje="Uso de 'free()' en una expresión con valor; free() retorna void.",
+                    sugerencia="Invocá 'free()' como una sentencia independiente: 'free(p);'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x4008h: Validación obligatoria del valor de retorno de fclose() en modo escritura
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x4008h"):
+        re_write_file = re.compile(r'\b([a-zA-Z_]\w*)\s*=\s*fopen\s*\([^)]*"(?:w|a|wb|w\+|a\+)"[^)]*\)\s*;')
+        for m_wf in re_write_file.finditer(codigo_sin_comentarios):
+            fvar = m_wf.group(1)
+            re_ignored_fclose = re.compile(rf"^\s*fclose\s*\(\s*{fvar}\s*\)\s*;", re.MULTILINE)
+            for m_ifc in re_ignored_fclose.finditer(codigo_sin_comentarios):
+                linea_num = contenido_original[:m_ifc.start()].count("\n") + 1
+                rcode, tit = _regla_info("0x4008h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=linea_num,
+                    columna=1,
+                    mensaje=f"Retorno de 'fclose({fvar})' ignorado en archivo abierto para escritura.",
+                    sugerencia=f"Validá 'if (fclose({fvar}) == EOF)' para detectar posibles fallos al vaciar búferes a disco.",
+                    codigo_linea=lineas[linea_num - 1] if linea_num <= len(lineas) else "",
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x4009h: Prohibición de anidar llamadas a fopen() directamente dentro de funciones de E/S
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x4009h"):
+        re_nested_fopen = re.compile(r"\b(?:fscanf|fread|fwrite|fgets|fgetc|fputc)\s*\([^)]*\bfopen\s*\(")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_nf = re_nested_fopen.search(l)
+            if m_nf:
+                rcode, tit = _regla_info("0x4009h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_nf.start() + 1,
+                    mensaje="Llamada anidada directa a 'fopen()' dentro de función de E/S.",
+                    sugerencia="Asigná el descriptor a una variable 'FILE *arch = fopen(...);', validalo contra NULL y cerralo con fclose().",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x500Ch: Prohibición de inclusión directa de archivos de código fuente C (.c)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x500Ch"):
+        re_inc_c = re.compile(r"^[ \t]*#include[ \t]+[<\"][^>\"]+\.c[>\"]")
+        for i, l in enumerate(lineas):
+            m_ic = re_inc_c.match(l)
+            if m_ic:
+                rcode, tit = _regla_info("0x500Ch")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=1,
+                    mensaje="Inclusión prohibida de archivo fuente C (#include '...c').",
+                    sugerencia="Incluí únicamente cabeceras '.h' y compilá los archivos '.c' de forma independiente.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x500Dh: Prohibición de redefinir palabras clave o tipos primitivos de C con #define
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x500Dh"):
+        re_kw_redef = re.compile(r"^[ \t]*#define\s+(if|else|for|while|do|switch|case|default|break|continue|return|goto|int|char|float|double|void|typedef|struct|union|enum|const|static|volatile|sizeof)\b", re.MULTILINE)
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_kr = re_kw_redef.match(l)
+            if m_kr:
+                kw = m_kr.group(1)
+                rcode, tit = _regla_info("0x500Dh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=1,
+                    mensaje=f"Redefinición prohibida de palabra clave o tipo '{kw}' con #define.",
+                    sugerencia="No alteres las palabras reservadas ni los tipos primitivos del lenguaje C.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 
@@ -2761,6 +3030,19 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
 
     arreglos = 0
     lineas = contenido.splitlines()
+
+    # GAFF020 / 0x200Eh: Autofix de fn() a fn(void)
+    re_empty_paren_fix = re.compile(rf"\b({TIPOS_BASICOS})\s+([a-zA-Z_]\w*)\s*\(\s*\)")
+    lineas_paren_fix = []
+    for l in lineas:
+        if not l.strip().startswith("#"):
+            l_fix, n_rep = re_empty_paren_fix.subn(r"\1 \2(void)", l)
+            if n_rep > 0:
+                arreglos += n_rep
+                l = l_fix
+        lineas_paren_fix.append(l)
+    lineas = lineas_paren_fix
+
     # GAFF019 / 0x5007h: Deduplicación de #include redundantes
     headers_vistos_fix = set()
     lineas_dedup = []

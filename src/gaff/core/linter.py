@@ -116,6 +116,14 @@ def analizar_archivo(
     codigo_sin_comentarios = _eliminar_comentarios(contenido_original)
     lineas_sin_comentarios = codigo_sin_comentarios.splitlines()
 
+    def _enmascarar_cadenas_y_chars(texto: str) -> str:
+        def repl(m):
+            return "".join("\n" if c == "\n" else " " for c in m.group(0))
+        return re.sub(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', repl, texto)
+
+    codigo_sin_cadenas = _enmascarar_cadenas_y_chars(codigo_sin_comentarios)
+    lineas_sin_cadenas = codigo_sin_cadenas.splitlines()
+
     es_header = ruta.suffix.lower() in (".h", ".hpp")
 
     # 1. Normalizar conjunto de reglas excluidas (modo canónico institucional)
@@ -413,10 +421,14 @@ def analizar_archivo(
     # 0x00XXh: Sintaxis Básica y Nomenclatura
     # -------------------------------------------------------------------------
 
-    # 0x0004h: Espaciado en palabras clave (if, for, while, switch)
+    # 0x0004h: Espaciado en palabras clave (if, for, while, switch) y operadores binarios
     if _esta_activa("0x0004h"):
         re_kw = re.compile(r"\b(if|for|while|switch)\(")
-        for idx, linea in enumerate(lineas_sin_comentarios, 1):
+        re_asgn_bin = re.compile(r'\b([a-zA-Z0-9_]+)([ \t]*)(\+=|-=|\*=|/=|%=|==|!=|<=|>=|&&|\|\||=)([ \t]*)([a-zA-Z0-9_]+)')
+        re_arith_bin = re.compile(rf"\b([a-zA-Z0-9_]+)([ \t]*)(\+|\-|\*|\/|%)([ \t]*)([a-zA-Z0-9_]+)\b")
+        for idx, linea in enumerate(lineas_sin_cadenas, 1):
+            if linea.strip().startswith("#"):
+                continue
             m_kw = re_kw.search(linea)
             if m_kw:
                 kw = m_kw.group(1)
@@ -432,6 +444,38 @@ def analizar_archivo(
                     codigo_linea=lineas[idx - 1],
                     es_autofixable=True,
                 ))
+            for m_ab in re_asgn_bin.finditer(linea):
+                sp1, op, sp2 = m_ab.group(2), m_ab.group(3), m_ab.group(4)
+                if sp1 != " " or sp2 != " ":
+                    rcode, tit = _regla_info("0x0004h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=idx,
+                        columna=m_ab.start() + 1,
+                        mensaje=f"Falta espacio alrededor del operador binario '{op}'.",
+                        sugerencia=f"Escribí ' {op} ' con exactamente un espacio antes y después.",
+                        codigo_linea=lineas[idx - 1],
+                        es_autofixable=True,
+                    ))
+            for m_ar in re_arith_bin.finditer(linea):
+                left, sp1, op, sp2 = m_ar.group(1), m_ar.group(2), m_ar.group(3), m_ar.group(4)
+                if op == "*" and re.match(rf"^(?:{TIPOS_BASICOS})$", left):
+                    continue
+                if sp1 != " " or sp2 != " ":
+                    rcode, tit = _regla_info("0x0004h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=idx,
+                        columna=m_ar.start() + 1,
+                        mensaje=f"Falta espacio alrededor del operador binario '{op}'.",
+                        sugerencia=f"Escribí ' {op} ' con exactamente un espacio antes y después.",
+                        codigo_linea=lineas[idx - 1],
+                        es_autofixable=True,
+                    ))
 
     # 0x0006h: Asterisco junto al identificador (int* ptr -> int *ptr)
     if _esta_activa("0x0006h"):
@@ -3279,6 +3323,117 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
+
+    # -------------------------------------------------------------------------
+    # 0x001Ah: Prohibición de espacios en blanco alrededor de operadores de acceso a miembros (-> y .)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x001Ah"):
+        re_member = re.compile(r"\b([a-zA-Z0-9_]+)[ \t]+->[ \t]*([a-zA-Z0-9_]+)|\b([a-zA-Z0-9_]+)[ \t]*->[ \t]+([a-zA-Z0-9_]+)|\b([a-zA-Z_]\w*)[ \t]+\.[ \t]*([a-zA-Z_]\w*)|\b([a-zA-Z_]\w*)[ \t]*\.[ \t]+([a-zA-Z_]\w*)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            m_mem = re_member.search(l)
+            if m_mem:
+                rcode, tit = _regla_info("0x001Ah")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_mem.start() + 1,
+                    mensaje="Espacio en blanco innecesario alrededor del operador de acceso a miembros ('->' o '.').",
+                    sugerencia="Eliminá los espacios alrededor de '->' y '.' para escribir 'nodo->sig' o 'punto.x'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x001Bh: Prohibición de espacios en blanco entre operadores unarios (++, --, !) y su operando
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x001Bh"):
+        re_unary = re.compile(r"\b([a-zA-Z_]\w*)[ \t]+(\+\+|\-\-)|(\+\+|\-\-)[ \t]+([a-zA-Z_]\w*)|(!)(?!=)[ \t]+([a-zA-Z_]\w*)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            m_un = re_unary.search(l)
+            if m_un:
+                rcode, tit = _regla_info("0x001Bh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_un.start() + 1,
+                    mensaje="Espacio en blanco indebido entre el operador unario y su operando.",
+                    sugerencia="Uní el operador directamente a la variable (ej: 'i++', '++i', '!activo').",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x001Ch: Espacio en blanco obligatorio tras la coma separadora en listas y argumentos
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x001Ch"):
+        re_comma = re.compile(r',(?=[^\s\n\r/>])')
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#"):
+                continue
+            for m_cm in re_comma.finditer(l):
+                rcode, tit = _regla_info("0x001Ch")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_cm.start() + 1,
+                    mensaje="Falta espacio en blanco tras la coma ',' separadora.",
+                    sugerencia="Agregá exactamente un espacio tras la coma (ej: 'funcion(a, b, c)').",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x001Dh: Prohibición de espacios en blanco internos inmediatamente tras '(' o antes de ')'
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x001Dh"):
+        re_paren_sp = re.compile(r"\([ \t]+(?!\s|\))|(?<!\s|\()[ \t]+\)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#") or l.strip().startswith("*"):
+                continue
+            m_psp = re_paren_sp.search(l)
+            if m_psp:
+                rcode, tit = _regla_info("0x001Dh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_psp.start() + 1,
+                    mensaje="Espacio en blanco innecesario inmediatamente tras '(' o antes de ')'.",
+                    sugerencia="Eliminá los espacios internos pegados a los paréntesis (ej: 'if (x > 0)' en lugar de 'if ( x > 0 )').",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x001Eh: Prohibición de múltiples espacios en blanco consecutivos dentro de una línea de código
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x001Eh"):
+        re_multi_sp = re.compile(r"(?<=\S)[ \t]{2,}(?=\S)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#") or l.strip().startswith("*"):
+                continue
+            m_msp = re_multi_sp.search(l)
+            if m_msp:
+                rcode, tit = _regla_info("0x001Eh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_msp.start() + 1,
+                    mensaje="Múltiples espacios consecutivos dentro de la línea de código.",
+                    sugerencia="Separá identificadores y operadores con exactamente un espacio en blanco.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 
@@ -3341,6 +3496,29 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
         # GAFF / 0x0019h: Espacios antes de ; y ,
         if not linea.strip().startswith("#") and not linea.strip().startswith("/*") and not linea.strip().startswith("*"):
             linea = re.sub(r"[ 	]+([;,])", r"\1", linea)
+
+        # GAFF / 0x001Ah: Miembros -> y .
+        linea = re.sub(r'([a-zA-Z0-9_]+)[ 	]+->[ 	]*([a-zA-Z0-9_]+)', r'\1->\2', linea)
+        linea = re.sub(r'([a-zA-Z0-9_]+)[ 	]*->[ 	]+([a-zA-Z0-9_]+)', r'\1->\2', linea)
+        linea = re.sub(r'([a-zA-Z_]\w*)[ 	]+\.[ 	]*([a-zA-Z_]\w*)', r'\1.\2', linea)
+        linea = re.sub(r'([a-zA-Z_]\w*)[ 	]*\.[ 	]+([a-zA-Z_]\w*)', r'\1.\2', linea)
+
+        # GAFF / 0x001Bh: Unarios ++, --, !
+        linea = re.sub(r'\b([a-zA-Z_]\w*)[ \t]+(\+\+|\-\-)', r'\1\2', linea)
+        linea = re.sub(r'(\+\+|\-\-)[ \t]+([a-zA-Z_]\w*)', r'\1\2', linea)
+        linea = re.sub(r'(!)(?!=)[ \t]+([a-zA-Z_]\w*)', r'\1\2', linea)
+
+        # GAFF / 0x001Ch: Espacio tras coma
+        linea = re.sub(r',(?=[^\s\n\r/>])', r', ', linea)
+
+        # GAFF / 0x001Dh: Espacio interno en paréntesis
+        linea = re.sub(r'\([ 	]+(?!\s|\))', r'(', linea)
+        linea = re.sub(r'(?<!\s|\()[ 	]+\)', r')', linea)
+
+        # GAFF / 0x001Eh: Colapsar espacios múltiples intra-línea
+        if not linea.strip().startswith("#") and not linea.strip().startswith("/*") and not linea.strip().startswith("*"):
+            indent = len(linea) - len(linea.lstrip())
+            linea = linea[:indent] + re.sub(r'(?<=\S)[ 	]{2,}(?=\S)', ' ', linea[indent:])
 
         if linea != orig:
             arreglos += 1

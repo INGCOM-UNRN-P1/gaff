@@ -1,10 +1,10 @@
 # Árbol de Ejemplos de Reglas Pedagógicas de GAFF
 
-Este directorio contiene un archivo de ejemplo canónico para cada una de las 110 reglas activas del catálogo de `gaff`.
+Este directorio contiene un archivo de ejemplo canónico para cada una de las 115 reglas activas del catálogo de `gaff`.
 
 ## Estructura por Categorías
 
-- `0x00xx_sintaxis/`: Reglas de sintaxis básica, estilo Allman, sangría de 4 espacios, snake_case y nomenclatura (29 reglas).
+- `0x00xx_sintaxis/`: Reglas de sintaxis básica, estilo Allman, sangría de 4 espacios, snake_case, nomenclatura y espaciado intra-línea en operadores y expresiones (34 reglas).
 - `0x10xx_control/`: Estructuras de control, delimitación con llaves, lazos estructurados y erradicación de saltos arbitrarios (16 reglas).
 - `0x20xx_funciones/`: Modularización, firmas canónicas `(void)`, cláusulas de guarda, contratos Doxygen y alcance `static` (16 reglas).
 - `0x30xx_punteros/`: Gestión de memoria dinámica, verificación estricta de `NULL`, prevención de punteros colgantes, límites de arreglos y tipado `size_t` (25 reglas).

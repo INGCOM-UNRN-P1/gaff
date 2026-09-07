@@ -513,7 +513,7 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x0005h: Espacios finales y mezcla de tabuladores
+    # 0x0005h: Indentación de cuatro espacios, sin tabuladores ni espacios finales
     if _esta_activa("0x0005h"):
         for idx, linea in enumerate(lineas, 1):
             if linea.endswith(" ") or linea.endswith("\t"):
@@ -529,7 +529,7 @@ def analizar_archivo(
                     codigo_linea=linea,
                     es_autofixable=True,
                 ))
-            elif "\t" in linea:
+            if "\t" in linea:
                 rcode, tit = _regla_info("0x0005h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
@@ -542,6 +542,22 @@ def analizar_archivo(
                     codigo_linea=linea,
                     es_autofixable=True,
                 ))
+            line_sin_com = lineas_sin_comentarios[idx - 1] if idx - 1 < len(lineas_sin_comentarios) else ""
+            if line_sin_com.strip() and not linea.lstrip().startswith(("*", "/*")):
+                lead_spaces = len(linea) - len(linea.lstrip(" "))
+                if lead_spaces > 0 and lead_spaces % 4 != 0 and "\t" not in linea[:lead_spaces]:
+                    rcode, tit = _regla_info("0x0005h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=idx,
+                        columna=1,
+                        mensaje=f"La indentación de la línea ({lead_spaces} espacios) no es múltiplo de 4.",
+                        sugerencia="Ajustá la indentación para que sea múltiplo de 4 espacios (4, 8, 12, etc.).",
+                        codigo_linea=linea,
+                        es_autofixable=True,
+                    ))
 
     # 0x0002h: Múltiples declaraciones de variables por línea
     if _esta_activa("0x0002h"):
@@ -3561,6 +3577,12 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
         orig = linea
         # GAFF010 / 0x0005h: tabs to spaces y strip trailing
         linea = linea.replace("\t", "    ").rstrip()
+        stripped = linea.strip()
+        if stripped and not linea.lstrip().startswith(("*", "/*")):
+            lead = len(linea) - len(linea.lstrip(" "))
+            if lead > 0 and lead % 4 != 0:
+                nuevo_lead = max(4, ((lead + 2) // 4) * 4)
+                linea = (" " * nuevo_lead) + linea.lstrip(" ")
         # GAFF007 / 0x0004h: keywords spacing
         linea = re_kw.sub(r"\1 (", linea)
         # GAFF014 / 0x0006h: pointer asterisk spacing

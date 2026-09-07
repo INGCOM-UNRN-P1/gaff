@@ -139,3 +139,99 @@ def test_deteccion_bajo_regla_0x0001h(tmp_path: Path):
 
     assert len(viols_num) == 2
     assert all(v.codigo == "0x0001h" for v in viols_num)
+
+
+def test_argumentos_con_prefijos_y_sufijos_n_a_y_a_n(tmp_path: Path):
+    """Detecta parámetros con combinaciones n_a, a_n, num_a, a_num, numero_a, a_numero."""
+    codigo = """
+    /**
+     * @brief Función de cálculo.
+     * @param n_a Primer operando.
+     * @param a_n Segundo operando.
+     * @param num_a Tercer operando.
+     * @param a_num Cuarto operando.
+     * @param numero_a Quinto operando.
+     * @param a_numero Sexto operando.
+     * @return int Resultado.
+     */
+    int calcular(int n_a, int a_n, int num_a, int a_num, int numero_a, int a_numero)
+    {
+        return n_a + a_n + num_a + a_num + numero_a + a_numero;
+    }
+    """
+    fuente = tmp_path / "args_afijos.c"
+    fuente.write_text(codigo, encoding="utf-8")
+
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x0037h"})
+    mensajes = [v.mensaje for v in viols if v.codigo == "0x0037h"]
+
+    assert len(mensajes) == 6
+    assert any("n_a" in m for m in mensajes)
+    assert any("a_n" in m for m in mensajes)
+    assert any("num_a" in m for m in mensajes)
+    assert any("a_num" in m for m in mensajes)
+    assert any("numero_a" in m for m in mensajes)
+    assert any("a_numero" in m for m in mensajes)
+
+
+def test_variables_locales_con_prefijos_sufijos_y_numeros(tmp_path: Path):
+    """Detecta variables con prefijo/sufijo numérico o de letra (n_a, a_n, n_1, 1_n, n_a_1, na, an)."""
+    codigo = """
+    /**
+     * @brief Procesamiento de datos con variables no descriptivas.
+     */
+    void procesar_afijos(void)
+    {
+        int n_a = 1;
+        int a_n = 2;
+        int n_b = 3;
+        int b_n = 4;
+        int n_1 = 5;
+        int _1_n = 6;
+        int n_a_1 = 7;
+        int a_n_1 = 8;
+        int num_1_a = 9;
+        int a_num_1 = 10;
+        int na = 11;
+        int an = 12;
+    }
+    """
+    fuente = tmp_path / "vars_afijos.c"
+    fuente.write_text(codigo, encoding="utf-8")
+
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x0037h"})
+    mensajes = [v.mensaje for v in viols if v.codigo == "0x0037h"]
+
+    assert len(mensajes) == 12
+    for var in ("n_a", "a_n", "n_b", "b_n", "n_1", "_1_n", "n_a_1", "a_n_1", "num_1_a", "a_num_1", "na", "an"):
+        assert any(var in m for m in mensajes), f"Variable {var} no detectada"
+
+
+def test_variables_lazo_con_prefijos_y_sufijos(tmp_path: Path):
+    """Detecta variables de lazo con afijos como n_a y a_n."""
+    codigo = """
+    /**
+     * @brief Lazos con variables no descriptivas.
+     */
+    void iterar_afijos(void)
+    {
+        for (int n_a = 0; n_a < 10; n_a++)
+        {
+            // lazo 1
+        }
+        for (int a_n = 0; a_n < 10; a_n++)
+        {
+            // lazo 2
+        }
+    }
+    """
+    fuente = tmp_path / "lazo_afijos.c"
+    fuente.write_text(codigo, encoding="utf-8")
+
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x0037h"})
+    mensajes = [v.mensaje for v in viols if v.codigo == "0x0037h"]
+
+    assert len(mensajes) == 2
+    assert any("n_a" in m for m in mensajes)
+    assert any("a_n" in m for m in mensajes)
+

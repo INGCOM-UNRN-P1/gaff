@@ -730,6 +730,17 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
         "ejemplo_incorrecto": "int *crear(void) {\n    int x = 10;\n    return &x;\n}",
         "autofix": "No",
     },
+    "0x200Dh": {
+        "codigo": "0x200Dh",
+        "alias": "GAFF_0x200Dh",
+        "titulo": "Cada función debe tener a lo sumo un return",
+        "categoria": "Funciones y Modularización (0x20XX)",
+        "archivo_apunte": "2_funciones.md",
+        "descripcion": "Cada función debe estructurarse con un único punto de retorno (sentencia 'return'). El uso de múltiples 'return' dispersos dificulta el seguimiento del flujo de control y complica la liberación uniforme de recursos.",
+        "ejemplo_correcto": "int calcular(int x)\n{\n    int resultado = 0;\n    if (x > 0) {\n        resultado = x * 2;\n    }\n    return resultado;\n}",
+        "ejemplo_incorrecto": "int calcular(int x)\n{\n    if (x > 0) {\n        return x * 2;\n    }\n    return 0;\n}",
+        "autofix": "No",
+    },
     "0x3013h": {
         "codigo": "0x3013h",
         "alias": "GAFF_0x3013h",

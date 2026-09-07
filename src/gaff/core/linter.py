@@ -2675,6 +2675,81 @@ def analizar_archivo(
                 ))
 
     # -------------------------------------------------------------------------
+    # 0x200Dh: Cada función debe tener a lo sumo un return
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x200Dh"):
+        depth = 0
+        start_pos = 0
+        last_delim = 0
+        fn_name = None
+        fn_start_line = 1
+
+        i = 0
+        n = len(codigo_sin_cadenas)
+        while i < n:
+            ch = codigo_sin_cadenas[i]
+            if ch == "{" and depth == 0:
+                header = codigo_sin_cadenas[last_delim:i].strip()
+                lines_h = [l.strip() for l in header.splitlines() if l.strip() and not l.strip().startswith("#")]
+                header_clean = " ".join(lines_h)
+
+                if header_clean.endswith(")") and "=" not in header_clean and not re.match(r"^\s*typedef\b", header_clean):
+                    p_count = 0
+                    p_start = -1
+                    for k in range(len(header_clean) - 1, -1, -1):
+                        if header_clean[k] == ")":
+                            p_count += 1
+                        elif header_clean[k] == "(":
+                            p_count -= 1
+                            if p_count == 0:
+                                p_start = k
+                                break
+                    if p_start > 0:
+                        before = header_clean[:p_start].strip()
+                        m = re.search(r"(\b[a-zA-Z_]\w*)$", before)
+                        if m and m.group(1) not in ("if", "while", "for", "switch", "catch"):
+                            fn_name = m.group(1)
+                            fn_start_line = (
+                                contenido_original[:last_delim + header.rfind(fn_name)].count("\n") + 1
+                                if fn_name in header
+                                else contenido_original[:i].count("\n") + 1
+                            )
+                            start_pos = i
+                            depth = 1
+                            i += 1
+                            continue
+                depth = 1
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0 and fn_name:
+                    fn_body = codigo_sin_cadenas[start_pos + 1:i]
+                    returns_matches = list(re.finditer(r"\breturn\b", fn_body))
+                    if len(returns_matches) > 1:
+                        ret_lines = [
+                            contenido_original[:start_pos + 1 + rm.start()].count("\n") + 1
+                            for rm in returns_matches
+                        ]
+                        rcode, tit = _regla_info("0x200Dh")
+                        violaciones.append(ViolacionRegla(
+                            codigo=rcode,
+                            titulo=tit,
+                            archivo=ruta,
+                            linea=fn_start_line,
+                            columna=1,
+                            mensaje=f"La función '{fn_name}' contiene más de un return ({len(returns_matches)} sentencias 'return' en líneas {', '.join(map(str, ret_lines))}).",
+                            sugerencia="Estructurá la función con un único punto de retorno al final utilizando una variable local auxiliar.",
+                            codigo_linea=lineas[fn_start_line - 1] if fn_start_line <= len(lineas) else "",
+                            es_autofixable=False,
+                        ))
+                    fn_name = None
+                last_delim = i + 1
+            elif ch == ";" and depth == 0:
+                last_delim = i + 1
+            i += 1
+
+    # -------------------------------------------------------------------------
     # 0x3013h: Asignación de memoria con sizeof sobre puntero en lugar del tipo apuntado
     # -------------------------------------------------------------------------
     if _esta_activa("0x3013h"):

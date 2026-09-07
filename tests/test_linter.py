@@ -63,11 +63,12 @@ def test_archivo_limpio_sin_violaciones(tmp_path):
  */
 int calcular_suma(int a, int b)
 {
+    int resultado = 0;
     if (a > 0)
     {
-        return a + b;
+        resultado = a + b;
     }
-    return 0;
+    return resultado;
 }
 """)
     rep = ejecutar_linter([fuente])

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Set
 
 import typer
 from rich.console import Console
@@ -90,6 +91,8 @@ def check_cmd(
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", "-o", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
     badge: Optional[Path] = typer.Option(None, "--badge", "-b", help="Ruta de salida para generar un badge SVG de cumplimiento de estilo."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Ocultar advertencias y solo mostrar errores críticos."),
+    sarif: bool = typer.Option(False, "--sarif", help="Emitir informe en formato estándar OASIS SARIF 2.1.0."),
+    convert_guards: bool = typer.Option(False, "--convert-guards", help="Convierte automáticamente directivas #pragma once en guardas canónicas #ifndef."),
 ) -> None:
     """Audita archivos de código C comprobando las reglas de estilo y arquitectura de la cátedra."""
     excluidas_set = set(r.strip() for r in exclude.split(",") if r.strip()) if exclude else None
@@ -112,6 +115,26 @@ def check_cmd(
         output_md.parent.mkdir(parents=True, exist_ok=True)
         output_md.write_text(md_text, encoding="utf-8")
         console.print(f"[green]✓ Sección Markdown generada en:[/green] [cyan]{output_md}[/cyan]")
+        raise typer.Exit(code=0 if reporte.ok else 1)
+
+    if convert_guards:
+        from gaff.core.linter import convertir_pragma_once_a_guardas
+        for rep_arch in reporte.archivos:
+            p = rep_arch.archivo
+            if p.suffix.lower() in (".h", ".hpp"):
+                try:
+                    txt = p.read_text(encoding="utf-8")
+                    txt_conv, hubo_cambio = convertir_pragma_once_a_guardas(txt, p.stem)
+                    if hubo_cambio:
+                        p.write_text(txt_conv, encoding="utf-8")
+                        console.print(f"[green]✓ Guardas canónicas convertidas en:[/green] [cyan]{p}[/cyan]")
+                except Exception as ex:
+                    err_console.print(f"[red]Error convirtiendo guardas en {p}:[/red] {ex}")
+
+    if sarif:
+        from gaff.core.exporter import generar_sarif_210
+        sarif_payload = generar_sarif_210(reporte)
+        print(json.dumps(sarif_payload, indent=2, ensure_ascii=False))
         raise typer.Exit(code=0 if reporte.ok else 1)
 
     if json_output:
@@ -374,6 +397,86 @@ def badge_cmd(
     reporte = ejecutar_linter(rutas, fix=False, recursive=recursive)
     guardar_badge_svg(output, reporte.total_violaciones)
     console.print(f"[bold green]✓ Badge SVG generado exitosamente en:[/bold green] [cyan]{output.resolve()}[/cyan]")
+
+
+
+
+@app.command("diff")
+def diff_cmd(
+    rutas: Optional[List[Path]] = typer.Argument(None, help="Rutas o archivos a restringir el diff."),
+    base: str = typer.Option("HEAD", "--base", "-b", help="Referencia base de git contra la cual comparar (ej. 'HEAD', 'main')."),
+    fix: bool = typer.Option(False, "--fix", "-f", help="Aplica automáticamente correcciones en reglas autofixables."),
+    json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en JSON."),
+) -> None:
+    """Audita únicamente las líneas añadidas o modificadas según git diff."""
+    import subprocess
+    cmd = ["git", "diff", "-U0", base]
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        diff_text = proc.stdout
+    except Exception as ex:
+        err_console.print(f"[red]Error ejecutando git diff:[/red] {ex}")
+        raise typer.Exit(code=1)
+
+    # Parsear archivos y líneas añadidas en el diff
+    # Formato diff: +++ b/archivo.c
+    # @@ -linea,count +linea,count @@
+    lineas_modificadas: Dict[Path, Set[int]] = {}
+    archivo_actual: Optional[Path] = None
+
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            rel_path = line[6:].strip()
+            archivo_actual = Path(rel_path).resolve()
+            lineas_modificadas[archivo_actual] = set()
+        elif line.startswith("@@ ") and archivo_actual is not None:
+            m = re.search(r"\+(\d+)(?:,(\d+))?", line)
+            if m:
+                start_l = int(m.group(1))
+                count_l = int(m.group(2)) if m.group(2) else 1
+                for offset in range(count_l):
+                    lineas_modificadas[archivo_actual].add(start_l + offset)
+
+    archivos_a_analizar = [p for p in lineas_modificadas.keys() if p.is_file() and p.suffix.lower() in (".c", ".h", ".cpp", ".hpp")]
+    if rutas:
+        rutas_res = {r.resolve() for r in rutas}
+        archivos_a_analizar = [p for p in archivos_a_analizar if p in rutas_res or any(p.is_relative_to(r) for r in rutas_res if r.is_dir())]
+
+    if not archivos_a_analizar:
+        console.print("[green]✓ No se encontraron líneas C/H modificadas en el diff de git.[/green]")
+        raise typer.Exit(code=0)
+
+    reporte = ejecutar_linter(archivos_a_analizar, fix=fix, recursive=False)
+    # Filtrar violaciones exclusivamente a las líneas modificadas
+    for rep_arch in reporte.archivos:
+        path_res = rep_arch.archivo.resolve()
+        lineas_validas = lineas_modificadas.get(path_res, set())
+        rep_arch.violaciones = [v for v in rep_arch.violaciones if v.linea in lineas_validas]
+
+    if json_output:
+        print(json.dumps(reporte.to_dict(), indent=2, ensure_ascii=False))
+        raise typer.Exit(code=0 if reporte.ok else 1)
+
+    if reporte.ok:
+        console.print(f"[green]✓ Las modificaciones en {len(archivos_a_analizar)} archivo(s) cumplen las reglas de estilo de la cátedra.[/green]")
+        raise typer.Exit(code=0)
+
+    console.print(f"\n[bold red]⚠️ Se encontraron {reporte.total_violaciones} violaciones en las líneas modificadas:[/bold red]\n")
+    for rep_arch in reporte.archivos:
+        for v in rep_arch.violaciones:
+            console.print(f" [cyan]{rep_arch.archivo.name}:{v.linea}[/cyan] [{v.codigo}] {v.mensaje} [dim]({v.sugerencia})[/dim]")
+    raise typer.Exit(code=1)
+
+
+@app.command("lsp-quickfix")
+def lsp_quickfix_cmd(
+    archivo: Path = typer.Argument(..., help="Archivo C/H a generar acciones rápidas LSP."),
+) -> None:
+    """Genera acciones rápidas CodeAction compatibles con el protocolo LSP para editores de texto."""
+    from gaff.ripley_plugin import GaffPlugin
+    plugin = GaffPlugin()
+    actions = plugin.get_quickfixes(archivo.parent, archivo)
+    print(json.dumps(actions, indent=2, ensure_ascii=False))
 
 
 def main() -> None:

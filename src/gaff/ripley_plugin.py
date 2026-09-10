@@ -53,3 +53,41 @@ class GaffPlugin:
             "total_violaciones": reporte.total_violaciones,
             "observaciones": observaciones,
         }
+
+    def get_quickfixes(self, workspace: Path, filepath: Path) -> List[Dict[str, Any]]:
+        """Genera acciones rápidas CodeAction compatibles con Language Server Protocol (LSP)."""
+        from gaff.core.linter import analizar_archivo
+
+        filepath = Path(filepath)
+        if not filepath.is_file():
+            return []
+
+        violaciones = analizar_archivo(filepath)
+        actions = []
+
+        for v in violaciones:
+            if not v.es_autofixable:
+                continue
+
+            actions.append({
+                "title": f"Aplicar corrección GAFF ({v.codigo}): {v.sugerencia}",
+                "kind": "quickfix",
+                "diagnostics": [
+                    {
+                        "range": {
+                            "start": {"line": max(0, v.linea - 1), "character": max(0, v.columna - 1)},
+                            "end": {"line": max(0, v.linea - 1), "character": max(0, v.columna + 20)},
+                        },
+                        "message": v.mensaje,
+                        "code": str(v.codigo),
+                        "source": "gaff",
+                    }
+                ],
+                "command": {
+                    "title": "Corregir automáticamente",
+                    "command": "gaff.applyFix",
+                    "arguments": [str(filepath), str(v.codigo), v.linea],
+                },
+            })
+
+        return actions

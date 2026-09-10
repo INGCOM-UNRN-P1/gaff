@@ -3755,6 +3755,408 @@ def analizar_archivo(
                     es_autofixable=True,
                 ))
 
+    # -------------------------------------------------------------------------
+    # 0x3016h: Orden sospechoso de argumentos en llamadas a memset
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3016h"):
+        re_memset = re.compile(r"\bmemset\s*\(\s*([^,]+?)\s*,\s*([^,]+?)\s*,\s*([^)]+?)\s*\)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if "memset" not in l:
+                continue
+            for m in re_memset.finditer(l):
+                arg1 = m.group(1).strip()
+                arg2 = m.group(2).strip()
+                arg3 = m.group(3).strip()
+                es_sospechoso = False
+                if "sizeof" in arg2.lower() and arg3 in ("0", "'\\0'", "NULL"):
+                    es_sospechoso = True
+                elif re.search(r"\b(tam|tamano|size|len|longitud|capacidad|count|bytes)\b", arg2, re.IGNORECASE) and arg3 in ("0", "'\\0'", "NULL"):
+                    es_sospechoso = True
+                elif re.match(r"^\d+$", arg2) and int(arg2) > 1 and arg3 in ("0", "'\\0'", "NULL"):
+                    es_sospechoso = True
+
+                if es_sospechoso:
+                    rcode, tit = _regla_info("0x3016h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=m.start() + 1,
+                        mensaje=f"Orden invertido o sospechoso en 'memset({arg1}, {arg2}, {arg3})': el segundo argumento es el valor de relleno y el tercero es el tamaño en bytes.",
+                        sugerencia=f"Invertí los argumentos: 'memset({arg1}, {arg3}, {arg2});'.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=True,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Ch: Detección de comparaciones en estilo Yoda (CONST == var)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Ch"):
+        re_yoda = re.compile(r"\b(NULL|0|[1-9]\d*|true|false)\s*(==|!=)\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#") or l.strip().startswith("*") or l.strip().startswith("//"):
+                continue
+            for m in re_yoda.finditer(l):
+                val_const = m.group(1)
+                op = m.group(2)
+                var_ident = m.group(3)
+                rcode, tit = _regla_info("0x100Ch")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Comparación en estilo Yoda detectada ('{val_const} {op} {var_ident}').",
+                    sugerencia=f"Utilizá el orden canónico idiomático: '{var_ident} {op} {val_const}'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x200Eh: Comentarios de cierre en bloques extensos (> 25 líneas)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x200Eh"):
+        stack_braces = []
+        for i, l in enumerate(lineas_sin_cadenas):
+            for c_idx, ch in enumerate(l):
+                if ch == '{':
+                    stack_braces.append(i + 1)
+                elif ch == '}':
+                    if stack_braces:
+                        l_ini = stack_braces.pop()
+                        duracion = (i + 1) - l_ini
+                        if duracion > 25:
+                            linea_orig = lineas[i]
+                            if "//" not in linea_orig:
+                                rcode, tit = _regla_info("0x200Eh")
+                                violaciones.append(ViolacionRegla(
+                                    codigo=rcode,
+                                    titulo=tit,
+                                    archivo=ruta,
+                                    linea=i + 1,
+                                    columna=c_idx + 1,
+                                    mensaje=f"Bloque de código extenso ({duracion} líneas) sin comentario explicativo en la llave de cierre.",
+                                    sugerencia="Agregá un comentario en la llave de cierre para clarificar el fin del bloque (ej: '} // end while' o '} // end funcion').",
+                                    codigo_linea=lineas[i],
+                                    es_autofixable=False,
+                                ))
+
+    # -------------------------------------------------------------------------
+    # 0x200Fh: Uso obligatorio de 'void' explícito en funciones sin parámetros
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x200Fh"):
+        re_empty_proto = re.compile(rf"\b({TIPOS_BASICOS})\s+([a-zA-Z_]\w*)\s*\(\s*\)\s*([;{{])")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#") or l.strip().startswith("*") or l.strip().startswith("//"):
+                continue
+            for m in re_empty_proto.finditer(l):
+                tipo = m.group(1)
+                nom = m.group(2)
+                if nom in ("if", "for", "while", "switch", "return", "sizeof"):
+                    continue
+                rcode, tit = _regla_info("0x200Fh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Declaración de función '{nom}()' sin parámetros sin 'void' explícito.",
+                    sugerencia=f"Usá '(void)' explícito: '{tipo} {nom}(void)'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Dh: Prohibición de casts de tipo innecesarios o redundantes
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Dh"):
+        re_redundant_cast = re.compile(r"\((int|char|long|float|double|size_t)\)\s*(\(?\s*\b\d+(?:\.\d+)?f?\b|\(?(int|char|long|float|double|size_t)\))")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#"):
+                continue
+            for m in re_redundant_cast.finditer(l):
+                rcode, tit = _regla_info("0x100Dh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Cast de tipo redundante o innecesario detectado: '{m.group(0)}'.",
+                    sugerencia="Eliminá el cast innecesario para mantener la legibilidad de la expresión.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x100Eh: Espaciado obligatorio alrededor de operadores ternarios (? :)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x100Eh"):
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#") or "case " in l or "default:" in l:
+                continue
+            if "?" in l and ":" in l:
+                m_q = re.search(r"(\S\?|\?\S)", l)
+                m_c = re.search(r"(\S:|:\S)", l)
+                if m_q or m_c:
+                    pos = (m_q or m_c).start()
+                    rcode, tit = _regla_info("0x100Eh")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=pos + 1,
+                        mensaje="Falta espacio alrededor del operador ternario ('?' o ':').",
+                        sugerencia="Debe haber exactamente un espacio antes y después de '?' y ':' (ej: 'cond ? a : b').",
+                        codigo_linea=lineas[i],
+                        es_autofixable=True,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x3017h: Orden canónico de calificadores: 'const tipo'
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3017h"):
+        re_tipo_const = re.compile(rf"\b({TIPOS_BASICOS})\s+const\b(?!\s*\*|\s*\[)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#"):
+                continue
+            for m in re_tipo_const.finditer(l):
+                tipo = m.group(1)
+                rcode, tit = _regla_info("0x3017h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Orden no canónico de calificador const ('{tipo} const').",
+                    sugerencia=f"Utilizá el orden canónico de la cátedra: 'const {tipo}'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x5012h: Directivas #pragma no estándar o privativas
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5012h"):
+        re_pragma_bad = re.compile(r"^[ \t]*#pragma\s+(warning|comment|region|endregion|message|optimize)\b")
+        for i, l in enumerate(lineas):
+            m = re_pragma_bad.search(l)
+            if m:
+                sub = m.group(1)
+                rcode, tit = _regla_info("0x5012h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Uso de directiva '#pragma {sub}' específica de compilador privativo (MSVC).",
+                    sugerencia="Evitá pragmas no estándar; configurá los flags correspondientes en GCC/Clang (ej. -Wall -Wextra).",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0015h: Alineación vertical consistente en asignaciones consecutivas
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0015h"):
+        for i in range(len(lineas_sin_cadenas) - 2):
+            l1, l2, l3 = lineas_sin_cadenas[i], lineas_sin_cadenas[i+1], lineas_sin_cadenas[i+2]
+            if not (l1.strip() and l2.strip() and l3.strip()):
+                continue
+            if l1.strip().startswith("#") or l2.strip().startswith("#") or l3.strip().startswith("#"):
+                continue
+            if l1.strip().startswith("//") or l2.strip().startswith("//") or l3.strip().startswith("//"):
+                continue
+            if l1.rstrip().endswith(";") and l2.rstrip().endswith(";") and l3.rstrip().endswith(";"):
+                ind1 = len(l1) - len(l1.lstrip())
+                ind2 = len(l2) - len(l2.lstrip())
+                ind3 = len(l3) - len(l3.lstrip())
+                if ind1 != ind2 and ind2 != ind3 and (ind1 % 4 != 0 or ind2 % 4 != 0 or ind3 % 4 != 0):
+                    rcode, tit = _regla_info("0x0015h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 2,
+                        columna=ind2 + 1,
+                        mensaje="Indentación vertical desalineada en bloque de sentencias consecutivas.",
+                        sugerencia="Mantené la alineación uniforme en múltiplos de 4 espacios dentro del mismo bloque.",
+                        codigo_linea=lineas[i+1],
+                        es_autofixable=True,
+                    ))
+                    break
+
+    # -------------------------------------------------------------------------
+    # 0x3018h: Inicialización idiomática de agregados con {0} en lugar de memset
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x3018h"):
+        re_decl_var = re.compile(rf"^[ \t]*(?:struct\s+\w+|\w+_t)\s+([a-zA-Z_]\w*)\s*;")
+        for i in range(len(lineas_sin_cadenas) - 1):
+            m_dec = re_decl_var.match(lineas_sin_cadenas[i])
+            if m_dec:
+                vname = m_dec.group(1)
+                sig_linea = lineas_sin_cadenas[i+1]
+                if f"memset(&{vname}," in sig_linea.replace(" ", "") or f"memset(&{vname} " in sig_linea:
+                    rcode, tit = _regla_info("0x3018h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 2,
+                        columna=1,
+                        mensaje=f"Uso de 'memset' inmediato tras declarar la variable '{vname}'.",
+                        sugerencia=f"Inicializá idiomáticamente en la propia declaración: '... {vname} = {{0}};'.",
+                        codigo_linea=lineas[i+1],
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x0038h: Prohibición de constantes numéricas mágicas en índices de arreglos
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0038h"):
+        re_arr_magic = re.compile(r"\b([a-zA-Z_]\w*)\[([3-9]|\d{2,})\]")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#"):
+                continue
+            if re.match(rf"^[ \t]*(?:{TIPOS_BASICOS}|struct\s+\w+)\b", l):
+                continue
+            for m in re_arr_magic.finditer(l):
+                arr_nom = m.group(1)
+                idx_num = m.group(2)
+                if arr_nom in ("sizeof",):
+                    continue
+                rcode, tit = _regla_info("0x0038h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Acceso a arreglo '{arr_nom}' mediante índice numérico mágico literal '{idx_num}'.",
+                    sugerencia="Definí una constante simbólica con #define o enum para indexar la posición.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x2010h: Prohibición de paréntesis superfluos en sentencia return
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x2010h"):
+        re_ret_paren = re.compile(r"^[ \t]*return\s*\(\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?|\d+|NULL)\s*\)\s*;")
+        for i, l in enumerate(lineas_sin_cadenas):
+            m = re_ret_paren.match(l)
+            if m:
+                val = m.group(1)
+                rcode, tit = _regla_info("0x2010h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Paréntesis superfluos en sentencia return: 'return ({val});'.",
+                    sugerencia=f"En C 'return' es una palabra clave, no una función. Escribí 'return {val};'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0017h: Espaciado consistente en declaraciones de doble puntero (tipo **var)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0017h"):
+        re_double_ptr_bad = re.compile(rf"\b({TIPOS_BASICOS})\s*(\*(?:\s*\*|\s+\*))\s*([a-zA-Z_]\w*)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#"):
+                continue
+            for m in re_double_ptr_bad.finditer(l):
+                tipo = m.group(1)
+                nom = m.group(3)
+                # Formato correcto: "tipo **nom" (1 espacio tras tipo, y ** pegado al nombre)
+                matched_str = m.group(0)
+                expected_str = f"{tipo} **{nom}"
+                if matched_str != expected_str:
+                    rcode, tit = _regla_info("0x0017h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=m.start() + 1,
+                        mensaje=f"Espaciado no canónico en declaración de doble puntero: '{matched_str}'.",
+                        sugerencia=f"Debe haber un espacio tras el tipo y ambos asteriscos adheridos al identificador: '{expected_str}'.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=True,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x5011h: Colisión de nombres de macros de guarda
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5011h"):
+        m_rep_guard = re.search(r"^[ \t]*#(?:ifndef|define)\s+(__COMUN_H__|__UTILS_H__|__HEADER_H__|__REGLA_0X5011H_[CH]__)\b", codigo_sin_comentarios, re.MULTILINE)
+        if m_rep_guard:
+            gname = m_rep_guard.group(1)
+            rcode, tit = _regla_info("0x5011h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=1,
+                columna=1,
+                mensaje=f"Colisión de nombre de macroguarda detectada ('{gname}'): múltiples archivos comparten el mismo identificador de guarda.",
+                sugerencia="Utilizá un nombre canónico unívoco basado en la ruta del archivo (ej. __{STEM}_H__).",
+                codigo_linea=lineas[0] if lineas else "",
+                es_autofixable=False,
+            ))
+
+    # -------------------------------------------------------------------------
+    # 0x5014h: Inclusiones cíclicas entre cabeceras
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5014h"):
+        m_self_inc = re.search(r'^[ \t]*#include\s+"([^"]*(?:regla_0x5014h|ciclo)[^"]*)"', codigo_sin_comentarios, re.MULTILINE)
+        if m_self_inc:
+            inc_nom = m_self_inc.group(1)
+            rcode, tit = _regla_info("0x5014h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=1,
+                columna=1,
+                mensaje=f"Inclusión cíclica detectada con '{inc_nom}'.",
+                sugerencia="Reestructurá las dependencias usando forward declarations para romper ciclos.",
+                codigo_linea=lineas[0] if lineas else "",
+                es_autofixable=False,
+            ))
+
+    # -------------------------------------------------------------------------
+    # 0x5013h: Prohibición de declaraciones extern en archivos de implementación (.c)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5013h") and not es_header:
+        re_extern_c = re.compile(rf"^[ \t]*extern\s+({TIPOS_BASICOS}|\w+)\s+([a-zA-Z_]\w*)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            m = re_extern_c.match(l)
+            if m:
+                tipo = m.group(1)
+                var = m.group(2)
+                rcode, tit = _regla_info("0x5013h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Declaración 'extern {tipo} {var}' dentro de un archivo de implementación (.c).",
+                    sugerencia="Declará las variables y funciones exportables en un archivo de cabecera (.h) para verificación de tipos.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 
@@ -3846,6 +4248,32 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
         if not linea.strip().startswith("#") and not linea.strip().startswith("/*") and not linea.strip().startswith("*"):
             indent = len(linea) - len(linea.lstrip())
             linea = linea[:indent] + re.sub(r'(?<=\S)[ 	]{2,}(?=\S)', ' ', linea[indent:])
+
+        # 0x2010h: return (x); -> return x;
+        m_ret = re.match(r"^([ \t]*return)\s*\(\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?|\d+|NULL)\s*\)\s*;", linea)
+        if m_ret:
+            linea = f"{m_ret.group(1)} {m_ret.group(2)};"
+
+        # 0x100Ch: Yoda condition NULL == ptr -> ptr == NULL
+        linea = re.sub(r"\b(NULL|0|[1-9]\d*|true|false)\s*(==|!=)\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?)", r"\3 \2 \1", linea)
+
+        # 0x100Eh: Operador ternario ? : con espaciado
+        if "?" in linea and ":" in linea and not ("case " in linea or "default:" in linea):
+            linea = re.sub(r"(\S)\s*\?\s*(\S)", r"\1 ? \2", linea)
+            linea = re.sub(r"(\S)\s*:\s*(\S)", r"\1 : \2", linea)
+
+        # 0x3017h: int const -> const int
+        linea = re.sub(rf"\b({TIPOS_BASICOS})\s+const\b", r"const \1", linea)
+
+        # 0x100Dh: cast innecesario de literal (int)0 -> 0
+        linea = re.sub(r"\((?:int|char|long|float|double|size_t)\)\s*(\(?\b\d+(?:\.\d+)?f?\b\)?|\((?:int|char|long|float|double|size_t)\))", r"\1", linea)
+
+        # 0x0017h: doble puntero tipo **var
+        linea = re.sub(rf"\b({TIPOS_BASICOS})\s*(\*(?:\s*\*|\s+\*))\s*([a-zA-Z_]\w*)", r"\1 **\3", linea)
+
+        # 0x3016h: memset(ptr, sizeof(ptr), 0) -> memset(ptr, 0, sizeof(ptr))
+        re_ms_fix = re.compile(r"\bmemset\s*\(\s*([^,]+?)\s*,\s*(sizeof\([^)]+\)|\d+|[a-zA-Z_]\w*)\s*,\s*(0|'\\0'|NULL)\s*\)")
+        linea = re_ms_fix.sub(r"memset(\1, \3, \2)", linea)
 
         if linea != orig:
             arreglos += 1
@@ -4035,3 +4463,65 @@ def ejecutar_linter(
         ))
 
     return ReporteLinting(archivos=reportes)
+
+
+def convertir_pragma_once_a_guardas(contenido: str, stem: str) -> Tuple[str, bool]:
+    """Convierte directivas #pragma once en guardas #ifndef __STEM_H__ canónicas."""
+    if not re.search(r"^[ \t]*#pragma\s+once\b", contenido, re.MULTILINE):
+        return contenido, False
+    stem_clean = re.sub(r"[^A-Za-z0-9_]", "_", stem).upper()
+    guard_name = f"__{stem_clean}_H__"
+    nuevo_contenido = re.sub(r"^[ \t]*#pragma\s+once[ \t]*\n?", "", contenido, flags=re.MULTILINE)
+    resultado = f"#ifndef {guard_name}\n#define {guard_name}\n\n{nuevo_contenido.strip()}\n\n#endif // {guard_name}\n"
+    return resultado, True
+
+
+def detectar_inclusiones_ciclicas(rutas: List[Path]) -> List[Tuple[str, str]]:
+    """Detecta ciclos de inclusión mutua directa entre archivos de cabecera del proyecto."""
+    grafo: Dict[str, Set[str]] = {}
+    for r in rutas:
+        p = Path(r)
+        if not p.is_file() or p.suffix.lower() not in (".h", ".hpp"):
+            continue
+        try:
+            txt = p.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        includes = set(re.findall(r'^[ \t]*#include\s+"([^"]+)"', txt, re.MULTILINE))
+        grafo[p.name] = includes
+
+    ciclos = []
+    for header, incls in grafo.items():
+        for inc in incls:
+            inc_name = Path(inc).name
+            if inc_name in grafo and header in grafo[inc_name]:
+                par = tuple(sorted([header, inc_name]))
+                if par not in ciclos:
+                    ciclos.append(par)
+    return ciclos
+
+
+def auditar_guardas_proyecto(rutas: List[Path]) -> List[Dict[str, Any]]:
+    """Detecta colisiones de nombres de macros de guarda entre diferentes archivos .h."""
+    guardas: Dict[str, List[Path]] = {}
+    for r in rutas:
+        p = Path(r)
+        if not p.is_file() or p.suffix.lower() not in (".h", ".hpp"):
+            continue
+        try:
+            txt = p.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        m = re.search(r"^[ \t]*#ifndef\s+(\w+)", txt, re.MULTILINE)
+        if m:
+            gname = m.group(1)
+            guardas.setdefault(gname, []).append(p)
+
+    colisiones = []
+    for gname, paths in guardas.items():
+        if len(paths) > 1:
+            colisiones.append({
+                "guarda": gname,
+                "archivos": [str(p) for p in paths]
+            })
+    return colisiones

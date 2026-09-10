@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import difflib
+import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 from rich.console import Console
 from rich.panel import Panel
+from rich.prompt import Prompt
 from rich.syntax import Syntax
 
 from gaff.core.linter import aplicar_autofix_archivo
@@ -17,9 +20,9 @@ def ejecutar_autofix_interactivo(
     auto_confirmar: bool = False,
     console: Optional[Console] = None,
 ) -> Dict[str, int]:
-    """Previsualiza y aplica autofix a los archivos seleccionados tras confirmación."""
+    """Previsualiza y aplica autofix a los archivos seleccionados tras confirmación interactiva [y/n/q]."""
     cons = console or Console()
-    resultados = {}
+    resultados: Dict[str, int] = {}
 
     for arch in archivos:
         path_arch = Path(arch)
@@ -27,17 +30,19 @@ def ejecutar_autofix_interactivo(
             continue
 
         contenido_antes = path_arch.read_text(encoding="utf-8", errors="replace")
-        
-        # Ejecutar autofix
-        total_arreglos = aplicar_autofix_archivo(path_arch)
-        contenido_despues = path_arch.read_text(encoding="utf-8", errors="replace")
 
-        if contenido_antes == contenido_despues:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / path_arch.name
+            shutil.copy2(path_arch, tmp_path)
+            total_arreglos = aplicar_autofix_archivo(tmp_path)
+            contenido_despues = tmp_path.read_text(encoding="utf-8", errors="replace")
+
+        if contenido_antes == contenido_despues or total_arreglos == 0:
             cons.print(f"[dim]• {path_arch.name}: Sin cambios necesarios.[/dim]")
             resultados[str(path_arch)] = 0
             continue
 
-        # Generar diff
+        # Generar diff unificado
         diff = list(difflib.unified_diff(
             contenido_antes.splitlines(keepends=True),
             contenido_despues.splitlines(keepends=True),
@@ -53,9 +58,21 @@ def ejecutar_autofix_interactivo(
         ))
 
         if not auto_confirmar:
-            # En modo sin confirmación automática, ya quedó escrito por aplicar_autofix_archivo
-            pass
-        
+            resp = Prompt.ask(
+                f"¿Aplicar estas correcciones a [cyan]{path_arch.name}[/cyan]?",
+                choices=["y", "n", "q", "s"],
+                default="y",
+                console=cons,
+            )
+            if resp == "q":
+                cons.print("[red]⏹ Autofix interactivo cancelado por el usuario.[/red]")
+                break
+            elif resp not in ("y", "s"):
+                cons.print(f"[yellow]• Omitido:[/yellow] {path_arch.name}")
+                resultados[str(path_arch)] = 0
+                continue
+
+        path_arch.write_text(contenido_despues, encoding="utf-8")
         resultados[str(path_arch)] = total_arreglos
         cons.print(f"[bold green]✓ Corrección aplicada a:[/bold green] [cyan]{path_arch}[/cyan]")
 

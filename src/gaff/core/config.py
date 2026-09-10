@@ -23,6 +23,7 @@ except ImportError:
 DEFAULT_CONFIG: Dict[str, Any] = {
     "max_line_length": 80,
     "max_file_lines": 500,
+    "max_function_lines": 40,
     "max_nesting_depth": 3,
     "disallow_tabs": True,
     "enforce_allman": True,

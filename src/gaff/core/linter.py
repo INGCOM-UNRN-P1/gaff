@@ -200,11 +200,13 @@ def analizar_archivo(
 
     # 0x5003h: Guardas de inclusión en cabeceras (.h)
     if _esta_activa("0x5003h") and es_header:
-        tiene_pragma = bool(re.search(r"^[ 	]*#pragma\s+once", codigo_sin_comentarios, re.MULTILINE))
-        tiene_ifndef = bool(re.search(r"^[ 	]*#ifndef\s+\w+", codigo_sin_comentarios, re.MULTILINE) and re.search(r"^[ 	]*#define\s+\w+", codigo_sin_comentarios, re.MULTILINE))
+        tiene_pragma = bool(re.search(r"^[ \t]*#pragma\s+once\b", codigo_sin_comentarios, re.MULTILINE))
+        m_guard = re.search(r"^[ \t]*#ifndef\s+(\w+)", codigo_sin_comentarios, re.MULTILINE)
+        m_def = re.search(r"^[ \t]*#define\s+(\w+)", codigo_sin_comentarios, re.MULTILINE)
+        tiene_ifndef = bool(m_guard and m_def)
         if not (tiene_pragma or tiene_ifndef):
             rcode, tit = _regla_info("0x5003h")
-            stem_h = ruta.stem.upper()
+            stem_h = re.sub(r"[^A-Za-z0-9_]", "_", ruta.stem).upper()
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -212,8 +214,45 @@ def analizar_archivo(
                 linea=1,
                 columna=1,
                 mensaje="El archivo de cabecera no cuenta con guardas de inclusión (#ifndef / #define o #pragma once).",
-                sugerencia=f"Agregá guardas de preprocesador:\n#ifndef {stem_h}_H\n#define {stem_h}_H\n...\n#endif",
+                sugerencia=f"Agregá guardas de preprocesador:\n#ifndef __{stem_h}_H__\n#define __{stem_h}_H__\n...\n#endif",
                 es_autofixable=True,
+            ))
+        elif tiene_ifndef and m_guard:
+            guard_name = m_guard.group(1).upper()
+            stem_clean = re.sub(r"[^A-Za-z0-9_]", "_", ruta.stem).upper()
+            canonical_guards = {
+                f"__{stem_clean}_H__", f"_{stem_clean}_H_", f"{stem_clean}_H",
+                f"__{stem_clean}_H", f"{stem_clean}_H_", f"__{stem_clean}__",
+                f"{stem_clean}_INCLUDED", f"__{stem_clean}_INCLUDED__",
+            }
+            if guard_name not in canonical_guards and not guard_name.endswith(f"_{stem_clean}_H") and not guard_name.startswith(stem_clean):
+                rcode, tit = _regla_info("0x5003h")
+                line_no = codigo_sin_comentarios[:m_guard.start()].count("\n") + 1
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=1,
+                    mensaje=f"La guarda de inclusión '{m_guard.group(1)}' no sigue el formato canónico derivado de '{ruta.name}'.",
+                    sugerencia=f"Nombrá la guarda según la convención institucional: '__{stem_clean}_H__'.",
+                    es_autofixable=False,
+                ))
+
+        # Detección de funciones static con cuerpo en headers (.h)
+        re_static_fn_body = re.compile(rf"^[ \t]*static\s+(?:{TIPOS_BASICOS}|[a-zA-Z_]\w*)\s+(\*?\s*[a-zA-Z_]\w*)\s*\([^)]*\)\s*\{{", re.MULTILINE)
+        for m_st in re_static_fn_body.finditer(codigo_sin_comentarios):
+            line_no = codigo_sin_comentarios[:m_st.start()].count("\n") + 1
+            rcode, tit = _regla_info("0x5003h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=line_no,
+                columna=1,
+                mensaje="Función 'static' con cuerpo de implementación definida dentro de archivo de cabecera (.h).",
+                sugerencia="Declarala en el encabezado únicamente como prototipo exportable o mové la implementación al archivo .c.",
+                es_autofixable=False,
             ))
 
     # 0x5004h: Operaciones de cadenas inseguras (strcpy, strcat, sprintf)
@@ -270,7 +309,7 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
-    # 0x5001h: Arreglos de longitud variable (VLAs)
+    # 0x5001h: Arreglos de longitud variable (VLAs) y tamaños mágicos
     if _esta_activa("0x5001h") and not es_header:
         re_vla = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\w+\s*\[\s*([a-zA-Z_]\w*)\s*\]\s*;", re.MULTILINE)
         for m in re_vla.finditer(codigo_sin_comentarios):
@@ -287,6 +326,25 @@ def analizar_archivo(
                     columna=1,
                     mensaje=f"Declaración de arreglo con longitud variable (VLA) '{m.group(0).strip()}'.",
                     sugerencia="Definí arreglos estáticos con constantes (#define) o utilizá memoria dinámica (malloc).",
+                    es_autofixable=False,
+                ))
+
+        # Auditor de constantes de tamaño de arreglo sin #define o enum (números mágicos > 1)
+        re_num_size = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\w+\s*\[\s*(\d+)\s*\]\s*;", re.MULTILINE)
+        for m in re_num_size.finditer(codigo_sin_comentarios):
+            num_val = int(m.group(1))
+            if num_val > 1:
+                line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
+                rcode, tit = _regla_info("0x5001h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=line_no,
+                    columna=1,
+                    mensaje=f"Declaración de arreglo con tamaño hardcodeado con número mágico '{num_val}' sin #define o enum.",
+                    sugerencia=f"Definí una constante simbólica (#define CAPACIDAD_MAX {num_val}) para el tamaño del arreglo.",
+                    codigo_linea=lineas[line_no - 1],
                     es_autofixable=False,
                 ))
 
@@ -424,7 +482,7 @@ def analizar_archivo(
     # 0x0004h: Espaciado en palabras clave (if, for, while, switch) y operadores binarios
     if _esta_activa("0x0004h"):
         re_kw = re.compile(r"\b(if|for|while|switch)\(")
-        re_asgn_bin = re.compile(r'\b([a-zA-Z0-9_]+)([ \t]*)(\+=|-=|\*=|/=|%=|==|!=|<=|>=|&&|\|\||=)([ \t]*)([a-zA-Z0-9_]+)')
+        re_asgn_bin = re.compile(r'\b([a-zA-Z0-9_]+)([ \t]*)(\+=|-=|\*=|/=|%=|==|!=|<=|>=|&&|\|\||<|>|=)([ \t]*)([a-zA-Z0-9_]+)')
         re_arith_bin = re.compile(rf"\b([a-zA-Z0-9_]+)([ \t]*)(\+|\-|\*|\/|%)([ \t]*)([a-zA-Z0-9_]+)\b")
         for idx, linea in enumerate(lineas_sin_cadenas, 1):
             if linea.strip().startswith("#"):
@@ -559,7 +617,7 @@ def analizar_archivo(
                         es_autofixable=True,
                     ))
 
-    # 0x0002h: Múltiples declaraciones de variables por línea
+    # 0x0002h: Múltiples declaraciones de variables o sentencias por línea
     if _esta_activa("0x0002h"):
         re_mult_decl = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\*?[a-zA-Z_]\w*(?:\s*=\s*[^,;]+)?\s*,\s*\*?[a-zA-Z_]\w*", re.MULTILINE)
         for m in re_mult_decl.finditer(codigo_sin_comentarios):
@@ -578,6 +636,29 @@ def analizar_archivo(
                     codigo_linea=line_txt,
                     es_autofixable=False,
                 ))
+
+        for i, l in enumerate(lineas_sin_cadenas):
+            strip_l = l.strip()
+            if not strip_l or strip_l.startswith(("#", "//", "/*", "*")):
+                continue
+            if re.search(r"\bfor\s*\(", l):
+                continue
+            semis = [m.start() for m in re.finditer(r";", l)]
+            if len(semis) >= 2:
+                mid = l[semis[0] + 1:semis[1]].strip()
+                if mid and not mid.startswith(("//", "/*")):
+                    rcode, tit = _regla_info("0x0002h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=semis[1] + 1,
+                        mensaje="Prohibición de sentencias múltiples en una sola línea.",
+                        sugerencia="Escribí una única sentencia por línea para facilitar la depuración con GDB.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
 
     # 0x0008h: Constantes en MAYUSCULAS_SNAKE_CASE
     if _esta_activa("0x0008h"):
@@ -1095,7 +1176,7 @@ def analizar_archivo(
                         break
             line_end = codigo_sin_comentarios[:end_pos].count("\n") + 1
             total_lines = line_end - line_start + 1
-            if total_lines > 50:
+            if total_lines > 40:
                 rcode, tit = _regla_info("0x2005h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
@@ -1103,7 +1184,7 @@ def analizar_archivo(
                     archivo=ruta,
                     linea=line_start,
                     columna=1,
-                    mensaje=f"Función '{fn_name}' tiene {total_lines} líneas (máximo permitido: 50).",
+                    mensaje=f"Función '{fn_name}' tiene {total_lines} líneas (máximo pedagógico permitido: 40).",
                     sugerencia="Modularizá la función dividiéndola en funciones auxiliares.",
                     es_autofixable=False,
                 ))
@@ -1549,14 +1630,27 @@ def analizar_archivo(
                 ))
 
     # -------------------------------------------------------------------------
-    # 0x000Fh: Evitá comentarios obvios, redundantes o vacíos
+    # 0x000Fh: Evitá comentarios obvios, redundantes, vacíos o TODO/FIXME pendientes
     # -------------------------------------------------------------------------
     if _esta_activa("0x000Fh"):
-        re_comentarios_obvios = re.compile(r"//\s*(?:incrementa|suma|retorna|asigna|TODO|FIXME|\s*$)", re.IGNORECASE)
         for i, l in enumerate(lineas):
             if "//" in l:
                 coment = l.split("//", 1)[1].strip()
-                if not coment or coment.lower() in ("todo", "fixme") or re.search(r"^(?:incrementa|suma|guarda|asigna|imprime|retorna)\s+\w+", coment, re.IGNORECASE):
+                m_todo = re.search(r"\b(TODO|FIXME|XXX|HACK)\b", coment, re.IGNORECASE)
+                if m_todo:
+                    rcode, tit = _regla_info("0x000Fh")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=l.index("//") + 1,
+                        mensaje=f"Comentario TODO/FIXME pendiente detectado: '// {coment}'",
+                        sugerencia="Resolvé la tarea pendiente o eliminá el comentario antes de la entrega final.",
+                        codigo_linea=l,
+                        es_autofixable=False,
+                    ))
+                elif not coment or re.search(r"^(?:incrementa|suma|guarda|asigna|imprime|retorna)\s+\w+", coment, re.IGNORECASE):
                     rcode, tit = _regla_info("0x000Fh")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
@@ -1568,6 +1662,21 @@ def analizar_archivo(
                         sugerencia="Explicá la justificación algorítmica ('el porqué') en lugar de describir la sintaxis obvia, o eliminá el comentario.",
                         codigo_linea=l,
                         es_autofixable=True,
+                    ))
+            elif "/*" in l:
+                m_todo_blk = re.search(r"\b(TODO|FIXME|XXX|HACK)\b", l, re.IGNORECASE)
+                if m_todo_blk:
+                    rcode, tit = _regla_info("0x000Fh")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=l.index("/*") + 1,
+                        mensaje=f"Comentario TODO/FIXME pendiente detectado en bloque: '{l.strip()}'",
+                        sugerencia="Resolvé la tarea pendiente o eliminá el comentario antes de la entrega final.",
+                        codigo_linea=l,
+                        es_autofixable=False,
                     ))
 
     # -------------------------------------------------------------------------
@@ -1642,14 +1751,14 @@ def analizar_archivo(
                     ))
 
     # -------------------------------------------------------------------------
-    # 0x0000h: La claridad y prolijidad son de máxima importancia (sin exceso de líneas vacías)
+    # 0x0000h: La claridad y prolijidad son de máxima importancia
     # -------------------------------------------------------------------------
     if _esta_activa("0x0000h"):
         blanks = 0
         for i, l in enumerate(lineas):
             if not l.strip():
                 blanks += 1
-                if blanks >= 4:
+                if blanks >= 3:
                     rcode, tit = _regla_info("0x0000h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
@@ -1657,14 +1766,28 @@ def analizar_archivo(
                         archivo=ruta,
                         linea=i + 1,
                         columna=1,
-                        mensaje="Exceso de líneas en blanco consecutivas (≥ 4). Mantené la prolijidad del archivo.",
+                        mensaje=f"Líneas en blanco redundantes consecutivas ({blanks}). Mantené la prolijidad eliminando el espaciado vertical excesivo.",
                         sugerencia="Reducí los saltos de línea consecutivos para mantener la compacidad del código.",
                         codigo_linea=lineas[i],
                         es_autofixable=True,
                     ))
-                    blanks = 0
             else:
                 blanks = 0
+
+        # Verificación de que los archivos terminen siempre con una nueva línea (\n)
+        if contenido_original and not contenido_original.endswith("\n"):
+            rcode, tit = _regla_info("0x0000h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=len(lineas),
+                columna=len(lineas[-1]) + 1 if lineas else 1,
+                mensaje="El archivo no termina con una nueva línea (\\n) al final.",
+                sugerencia="Agregá un salto de línea al final del archivo para cumplir con el estándar POSIX C.",
+                codigo_linea=lineas[-1] if lineas else "",
+                es_autofixable=True,
+            ))
 
     # -------------------------------------------------------------------------
     # 0x000Ah: Comentarios que expliquen el "porqué", no el "qué"
@@ -2364,6 +2487,36 @@ def analizar_archivo(
                     primera_funcion_linea = i + 1
                     break
         
+        # Verificación de inclusión de cabeceras de sistema antes de cabeceras de usuario
+        user_header_line = None
+        user_header_name = None
+        stem_h = f"{ruta.stem}.h"
+        for i, l in enumerate(lineas_sin_comentarios):
+            strip_l = l.strip()
+            if strip_l.startswith("#include"):
+                m_user = re.match(r'^[ \t]*#include[ \t]+"([^"]+)"', strip_l)
+                if m_user:
+                    h_u = m_user.group(1)
+                    if h_u != stem_h and user_header_line is None:
+                        user_header_line = i + 1
+                        user_header_name = h_u
+                m_sys = re.match(r'^[ \t]*#include[ \t]+<([^>]+)>', strip_l)
+                if m_sys and user_header_line is not None:
+                    h_s = m_sys.group(1)
+                    rcode, tit = _regla_info("0x5005h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=1,
+                        mensaje=f"Inclusión de cabecera de sistema '<{h_s}>' posterior a cabecera de usuario '{user_header_name}'.",
+                        sugerencia="Incluí las cabeceras estándar de sistema (<...>) antes de las cabeceras locales de usuario (\"...\").",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
+                    break
+
         if primera_funcion_linea:
             for i in range(primera_funcion_linea, len(lineas)):
                 strip_l = lineas[i].strip()
@@ -2428,7 +2581,7 @@ def analizar_archivo(
                 ))
 
     # -------------------------------------------------------------------------
-    # 0x100Bh: Prohibición de estructuras de control con cuerpo vacío (if (...);)
+    # 0x100Bh: Prohibición de estructuras de control con cuerpo vacío (if (...);) o llaves vacías
     # -------------------------------------------------------------------------
     if _esta_activa("0x100Bh"):
         re_empty_body = re.compile(r"^[ \t]*(?:if|while|for)\s*\([^)]*\)\s*;\s*$", re.MULTILINE)
@@ -2444,6 +2597,22 @@ def analizar_archivo(
                     columna=m_eb.end() - 1,
                     mensaje="Estructura de control con cuerpo nulo: punto y coma ';' inmediatamente después de la condición.",
                     sugerencia="Eliminá el punto y coma ';' y utilizá un bloque con llaves '{ ... }' para encerrar el cuerpo.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+        re_empty_block = re.compile(r"^[ \t]*(?:if|while|for)\s*\([^)]*\)\s*\{\s*\}\s*$", re.MULTILINE)
+        for i, l in enumerate(lineas_sin_comentarios):
+            m_ebl = re_empty_block.match(l)
+            if m_ebl:
+                rcode, tit = _regla_info("0x100Bh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=1,
+                    mensaje="Estructura de control con bloque de llaves vacío '{}'.",
+                    sugerencia="Eliminá la estructura vacía o incorporá las instrucciones correspondientes.",
                     codigo_linea=lineas[i],
                     es_autofixable=False,
                 ))
@@ -2613,22 +2782,38 @@ def analizar_archivo(
                 ))
 
     # -------------------------------------------------------------------------
-    # 0x0014h: Prohibición de identificadores con caracteres no ASCII
+    # 0x0014h: Auditor de tipografía y prohibición de caracteres no ASCII en código
     # -------------------------------------------------------------------------
     if _esta_activa("0x0014h"):
-        re_non_ascii_ident = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+([a-zA-Z0-9_]*[áéíóúÁÉÍÓÚñÑ][a-zA-Z0-9_]*)")
-        for i, l in enumerate(lineas_sin_comentarios):
-            m_na = re_non_ascii_ident.search(l)
-            if m_na:
-                nom = m_na.group(1)
+        for i, l in enumerate(lineas_sin_cadenas):
+            if not l.strip() or l.strip().startswith(("//", "/*", "*")):
+                continue
+            re_typo = re.search(r"[“”‘’«»–—− ​﻿]", l)
+            if re_typo:
+                char_bad = re_typo.group(0)
+                codepoint = f"U+{ord(char_bad):04X}"
                 rcode, tit = _regla_info("0x0014h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
                     archivo=ruta,
                     linea=i + 1,
-                    columna=m_na.start(1) + 1,
-                    mensaje=f"Identificador '{nom}' contiene caracteres no ASCII (tildes o 'ñ').",
+                    columna=re_typo.start() + 1,
+                    mensaje=f"Carácter tipográfico o invisible no ASCII detectado ({char_bad!r}, {codepoint}).",
+                    sugerencia="Utilizá únicamente caracteres ASCII estándar (comillas rectas, guiones simples, espacios estándar).",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+            palabras = re.findall(r"\b([a-zA-Z0-9_]*[^\x00-\x7F\s;,\[\]\(\)\{\}]+[a-zA-Z0-9_]*)\b", l)
+            for pal in palabras:
+                rcode, tit = _regla_info("0x0014h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=l.index(pal) + 1 if pal in l else 1,
+                    mensaje=f"Identificador '{pal}' contiene caracteres no ASCII (tildes, 'ñ' o caracteres homoglíficos).",
                     sugerencia="Utilizá únicamente caracteres alfanuméricos ASCII estándar [a-z0-9_] para garantizar portabilidad.",
                     codigo_linea=lineas[i],
                     es_autofixable=False,
@@ -3765,6 +3950,10 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
             arreglos += 1
         contenido_mod = "\n".join(lineas_actuales) + "\n"
 
+    if not contenido.endswith("\n"):
+        arreglos += 1
+    if not contenido_mod.endswith("\n"):
+        contenido_mod += "\n"
     ruta.write_text(contenido_mod, encoding="utf-8")
 
     # GAFF017 / 0x000Bh: Autoformato con estilo Allman mediante clang-format si está disponible

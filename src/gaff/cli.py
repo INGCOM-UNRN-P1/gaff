@@ -88,6 +88,7 @@ def check_cmd(
     ),
     json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en JSON."),
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", "-o", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
+    badge: Optional[Path] = typer.Option(None, "--badge", "-b", help="Ruta de salida para generar un badge SVG de cumplimiento de estilo."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Ocultar advertencias y solo mostrar errores críticos."),
 ) -> None:
     """Audita archivos de código C comprobando las reglas de estilo y arquitectura de la cátedra."""
@@ -100,6 +101,11 @@ def check_cmd(
         reglas_habilitadas=reglas_set,
         recursive=recursive,
     )
+
+    if badge:
+        from gaff.core.badge import guardar_badge_svg
+        guardar_badge_svg(badge, reporte.total_violaciones)
+        console.print(f"[green]✓ Badge SVG generado en:[/green] [cyan]{badge}[/cyan]")
 
     if output_md:
         md_text = generar_seccion_markdown(reporte)
@@ -355,6 +361,19 @@ def export_rules_cmd(
         console.print(f"[bold green]✓ Guía de estilo exportada exitosamente en:[/bold green] [cyan]{output}[/cyan]")
     else:
         print(md_text)
+
+
+@app.command("badge")
+def badge_cmd(
+    rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a auditar para el badge."),
+    output: Path = typer.Option(Path("gaff-badge.svg"), "--output", "-o", help="Ruta donde guardar el badge SVG."),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
+) -> None:
+    """Genera un badge SVG con el puntaje y estado de cumplimiento de estilo GAFF (formato Shields.io)."""
+    from gaff.core.badge import guardar_badge_svg
+    reporte = ejecutar_linter(rutas, fix=False, recursive=recursive)
+    guardar_badge_svg(output, reporte.total_violaciones)
+    console.print(f"[bold green]✓ Badge SVG generado exitosamente en:[/bold green] [cyan]{output.resolve()}[/cyan]")
 
 
 def main() -> None:

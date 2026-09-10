@@ -27,10 +27,10 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
     },
     "0x0002h": {
         "codigo": "0x0002h",
-        "titulo": "Una declaración de variable por línea",
-        "descripcion": "Declarar cada variable en una línea separada para facilitar comentarios y legibilidad.",
-        "ejemplo_correcto": "int primer_valor;\nint segundo_valor;",
-        "ejemplo_incorrecto": "int primer_valor, segundo_valor, tercer_valor;",
+        "titulo": "Una declaración de variable o sentencia por línea",
+        "descripcion": "Declarar cada variable y escribir cada sentencia en una línea separada para facilitar comentarios, legibilidad y depuración con GDB. No se permiten sentencias múltiples en una sola línea.",
+        "ejemplo_correcto": "int primer_valor = 0;\nint segundo_valor = 0;\nx = 1;\ny = 2;",
+        "ejemplo_incorrecto": "int primer_valor, segundo_valor;\nx = 1; y = 2;",
         "autofix": "No",
     },
     "0x0003h": {
@@ -215,10 +215,10 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
     },
     "0x2005h": {
         "codigo": "0x2005h",
-        "titulo": "Cada función debe tener una única responsabilidad (<= 50 líneas)",
-        "descripcion": "Las funciones no deben exceder las 50 líneas de código para garantizar modularidad, legibilidad y responsabilidad única.",
+        "titulo": "Cada función debe tener una única responsabilidad (<= 40 líneas)",
+        "descripcion": "Las funciones no deben exceder las 40 líneas de código para fomentar la modularización, legibilidad y el principio de responsabilidad única de la cátedra.",
         "ejemplo_correcto": "Dividir funciones complejas en funciones auxiliares privadas (static).",
-        "ejemplo_incorrecto": "Una función procesar_todo() de 120 líneas continuas.",
+        "ejemplo_incorrecto": "Una función procesar_todo() de 60 líneas continuas.",
         "autofix": "No",
     },
     "0x2006h": {
@@ -461,10 +461,10 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
     # 0x50XXh: Compilación y Buenas Prácticas
     "0x5001h": {
         "codigo": "0x5001h",
-        "titulo": "Arreglos estáticos con tamaño fijo en compilación (prohibido VLA)",
-        "descripcion": "Los arreglos de longitud variable (int arr[n]) están prohibidos; usar constantes (#define) o malloc.",
+        "titulo": "Arreglos estáticos con tamaño fijo en compilación (#define o enum, prohibido VLA y números mágicos)",
+        "descripcion": "Los arreglos de longitud variable (int arr[n]) y las dimensiones con números mágicos literales (char buffer[256];) están prohibidos; definí el tamaño mediante constantes (#define o enum) o memoria dinámica.",
         "ejemplo_correcto": "#define TAMANO 100\nint arr[TAMANO];",
-        "ejemplo_incorrecto": "int n = 100;\nint arr[n]; // VLA prohibido",
+        "ejemplo_incorrecto": "int n = 100;\nint arr[n]; // VLA prohibido\nchar buffer[256]; // número mágico",
         "autofix": "No",
     },
     "0x5002h": {

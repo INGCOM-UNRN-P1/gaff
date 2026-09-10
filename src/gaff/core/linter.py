@@ -4157,6 +4157,239 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
+    # -------------------------------------------------------------------------
+    # 0x001Fh: Prohibición de llaves redundantes en inicialización de tipos escalares
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x001Fh"):
+        re_scalar_braces = re.compile(
+            rf"^[ \t]*(?!(?:struct|union)\b)(?:const\s+)?(?:static\s+)?({TIPOS_BASICOS})\s+(\*?\s*[a-zA-Z_]\w*)\s*=\s*\{{\s*([^,{{}}\n]+?)\s*\}}\s*;",
+            re.MULTILINE
+        )
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("*"):
+                continue
+            m = re_scalar_braces.search(l)
+            if m:
+                var_decl = m.group(2)
+                if "[" not in var_decl and "[" not in l:
+                    tipo = m.group(1)
+                    val = m.group(3).strip()
+                    rcode, tit = _regla_info("0x001Fh")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=m.start() + 1,
+                        mensaje=f"Uso de llaves redundantes en la inicialización del tipo escalar '{tipo} {var_decl} = {{{val}}}'.",
+                        sugerencia=f"Inicializá el escalar directamente sin llaves: '{tipo} {var_decl} = {val};'.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=True,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x1012h: Prohibición de comparaciones encadenadas no idiomáticas en C (a < b < c)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x1012h"):
+        re_chained_cmp = re.compile(
+            r"(?<![<>=!])\b([a-zA-Z0-9_]+)\s*(<=|<|>=|>|==)\s*([a-zA-Z0-9_]+)\s*(<=|<|>=|>|==)\s*([a-zA-Z0-9_]+)\b(?![<>=])"
+        )
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("#") or l.strip().startswith("//") or l.strip().startswith("/*"):
+                continue
+            if "<<" in l or ">>" in l:
+                continue
+            for m in re_chained_cmp.finditer(l):
+                a_expr = m.group(1)
+                op1 = m.group(2)
+                b_expr = m.group(3)
+                op2 = m.group(4)
+                c_expr = m.group(5)
+                rcode, tit = _regla_info("0x1012h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Comparación encadenada no idiomática '{m.group(0)}'. En C se evalúa como '({a_expr} {op1} {b_expr}) {op2} {c_expr}', lo cual produce errores de lógica.",
+                    sugerencia=f"Desglosá la condición utilizando el operador lógico '&&': '{a_expr} {op1} {b_expr} && {b_expr} {op2} {c_expr}'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x1013h: Prohibición de saltos no estructurados goto hacia atrás o fuera de liberación de recursos
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x1013h"):
+        etiquetas_linea: Dict[str, int] = {}
+        re_label = re.compile(r"^[ \t]*([a-zA-Z_]\w*)\s*:(?!\s*case\b|\s*default\b)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            m_lbl = re_label.match(l)
+            if m_lbl:
+                etiquetas_linea[m_lbl.group(1)] = i + 1
+
+        re_goto = re.compile(r"\bgoto\s+([a-zA-Z_]\w*)\s*;")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*"):
+                continue
+            for m_g in re_goto.finditer(l):
+                target = m_g.group(1)
+                goto_line = i + 1
+                lbl_line = etiquetas_linea.get(target)
+                es_salto_invalido = False
+                motivo = ""
+                if lbl_line is not None and lbl_line <= goto_line:
+                    es_salto_invalido = True
+                    motivo = f"Salto hacia atrás (línea {goto_line} -> {lbl_line}) simulando bucle no estructurado."
+                elif not re.search(r"(?:clean|err|exit|salir|salida|fin|free|liberar|end)", target, re.IGNORECASE):
+                    es_salto_invalido = True
+                    motivo = f"Salto a etiqueta '{target}' que no corresponde al patrón canónico de liberación de recursos."
+
+                if es_salto_invalido:
+                    rcode, tit = _regla_info("0x1013h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=goto_line,
+                        columna=m_g.start() + 1,
+                        mensaje=f"Uso no estructurado de 'goto {target}': {motivo}",
+                        sugerencia="Reemplazá el salto por estructuras de control estándar ('while', 'for') o reservalo exclusivamente para liberación limpia de recursos al final de la función.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x2012h: Prohibición de asignaciones múltiples consecutivas sin lectura intermedia (dead store)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x2012h"):
+        re_decl_assign = re.compile(rf"\b(?:{TIPOS_BASICOS}|\w+_t)\s+(?:\*\s*)?([a-zA-Z_]\w*)\s*=\s*([^;]+);")
+        re_assign_only = re.compile(r"^[ \t]*([a-zA-Z_]\w*)\s*=\s*([^;]+);")
+        pendientes_escritura: Dict[str, Tuple[int, int, str]] = {}
+
+        for i, l in enumerate(lineas_sin_cadenas):
+            l_strip = l.strip()
+            if not l_strip or l_strip.startswith(("//", "/*", "*", "#")):
+                continue
+
+            if "{" in l_strip or "}" in l_strip or l_strip.startswith(("for ", "for(", "while ", "while(")):
+                pendientes_escritura.clear()
+                continue
+
+            m_assign = re_assign_only.match(l)
+            m_decl = re_decl_assign.search(l)
+
+            nueva_var_asignada = None
+            col_asignacion = 1
+            rhs_expr = ""
+
+            if m_assign:
+                nueva_var_asignada = m_assign.group(1)
+                col_asignacion = m_assign.start(1) + 1
+                rhs_expr = m_assign.group(2)
+            elif m_decl and not l_strip.startswith(("typedef", "struct", "union", "enum")):
+                nueva_var_asignada = m_decl.group(1)
+                col_asignacion = m_decl.start(1) + 1
+                rhs_expr = m_decl.group(2)
+
+            vars_leidas = set()
+            for v_nom in list(pendientes_escritura.keys()):
+                if v_nom == nueva_var_asignada:
+                    if re.search(rf"\b{v_nom}\b", rhs_expr):
+                        vars_leidas.add(v_nom)
+                else:
+                    if re.search(rf"\b{v_nom}\b", l):
+                        vars_leidas.add(v_nom)
+
+            for vl in vars_leidas:
+                pendientes_escritura.pop(vl, None)
+
+            if nueva_var_asignada:
+                if nueva_var_asignada in pendientes_escritura:
+                    l_prev, col_prev, _ = pendientes_escritura[nueva_var_asignada]
+                    rcode, tit = _regla_info("0x2012h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=col_asignacion,
+                        mensaje=f"Asignación a la variable '{nueva_var_asignada}' sobreescribe el valor previo (línea {l_prev}) sin ninguna lectura intermedia (dead store).",
+                        sugerencia=f"Eliminá la asignación redundante a '{nueva_var_asignada}' o utilizá el valor previamente asignado antes de sobreescribirlo.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
+                pendientes_escritura[nueva_var_asignada] = (i + 1, col_asignacion, rhs_expr)
+
+    # -------------------------------------------------------------------------
+    # 0x2013h: Tipo de retorno obligatorio 'int' en la función main()
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x2013h"):
+        re_void_main = re.compile(r"^[ \t]*void\s+main\s*\(")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*"):
+                continue
+            m_vm = re_void_main.search(l)
+            if m_vm:
+                rcode, tit = _regla_info("0x2013h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_vm.start() + 1,
+                    mensaje="Firma no estándar 'void main(...)'. La función de entrada principal debe retornar obligatoriamente 'int' conforme al estándar C.",
+                    sugerencia="Modificá la firma a 'int main(void)' o 'int main(int argc, char **argv)' y retorná un código de estado entero.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x5015h: Protección obligatoria con paréntesis envolventes en macros #define
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5015h"):
+        re_macro_expr = re.compile(r"^[ \t]*#\s*define\s+([a-zA-Z_]\w*)(?:\([^)]*\))?[ \t]+(.+)$")
+        for i, l in enumerate(lineas_sin_comentarios):
+            m = re_macro_expr.match(l)
+            if not m:
+                continue
+            m_name = m.group(1)
+            body = m.group(2).strip()
+            if not body or body.startswith('"') or body.startswith("'"):
+                continue
+            if re.match(r"^(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?f?|[a-zA-Z_]\w*)$", body):
+                continue
+            if re.search(r"[\+\-\*/%&|\^]|<<|>>|&&|\|\||\?", body):
+                esta_envuelta = False
+                if body.startswith("(") and body.endswith(")"):
+                    balance = 0
+                    cierra_al_final = True
+                    for c_idx, ch in enumerate(body):
+                        if ch == '(':
+                            balance += 1
+                        elif ch == ')':
+                            balance -= 1
+                            if balance == 0 and c_idx < len(body) - 1:
+                                cierra_al_final = False
+                                break
+                    if balance == 0 and cierra_al_final:
+                        esta_envuelta = True
+
+                if not esta_envuelta:
+                    rcode, tit = _regla_info("0x5015h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=m.start() + 1,
+                        mensaje=f"Macroconstante '{m_name}' definida con operadores sin paréntesis envolventes protectores ('{body}').",
+                        sugerencia=f"Envolvé la expresión completa entre paréntesis: '#define {m_name} ({body})'.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=True,
+                    ))
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 
@@ -4274,6 +4507,28 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
         # 0x3016h: memset(ptr, sizeof(ptr), 0) -> memset(ptr, 0, sizeof(ptr))
         re_ms_fix = re.compile(r"\bmemset\s*\(\s*([^,]+?)\s*,\s*(sizeof\([^)]+\)|\d+|[a-zA-Z_]\w*)\s*,\s*(0|'\\0'|NULL)\s*\)")
         linea = re_ms_fix.sub(r"memset(\1, \3, \2)", linea)
+
+        # 0x001Fh: int x = {0}; -> int x = 0;
+        re_scalar_fix = re.compile(rf"^([ \t]*(?!(?:struct|union)\b)(?:const\s+)?(?:static\s+)?{TIPOS_BASICOS}\s+\*?\s*[a-zA-Z_]\w*\s*=\s*)\{{\s*([^,{{}}\n]+?)\s*\}}(\s*;)")
+        if not ("[" in linea or "struct " in linea or "union " in linea):
+            linea = re_scalar_fix.sub(r"\1\2\3", linea)
+
+        # 0x1012h: a < b < c -> a < b && b < c
+        if not ("<<" in linea or ">>" in linea or linea.strip().startswith("#")):
+            re_chained_fix = re.compile(r"(?<![<>=!])\b([a-zA-Z0-9_]+)\s*(<=|<|>=|>|==)\s*([a-zA-Z0-9_]+)\s*(<=|<|>=|>|==)\s*([a-zA-Z0-9_]+)\b(?![<>=])")
+            linea = re_chained_fix.sub(r"\1 \2 \3 && \3 \4 \5", linea)
+
+        # 0x2013h: void main( -> int main(
+        if re.match(r"^[ \t]*void\s+main\s*\(", linea):
+            linea = re.sub(r"^([ \t]*)void(\s+main\s*\()", r"\1int\2", linea)
+
+        # 0x5015h: #define TAM 10 + 5 -> #define TAM (10 + 5)
+        m_macro_fix = re.match(r"^([ \t]*#\s*define\s+[a-zA-Z_]\w*(?:\([^)]*\))?[ \t]+)(.+)$", linea)
+        if m_macro_fix:
+            b_fix = m_macro_fix.group(2).strip()
+            if not (b_fix.startswith("(") and b_fix.endswith(")")) and re.search(r"[\+\-\*/%&|\^]|<<|>>|&&|\|\||\?", b_fix):
+                if not re.match(r"^(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?f?|[a-zA-Z_]\w*)$", b_fix):
+                    linea = f"{m_macro_fix.group(1)}({b_fix})"
 
         if linea != orig:
             arreglos += 1

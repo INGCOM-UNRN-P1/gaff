@@ -71,6 +71,13 @@ def cargar_configuracion_gaff(directorio: Optional[Path] = None) -> Dict[str, An
         dir_actual / ".gaff.yaml",
     ]
 
+    candidatos_json = [
+        dir_actual / ".gaffrc.json",
+        dir_actual / "gaff.json",
+        dir_actual / ".gaff.json",
+        dir_actual / ".gaffrc",
+    ]
+
     candidatos_toml = [
         dir_actual / "gaff.toml",
         dir_actual / ".gaff.toml",
@@ -88,7 +95,19 @@ def cargar_configuracion_gaff(directorio: Optional[Path] = None) -> Dict[str, An
             except Exception:
                 pass
 
-    # 2. Probar archivos TOML si tomllib está disponible
+    # 2. Probar archivos JSON
+    import json
+    for cand in candidatos_json:
+        if cand.is_file():
+            try:
+                datos = json.loads(cand.read_text(encoding="utf-8"))
+                if isinstance(datos, dict):
+                    config.update(datos)
+                break
+            except Exception:
+                pass
+
+    # 3. Probar archivos TOML si tomllib está disponible
     if tomllib is not None:
         for cand in candidatos_toml:
             if cand.is_file():
@@ -107,3 +126,29 @@ def cargar_configuracion_gaff(directorio: Optional[Path] = None) -> Dict[str, An
     config["disabled_rules"] = config["excluded_rules"]
 
     return config
+
+
+def generar_plantilla_gaffrc_json(
+    tp_nombre: str = "TP General",
+    catedra: str = "Cátedra de Algoritmos y Programación",
+    reglas_excluidas: Optional[List[str]] = None,
+    max_line_length: int = 80,
+    max_function_lines: int = 40,
+) -> Dict[str, Any]:
+    """Genera un diccionario estructurado para serializar como .gaffrc.json."""
+    return {
+        "$schema": "https://raw.githubusercontent.com/unsam/gaff/main/schema/gaffrc.schema.json",
+        "catedra": catedra,
+        "tp": tp_nombre,
+        "version": "1.0",
+        "description": f"Configuración pedagógica de estilo GAFF para {tp_nombre} ({catedra})",
+        "max_line_length": max_line_length,
+        "max_function_lines": max_function_lines,
+        "max_file_lines": 500,
+        "max_nesting_depth": 3,
+        "disallow_tabs": True,
+        "enforce_allman": True,
+        "excluded_rules": sorted(list(set(reglas_excluidas or []))),
+        "disabled_rules": sorted(list(set(reglas_excluidas or []))),
+    }
+

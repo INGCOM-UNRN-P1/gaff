@@ -94,3 +94,47 @@ def generar_sarif_210(reporte) -> Dict[str, Any]:
             }
         ],
     }
+
+
+def generar_github_summary(reporte) -> str:
+    """Genera un resumen en formato GitHub Flavored Markdown adecuado para $GITHUB_STEP_SUMMARY."""
+    estado_badge = "✅ Aprobado (Sin Violaciones)" if reporte.ok else f"❌ Requiere Revisión ({reporte.total_violaciones} violaciones)"
+
+    total_errores = sum(1 for a in reporte.archivos for v in a.violaciones if getattr(v, "severidad", "ADVERTENCIA") == "ERROR")
+    total_advertencias = sum(1 for a in reporte.archivos for v in a.violaciones if getattr(v, "severidad", "ADVERTENCIA") != "ERROR")
+
+    lines = [
+        "## 🛡️ Gaff Linter — Resumen de Cumplimiento de Estilo",
+        "",
+        "| Métrica | Valor |",
+        "| :--- | :--- |",
+        f"| **Estado General** | {estado_badge} |",
+        f"| **Archivos Auditados** | `{len(reporte.archivos)}` |",
+        f"| **Total Violaciones** | `{reporte.total_violaciones}` |",
+        f"| **Errores Críticos** | `{total_errores}` |",
+        f"| **Advertencias de Estilo** | `{total_advertencias}` |",
+    ]
+    if reporte.total_arreglos > 0:
+        lines.append(f"| **Autofixes Aplicados** | `{reporte.total_arreglos}` |")
+
+    lines.append("")
+
+    if reporte.ok:
+        lines.append("> [!NOTE]")
+        lines.append("> **100% Conforme:** Todo el código evaluado cumple estrictamente con las convenciones arquitectónicas y normas de estilo institucional.")
+        lines.append("")
+    else:
+        lines.append("### 📋 Detalle de Observaciones por Archivo")
+        lines.append("")
+        lines.append("| Archivo | Ubicación | Regla | Severidad | Descripción | Autofix |")
+        lines.append("| :--- | :---: | :---: | :---: | :--- | :---: |")
+        for rep_arch in reporte.archivos:
+            fname = rep_arch.archivo.name
+            for v in rep_arch.violaciones:
+                fix_str = "✓ Sí" if v.es_autofixable else "No"
+                sev_icon = "🔴 ERROR" if getattr(v, "severidad", "ADVERTENCIA") == "ERROR" else "🟡 WARN"
+                lines.append(f"| `{fname}` | L{v.linea}:{v.columna} | `{v.codigo}` | {sev_icon} | {v.mensaje} | {fix_str} |")
+        lines.append("")
+
+    return "\n".join(lines)
+

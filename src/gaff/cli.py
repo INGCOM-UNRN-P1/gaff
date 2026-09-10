@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -92,6 +93,7 @@ def check_cmd(
     badge: Optional[Path] = typer.Option(None, "--badge", "-b", help="Ruta de salida para generar un badge SVG de cumplimiento de estilo."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Ocultar advertencias y solo mostrar errores críticos."),
     sarif: bool = typer.Option(False, "--sarif", help="Emitir informe en formato estándar OASIS SARIF 2.1.0."),
+    github_summary: bool = typer.Option(False, "--github-summary", help="Exportar resumen de cumplimiento en Markdown para GitHub Actions ($GITHUB_STEP_SUMMARY)."),
     convert_guards: bool = typer.Option(False, "--convert-guards", help="Convierte automáticamente directivas #pragma once en guardas canónicas #ifndef."),
 ) -> None:
     """Audita archivos de código C comprobando las reglas de estilo y arquitectura de la cátedra."""
@@ -115,6 +117,19 @@ def check_cmd(
         output_md.parent.mkdir(parents=True, exist_ok=True)
         output_md.write_text(md_text, encoding="utf-8")
         console.print(f"[green]✓ Sección Markdown generada en:[/green] [cyan]{output_md}[/cyan]")
+        raise typer.Exit(code=0 if reporte.ok else 1)
+
+    if github_summary:
+        from gaff.core.exporter import generar_github_summary
+        gh_md = generar_github_summary(reporte)
+        step_summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if step_summary_path:
+            try:
+                with open(step_summary_path, "a", encoding="utf-8") as f:
+                    f.write("\n" + gh_md + "\n")
+            except Exception as ex:
+                err_console.print(f"[yellow]Advertencia al escribir GITHUB_STEP_SUMMARY:[/yellow] {ex}")
+        print(gh_md)
         raise typer.Exit(code=0 if reporte.ok else 1)
 
     if convert_guards:
@@ -259,10 +274,26 @@ SortIncludes: false
 
 @app.command("init-config")
 def init_config_cmd(
-    target_dir: Path = typer.Option(Path("."), "--dir", "-d", help="Directorio donde generar .clang-format"),
+    target_dir: Path = typer.Option(Path("."), "--dir", "-d", help="Directorio donde generar configuración"),
     force: bool = typer.Option(False, "--force", "-f", help="Sobrescribir archivo existente"),
+    gaffrc: bool = typer.Option(False, "--gaffrc", help="Generar plantilla de configuración institucional .gaffrc.json personalizada"),
+    tp: str = typer.Option("TP General", "--tp", help="Nombre o identificación del Trabajo Práctico"),
+    catedra: str = typer.Option("Cátedra de Algoritmos y Programación", "--catedra", help="Nombre de la cátedra"),
+    exclude: Optional[str] = typer.Option(None, "--exclude", "-e", help="Reglas a excluir separadas por comas"),
 ) -> None:
-    """Exporta el archivo canónico .clang-format con la configuración de estilo de la cátedra."""
+    """Exporta la configuración de estilo de la cátedra (.clang-format o .gaffrc.json)."""
+    if gaffrc:
+        from gaff.core.config import generar_plantilla_gaffrc_json
+        cfg_file = target_dir / ".gaffrc.json"
+        if cfg_file.exists() and not force:
+            console.print(f"[yellow]El archivo '{cfg_file}' ya existe. Usá '--force' para sobrescribirlo.[/yellow]")
+            raise typer.Exit(code=1)
+        excluidas_list = [r.strip() for r in exclude.split(",") if r.strip()] if exclude else []
+        plantilla = generar_plantilla_gaffrc_json(tp_nombre=tp, catedra=catedra, reglas_excluidas=excluidas_list)
+        cfg_file.write_text(json.dumps(plantilla, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        console.print(f"[bold green]✓ Plantilla .gaffrc.json generada exitosamente en:[/bold green] {cfg_file.resolve()}")
+        raise typer.Exit(code=0)
+
     cfg_file = target_dir / ".clang-format"
     if cfg_file.exists() and not force:
         console.print(f"[yellow]El archivo '{cfg_file}' ya existe. Usá '--force' para sobrescribirlo.[/yellow]")

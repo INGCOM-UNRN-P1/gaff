@@ -173,6 +173,20 @@ def analizar_archivo(
         titulo = info.get("titulo", f"Regla {codigo_hex}")
         return RuleCode(codigo_hex), titulo
 
+    # Directivas de supresión // gaff:ignore <regla> <justificación>
+    lineas_ignoradas: Dict[int, Set[str]] = {}
+    re_ignore = re.compile(r"(?://|/\*)\s*gaff:ignore\s+(0x[0-9a-fA-F]+h?|all)\s+(\S.{3,})")
+    for idx_l, linea_raw in enumerate(lineas):
+        m_ig = re_ignore.search(linea_raw)
+        if m_ig:
+            cod_ig = m_ig.group(1).lower()
+            if not cod_ig.endswith("h") and cod_ig.startswith("0x"):
+                cod_ig += "h"
+            lineas_ignoradas.setdefault(idx_l + 1, set()).add(cod_ig)
+            if linea_raw.strip().startswith("//") or linea_raw.strip().startswith("/*"):
+                lineas_ignoradas.setdefault(idx_l + 2, set()).add(cod_ig)
+
+
     # -------------------------------------------------------------------------
     # 0x000Ch: Nombres de archivo en snake_case en minúsculas (sin espacios)
     # -------------------------------------------------------------------------
@@ -918,7 +932,7 @@ def analizar_archivo(
 
     # 2. Declaraciones de variables
     re_var_stmt = re.compile(
-        rf"^\s*(?:static\s+|const\s+|volatile\s+|register\s+)*(?:(?:struct|union|enum)\s+[a-zA-Z_]\w*|{TIPOS_BASICOS}|[A-Z]\w*)\s+(?!\()([^;{{}}]+);",
+        rf"^[ \t]*(?:static\s+|const\s+|volatile\s+|register\s+)*(?:(?:struct|union|enum)\s+[a-zA-Z_]\w*|{TIPOS_BASICOS}|[A-Z]\w*)\s+(?!\()([^;{{}}]+);",
         re.MULTILINE
     )
     for m_vs in re_var_stmt.finditer(codigo_sin_comentarios):
@@ -4503,6 +4517,358 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
 
+    # -------------------------------------------------------------------------
+    # 0x0022h: Validador de espaciado estricto en sentencias de control
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0022h"):
+        re_ctrl_no_space = re.compile(r"\b(if|for|while|switch)\(")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            for m in re_ctrl_no_space.finditer(l):
+                rcode, tit = _regla_info("0x0022h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m.start() + 1,
+                    mensaje=f"Falta espacio obligatorio tras la palabra clave '{m.group(1)}' antes del paréntesis.",
+                    sugerencia=f"Escribí '{m.group(1)} (...)' con un espacio de separación.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0023h: Detector de variables locales no inicializadas con modificador const
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0023h"):
+        re_const_uninit = re.compile(r"\bconst\s+(?:struct\s+\w+|\w+)\s*(\*+)?\s*([a-zA-Z_]\w*)\s*;")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            m_cu = re_const_uninit.search(l)
+            if m_cu:
+                var_n = m_cu.group(2)
+                rcode, tit = _regla_info("0x0023h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_cu.start() + 1,
+                    mensaje=f"Variable '{var_n}' declarada con calificador 'const' sin inicializar.",
+                    sugerencia=f"Inicializá '{var_n}' en su declaración con un valor constante o el resultado de una expresión.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0025h: Formato canónico en firmas de punteros a función
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0025h"):
+        re_bad_fn_ptr = re.compile(r"\btypedef\s+[^;]*?\(\s*\*\s+([a-zA-Z_]\w*)\s*\)|\btypedef\s+[^;]*?\(\s*\*\s*([a-zA-Z_]\w*)\s+\)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            m_fp = re_bad_fn_ptr.search(l)
+            if m_fp:
+                fn_name = m_fp.group(1) or m_fp.group(2)
+                rcode, tit = _regla_info("0x0025h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_fp.start() + 1,
+                    mensaje=f"Firma de puntero a función '{fn_name}' no respeta el formato canónico '(*nombre)'.",
+                    sugerencia="Usá el formato estricto 'typedef tipo (*identificador_t)(params)' sin espacios entre el asterisco y el nombre.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0026h: Auditor de identificadores reservados (__ o _[A-Z])
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0026h"):
+        re_reserved_id = re.compile(r"\b(__[a-zA-Z0-9_]+|_[A-Z][a-zA-Z0-9_]*)\b")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*"):
+                continue
+            if l.strip().startswith("#"):
+                if "#ifndef" in l or "#define" in l:
+                    continue
+            for m_res in re_reserved_id.finditer(l):
+                r_ident = m_res.group(1)
+                if r_ident in {"__FILE__", "__LINE__", "__DATE__", "__TIME__", "__func__", "__attribute__", "__STDC__", "__extension__"}:
+                    continue
+                rcode, tit = _regla_info("0x0026h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_res.start() + 1,
+                    mensaje=f"Uso de identificador reservado '{r_ident}' (prefijos '__' o '_[A-Z]' reservados para la libc y compilador).",
+                    sugerencia=f"Renombrá '{r_ident}' utilizando snake_case estándar sin guiones bajos reservados.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0027h: Validador de presencia de cabecera de documentación obligatoria por archivo
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0027h"):
+        primeras = lineas[:20]
+        texto_primeras = "\n".join(primeras)
+        tiene_cabecera = ("/*" in texto_primeras and "*/" in texto_primeras) or (sum(1 for l in primeras if l.strip().startswith("//")) >= 2)
+        if not tiene_cabecera and len(lineas) >= 10:
+            rcode, tit = _regla_info("0x0027h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=1,
+                columna=1,
+                mensaje="El archivo carece de bloque inicial de comentarios de documentación institucional.",
+                sugerencia="Incluí un encabezado al inicio del archivo con información de autoría, cátedra y propósito del módulo.",
+                codigo_linea=lineas[0] if lineas else "",
+                es_autofixable=False,
+            ))
+
+    # -------------------------------------------------------------------------
+    # 0x0028h: Detector de etiquetas de salto goto no alineadas al margen izquierdo
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0028h"):
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            stripped = l.strip()
+            if stripped.startswith("case ") or stripped.startswith("default:") or "?" in stripped:
+                continue
+            m_lab = re.match(r"^[ \t]+([a-zA-Z_]\w*)\s*:\s*$", l)
+            if m_lab and m_lab.group(1) not in {"default"}:
+                lbl_name = m_lab.group(1)
+                rcode, tit = _regla_info("0x0028h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=1,
+                    mensaje=f"Etiqueta de salto '{lbl_name}:' sangrada con espacios. Debe alinearse al margen izquierdo (columna 1).",
+                    sugerencia=f"Colocá '{lbl_name}:' en la primera columna sin sangría previa.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x0029h: Auditor de inicialización de arreglos unidimensionales con exceso de elementos
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0029h"):
+        re_arr_overflow = re.compile(r"\b\w+\s+([a-zA-Z_]\w*)\s*\[\s*(\d+)\s*\]\s*=\s*\{([^}]+)\}")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            m_arr = re_arr_overflow.search(l)
+            if m_arr:
+                arr_nom = m_arr.group(1)
+                cap = int(m_arr.group(2))
+                elems = [e.strip() for e in m_arr.group(3).split(",") if e.strip()]
+                if len(elems) > cap:
+                    rcode, tit = _regla_info("0x0029h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=m_arr.start() + 1,
+                        mensaje=f"Arreglo '{arr_nom}' declarado con capacidad {cap} pero inicializado con {len(elems)} elementos (exceso de inicializadores).",
+                        sugerencia="Ajustá la dimensión del arreglo o remové los elementos sobrantes de la lista de inicialización.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x002Bh: Validador de espaciado en listas de argumentos y llamadas a funciones
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x002Bh"):
+        re_bad_comma = re.compile(r"(?:[a-zA-Z_]\w*)\s*\([^;]*?(?:,[^\s\)\],]|\s+,)[^;]*?\)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            if re_bad_comma.search(l):
+                rcode, tit = _regla_info("0x002Bh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=l.find(",") + 1,
+                    mensaje="Espaciado incorrecto en lista de argumentos o parámetros: la coma debe ir adherida al elemento previo y seguida de un espacio.",
+                    sugerencia="Formateá como 'f(a, b, c)' sin espacio previo a la coma y con un espacio posterior.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=True,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x002Ch: Auditor de consistencia en nombres de constantes simbólicas (#define)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x002Ch"):
+        re_macro_const = re.compile(r"^[ \t]*#define[ \t]+([a-zA-Z_]\w*)(?!\s*\()[ \t]+([0-9\"'a-zA-Z_(].*)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            m_mc = re_macro_const.match(l)
+            if m_mc:
+                nom_m = m_mc.group(1)
+                if any(c.islower() for c in nom_m) and not nom_m.startswith("__"):
+                    rcode, tit = _regla_info("0x002Ch")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=m_mc.start(1) + 1,
+                        mensaje=f"Constante simbólica '#define {nom_m}' contiene letras minúsculas. Debe utilizar SCREAMING_SNAKE_CASE.",
+                        sugerencia=f"Escribí '{nom_m.upper()}' en mayúsculas sostenidas con guiones bajos.",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x002Dh: Validador de espaciado en operadores unarios (*ptr, &var, !flag, ++i)
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x002Dh"):
+        re_bad_unary = re.compile(r"(?:^|[\s(,=;])(\*|&|!|\+\+|--)[ \t]+([a-zA-Z_]\w*)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            m_u = re_bad_unary.search(l)
+            if m_u:
+                op = m_u.group(1)
+                target = m_u.group(2)
+                pre = l[:m_u.start(1)].strip()
+                if op in {"*", "&"} and pre and (pre[-1].isalnum() or pre[-1] in {")", "]"}) and pre not in {"return", "sizeof"}:
+                    continue
+                rcode, tit = _regla_info("0x002Dh")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_u.start(1) + 1,
+                    mensaje=f"Espacio no permitido entre el operador unario '{op}' y su operando '{target}'.",
+                    sugerencia=f"Uní el operador a su operando sin espacios: '{op}{target}'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x1016h: Detector de expresiones booleanas complejas sin paréntesis aclaratorios
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x1016h"):
+        re_if_cond = re.compile(r"\b(if|while)\s*\((.+)\)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            m_ic = re_if_cond.search(l)
+            if m_ic:
+                cond = m_ic.group(2)
+                if "&&" in cond and "||" in cond:
+                    if not re.search(r"\([^)]*?(&&|\|\|)[^)]*?\)", cond):
+                        rcode, tit = _regla_info("0x1016h")
+                        violaciones.append(ViolacionRegla(
+                            codigo=rcode,
+                            titulo=tit,
+                            archivo=ruta,
+                            linea=i + 1,
+                            columna=m_ic.start() + 1,
+                            mensaje="Expresión booleana combina '&&' y '||' sin paréntesis explícitos que aclaren la precedencia pedagógica.",
+                            sugerencia="Agrupá las condiciones con paréntesis para hacer explícito el orden de evaluación.",
+                            codigo_linea=lineas[i],
+                            es_autofixable=False,
+                        ))
+
+    # -------------------------------------------------------------------------
+    # 0x1017h: Detector de operadores de incremento o decremento múltiples en una misma expresión
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x1017h"):
+        re_multi_inc = re.compile(r"(\+\+|--)\s*([a-zA-Z_]\w*)|([a-zA-Z_]\w*)\s*(\+\+|--)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            encontrados = []
+            for m in re_multi_inc.finditer(l):
+                var = m.group(2) or m.group(3)
+                encontrados.append(var)
+            if len(encontrados) > 1 and len(encontrados) != len(set(encontrados)):
+                rep = [v for v in set(encontrados) if encontrados.count(v) > 1][0]
+                rcode, tit = _regla_info("0x1017h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=l.find(rep) + 1,
+                    mensaje=f"Operaciones de incremento o decremento múltiples sobre la variable '{rep}' en una misma sentencia (comportamiento indefinido por sequence points).",
+                    sugerencia="Separar los incrementos o decrementos en sentencias individuales independientes.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # -------------------------------------------------------------------------
+    # 0x2016h: Detector de bloques else superfluos tras sentencias terminales
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x2016h"):
+        for i in range(1, len(lineas_sin_cadenas)):
+            l_curr = lineas_sin_cadenas[i].strip()
+            l_prev = lineas_sin_cadenas[i - 1].strip()
+            if l_curr.startswith("else") or l_curr.startswith("} else"):
+                if l_prev.startswith("return ") or l_prev.startswith("return;") or l_prev.startswith("exit(") or l_prev == "break;":
+                    rcode, tit = _regla_info("0x2016h")
+                    violaciones.append(ViolacionRegla(
+                        codigo=rcode,
+                        titulo=tit,
+                        archivo=ruta,
+                        linea=i + 1,
+                        columna=1,
+                        mensaje="Bloque 'else' superfluo tras sentencia terminal incondicional ('return', 'exit' o 'break').",
+                        sugerencia="Eliminá la cláusula 'else' y desanidá su contenido para adoptar el patrón de salida temprana (early exit / guard clause).",
+                        codigo_linea=lineas[i],
+                        es_autofixable=False,
+                    ))
+
+    # -------------------------------------------------------------------------
+    # 0x301Ah: Validador de uso idiomático de tipos booleanos estándar
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x301Ah"):
+        re_bad_bool = re.compile(r"\btypedef\s+(?:int|char|short)\s+([A-Z_]*BOOL[A-Z_]*)\b|#define\s+(TRUE|FALSE)\s+[01]")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*"):
+                continue
+            m_bb = re_bad_bool.search(l)
+            if m_bb:
+                nom_bb = m_bb.group(1) or m_bb.group(2)
+                rcode, tit = _regla_info("0x301Ah")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_bb.start() + 1,
+                    mensaje=f"Redefinición manual no idiomática de tipos booleanos ('{nom_bb}'). Debe utilizarse '<stdbool.h>' estándar.",
+                    sugerencia="Incluí '#include <stdbool.h>' y usá los identificadores estándar 'bool', 'true' y 'false'.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+    # Filtrar violaciones suprimidas por directivas // gaff:ignore <regla> <justificación>
+    def _esta_suprimida(v: ViolacionRegla) -> bool:
+        cod = str(v.codigo).lower()
+        regs = lineas_ignoradas.get(v.linea, set())
+        return "all" in regs or cod in regs or (cod.endswith("h") and cod[:-1] in regs)
+
+    violaciones = [v for v in violaciones if not _esta_suprimida(v)]
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 
@@ -4642,6 +5008,15 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
             if not (b_fix.startswith("(") and b_fix.endswith(")")) and re.search(r"[\+\-\*/%&|\^]|<<|>>|&&|\|\||\?", b_fix):
                 if not re.match(r"^(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?f?|[a-zA-Z_]\w*)$", b_fix):
                     linea = f"{m_macro_fix.group(1)}({b_fix})"
+
+        # 0x0022h: if( -> if (
+        if not (linea.strip().startswith("//") or linea.strip().startswith("/*") or linea.strip().startswith("#")):
+            linea = re.sub(r"\b(if|for|while|switch)\(", r"\1 (", linea)
+
+        # 0x002Bh: f(a,b) -> f(a, b) y f(a , b) -> f(a, b)
+        if not (linea.strip().startswith("//") or linea.strip().startswith("/*") or linea.strip().startswith("#")):
+            linea = re.sub(r"\s+,", ",", linea)
+            linea = re.sub(r",([^\s\)\],])", r", \1", linea)
 
         if linea != orig:
             arreglos += 1

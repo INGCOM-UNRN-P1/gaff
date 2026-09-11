@@ -1313,6 +1313,36 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
         "ejemplo_incorrecto": "void main(void)\n{\n}",
         "autofix": "Sí",
     },
+    "0x0020h": {
+        "codigo": "0x0020h",
+        "alias": "GAFF_0x0020h",
+        "titulo": "Proporcionalidad en longitud de identificadores según su alcance",
+        "categoria": "Sintaxis Básica y Nomenclatura (0x00XX)",
+        "descripcion": "Los identificadores de alcance global, externo o nivel de archivo (variables globales y funciones públicas) deben tener nombres descriptivos con al menos 3 caracteres. Los identificadores breves o monocaracter se reservan exclusivamente para variables locales de iteración.",
+        "ejemplo_correcto": "int total_elementos = 0;\nvoid inicializar_sistema(void);",
+        "ejemplo_incorrecto": "int x; // Variable global no descriptiva\nvoid f(void); // Función pública no descriptiva",
+        "autofix": "No",
+    },
+    "0x5016h": {
+        "codigo": "0x5016h",
+        "alias": "GAFF_0x5016h",
+        "titulo": "Inclusión explícita obligatoria de cabeceras para funciones de biblioteca estándar",
+        "categoria": "Compilación y Buenas Prácticas de Ingeniería (0x50XX)",
+        "descripcion": "El uso de funciones de la biblioteca estándar de C requiere la inclusión explícita de su cabecera oficial correspondiente (<stdio.h>, <stdlib.h>, <string.h>, <math.h>, etc.), prohibiendo depender de declaraciones implícitas obsoletas.",
+        "ejemplo_correcto": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    printf(\"hola\");\n    return 0;\n}",
+        "ejemplo_incorrecto": "int main(void) {\n    printf(\"hola\"); // Invocación sin incluir <stdio.h>\n    return 0;\n}",
+        "autofix": "No",
+    },
+    "0x1014h": {
+        "codigo": "0x1014h",
+        "alias": "GAFF_0x1014h",
+        "titulo": "Prohibición de expresiones de asignación dentro de estructuras de control",
+        "categoria": "Estructuras de Control y Lazos (0x10XX)",
+        "descripcion": "La asignación embebida dentro de condiciones de control ('if ((x = f()) != 0)', 'while ((c = getchar()) != EOF)') dificulta la legibilidad, fomenta la confusión entre '=' y '==' y quiebra el principio pedagógico de una acción por sentencia.",
+        "ejemplo_correcto": "int c = getchar();\nwhile (c != EOF) {\n    // ...\n    c = getchar();\n}",
+        "ejemplo_incorrecto": "while ((c = getchar()) != EOF)\nif ((res = procesar()) == 0)",
+        "autofix": "No",
+    },
 }
 
 # Alias bidireccionales para retrocompatibilidad

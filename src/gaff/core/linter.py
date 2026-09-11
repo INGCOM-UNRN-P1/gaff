@@ -4390,6 +4390,119 @@ def analizar_archivo(
                         es_autofixable=True,
                     ))
 
+    # -------------------------------------------------------------------------
+    # 0x0020h: Proporcionalidad en longitud de identificadores según su alcance
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x0020h"):
+        re_func_decl = re.compile(rf"^[ \t]*(?:static\s+)?{TIPOS_BASICOS}\s*\*?\s*([a-zA-Z_]\w*)\s*\(")
+        re_glob_var = re.compile(rf"^[ \t]*(?:static\s+)?{TIPOS_BASICOS}\s*\*?\s*([a-zA-Z_]\w*)\s*(?:=|;)")
+        nivel_llaves = 0
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            if nivel_llaves == 0:
+                m_fn = re_func_decl.search(l)
+                if m_fn:
+                    fn_name = m_fn.group(1)
+                    if fn_name not in ("main", "run") and len(fn_name) < 3:
+                        rcode, tit = _regla_info("0x0020h")
+                        violaciones.append(ViolacionRegla(
+                            codigo=rcode,
+                            titulo=tit,
+                            archivo=ruta,
+                            linea=i + 1,
+                            columna=m_fn.start(1) + 1,
+                            mensaje=f"Identificador de función '{fn_name}' en alcance de archivo es excesivamente breve ({len(fn_name)} caracteres). Se requiere proporcionalidad con nombres descriptivos de al menos 3 caracteres.",
+                            sugerencia=f"Reemplazá '{fn_name}' por un identificador descriptivo acorde a su alcance.",
+                            codigo_linea=lineas[i],
+                            es_autofixable=False,
+                        ))
+                else:
+                    m_gv = re_glob_var.search(l)
+                    if m_gv:
+                        gv_name = m_gv.group(1)
+                        if len(gv_name) < 3 and not l.strip().startswith("typedef"):
+                            rcode, tit = _regla_info("0x0020h")
+                            violaciones.append(ViolacionRegla(
+                                codigo=rcode,
+                                titulo=tit,
+                                archivo=ruta,
+                                linea=i + 1,
+                                columna=m_gv.start(1) + 1,
+                                mensaje=f"Identificador de variable global '{gv_name}' en alcance de archivo es excesivamente breve ({len(gv_name)} caracteres). Se requiere proporcionalidad con nombres descriptivos de al menos 3 caracteres.",
+                                sugerencia=f"Reemplazá '{gv_name}' por un identificador descriptivo acorde a su alcance.",
+                                codigo_linea=lineas[i],
+                                es_autofixable=False,
+                            ))
+            nivel_llaves += l.count("{") - l.count("}")
+            if nivel_llaves < 0:
+                nivel_llaves = 0
+
+    # -------------------------------------------------------------------------
+    # 0x5016h: Inclusión explícita obligatoria de cabeceras para funciones estándar
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x5016h"):
+        STD_HEADERS_MAP = {
+            "stdio.h": {"printf", "scanf", "puts", "getchar", "putchar", "fopen", "fclose", "fread", "fwrite", "fprintf", "sprintf", "snprintf", "sscanf", "fgets", "fputs", "perror"},
+            "stdlib.h": {"malloc", "free", "calloc", "realloc", "exit", "atoi", "atol", "rand", "srand", "qsort", "abs"},
+            "string.h": {"strlen", "strcpy", "strncpy", "strcat", "strncat", "strcmp", "strncmp", "strchr", "strstr", "memcpy", "memset", "memmove", "memcmp"},
+            "math.h": {"sqrt", "pow", "sin", "cos", "tan", "floor", "ceil", "fabs"},
+            "assert.h": {"assert"},
+            "ctype.h": {"isalpha", "isdigit", "isalnum", "isspace", "toupper", "tolower"},
+        }
+        headers_incluidos = set()
+        for l in lineas:
+            m_inc = re.match(r"^[ \t]*#include[ \t]*[<]([^>]+)[>]", l)
+            if m_inc:
+                headers_incluidos.add(m_inc.group(1).strip())
+
+        re_calls = re.compile(r"\b([a-zA-Z_]\w*)\s*\(")
+        ya_reportadas_fn = set()
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            for m_call in re_calls.finditer(l):
+                fn_nom = m_call.group(1)
+                for hdr, fns in STD_HEADERS_MAP.items():
+                    if fn_nom in fns and hdr not in headers_incluidos:
+                        if (fn_nom, hdr) not in ya_reportadas_fn:
+                            ya_reportadas_fn.add((fn_nom, hdr))
+                            rcode, tit = _regla_info("0x5016h")
+                            violaciones.append(ViolacionRegla(
+                                codigo=rcode,
+                                titulo=tit,
+                                archivo=ruta,
+                                linea=i + 1,
+                                columna=m_call.start(1) + 1,
+                                mensaje=f"Invocación a la función de biblioteca estándar '{fn_nom}()' sin incluir explícitamente su cabecera '<{hdr}>'.",
+                                sugerencia=f"Agregá '#include <{hdr}>' al inicio del archivo para garantizar prototipos y tipos estándar válidos.",
+                                codigo_linea=lineas[i],
+                                es_autofixable=False,
+                            ))
+
+    # -------------------------------------------------------------------------
+    # 0x1014h: Prohibición de expresiones de asignación dentro de estructuras de control
+    # -------------------------------------------------------------------------
+    if _esta_activa("0x1014h"):
+        re_ctrl_assign = re.compile(r"\b(if|while|switch)\s*\([^;]*?\(\s*([a-zA-Z_]\w*)\s*=(?!=)\s*[^;]*?\)")
+        for i, l in enumerate(lineas_sin_cadenas):
+            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
+                continue
+            m_ca = re_ctrl_assign.search(l)
+            if m_ca:
+                rcode, tit = _regla_info("0x1014h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_ca.start() + 1,
+                    mensaje=f"Asignación embebida a '{m_ca.group(2)}' dentro de la condición de control '{m_ca.group(1)}'.",
+                    sugerencia="Desacoplá la asignación y la evaluación condicional en sentencias separadas para clarificar la lógica y evitar confusiones.",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones
 

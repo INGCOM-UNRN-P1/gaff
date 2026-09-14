@@ -105,6 +105,61 @@ def normalizar_activas(
     return {k.lower() for k in CATALOGO_REGLAS.keys()} - excluidas_norm
 
 
+# Tipos básicos de C
+TIPOS_BASICOS = r"(?:int|unsigned\s+int|short|unsigned\s+short|long|unsigned\s+long|long\s+long|char|unsigned\s+char|float|double|long\s+double|size_t|ssize_t|bool|_Bool|void|FILE|\w+_t|t_\w+)"
+
+
+def _tiene_comentario_documentacion(lineas: List[str], line_idx: int) -> bool:
+    """Verifica si la línea (0-indexed) está precedida inmediatamente por un comentario de documentación."""
+    idx = line_idx - 1
+    blank_lines = 0
+    while idx >= 0 and not lineas[idx].strip():
+        blank_lines += 1
+        idx -= 1
+        if blank_lines > 2:
+            return False
+
+    if idx < 0:
+        return False
+
+    linea_anterior = lineas[idx].strip()
+
+    if linea_anterior.endswith("*/"):
+        inicio_idx = idx
+        bloque_lineas = [lineas[inicio_idx]]
+        while inicio_idx >= 0 and "/*" not in lineas[inicio_idx]:
+            inicio_idx -= 1
+            if inicio_idx >= 0:
+                bloque_lineas.append(lineas[inicio_idx])
+
+        if inicio_idx >= 0:
+            texto_bloque = "\n".join(reversed(bloque_lineas))
+            if "/**" in texto_bloque or "/*!" in texto_bloque:
+                return True
+            if any(tag in texto_bloque for tag in ("@brief", r"\brief", "@param", r"\param", "@return", r"\return", "@pre", "@post")):
+                return True
+            contenido_limpio = re.sub(r"/\*+|\*+/|\*", " ", texto_bloque).strip()
+            if len(contenido_limpio) >= 8 and not contenido_limpio.startswith(("#", "//", "int ", "void ")):
+                return True
+
+    if linea_anterior.startswith("//"):
+        bloque_lineas = []
+        curr = idx
+        while curr >= 0 and lineas[curr].strip().startswith("//"):
+            bloque_lineas.append(lineas[curr].strip())
+            curr -= 1
+        texto_lineas = " ".join(reversed(bloque_lineas))
+        if "///" in texto_lineas or "//!" in texto_lineas:
+            return True
+        if any(tag in texto_lineas for tag in ("@brief", r"\brief", "@param", r"\param", "@return", r"\return")):
+            return True
+        contenido_limpio = re.sub(r"^/+\s*", "", texto_lineas).strip()
+        if len(contenido_limpio) >= 8 and not contenido_limpio.startswith(("#", "int ", "void ", "return ")):
+            return True
+
+    return False
+
+
 @dataclass
 class ContextoAnalisis:
     """Datos derivados y estado de activación compartidos por todas las reglas.
@@ -124,6 +179,23 @@ class ContextoAnalisis:
     es_header: bool
     excluidas_norm: Set[str] = field(default_factory=set)
     reglas_norm: Set[str] = field(default_factory=set)
+    config: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def max_line_length(self) -> int:
+        return int(self.config.get("max_line_length", 80))
+
+    @property
+    def max_function_lines(self) -> int:
+        return int(self.config.get("max_function_lines", 40))
+
+    @property
+    def max_file_lines(self) -> int:
+        return int(self.config.get("max_file_lines", 500))
+
+    @property
+    def max_nesting_depth(self) -> int:
+        return int(self.config.get("max_nesting_depth", 3))
 
     def esta_activa(self, codigo_hex: str) -> bool:
         """Indica si una regla debe evaluarse según exclusiones y filtro activo."""

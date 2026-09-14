@@ -19,6 +19,8 @@ def ejecutar_autofix_interactivo(
     archivos: List[Path],
     auto_confirmar: bool = False,
     console: Optional[Console] = None,
+    reglas_excluidas: Optional[Set[str]] = None,
+    reglas_habilitadas: Optional[Set[str]] = None,
 ) -> Dict[str, int]:
     """Previsualiza y aplica autofix a los archivos seleccionados tras confirmación interactiva [y/n/q]."""
     cons = console or Console()
@@ -34,7 +36,11 @@ def ejecutar_autofix_interactivo(
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir) / path_arch.name
             shutil.copy2(path_arch, tmp_path)
-            total_arreglos = aplicar_autofix_archivo(tmp_path)
+            total_arreglos = aplicar_autofix_archivo(
+                tmp_path,
+                reglas_excluidas=reglas_excluidas,
+                reglas_habilitadas=reglas_habilitadas,
+            )
             contenido_despues = tmp_path.read_text(encoding="utf-8", errors="replace")
 
         if contenido_antes == contenido_despues or total_arreglos == 0:

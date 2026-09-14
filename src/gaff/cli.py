@@ -156,6 +156,10 @@ def check_cmd(
         print(json.dumps(reporte.to_dict(), indent=2, ensure_ascii=False))
         raise typer.Exit(code=0 if reporte.ok else 1)
 
+    if quiet:
+        for rep_arch in reporte.archivos:
+            rep_arch.violaciones = [v for v in rep_arch.violaciones if getattr(v, "severidad", "").upper() == "ERROR"]
+
     if reporte.ok:
         msg = f"[green]✓ Todos los archivos ({len(reporte.archivos)}) cumplen con las reglas de estilo de la cátedra.[/green]"
         if fix and reporte.total_arreglos > 0:
@@ -253,7 +257,7 @@ CLANG_FORMAT_CATEDRA = """# Configuración canónica de formato para Cátedra de
 BasedOnStyle: LLVM
 IndentWidth: 4
 UseTab: Never
-ColumnLimit: 100
+ColumnLimit: 80
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: None
@@ -307,6 +311,7 @@ def fix_cmd(
     rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a corregir."),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Reglas a aplicar."),
+    exclude: Optional[str] = typer.Option(None, "--exclude", "-e", help="Reglas a excluir separadas por comas."),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Previsualiza el diff de cada cambio antes de aplicar."),
 ) -> None:
     """Aplica correcciones automáticas de estilo con opción de vista previa interactiva."""
@@ -325,7 +330,16 @@ def fix_cmd(
         console.print("[yellow]No se encontraron archivos C/H para corregir.[/yellow]")
         raise typer.Exit(code=0)
 
-    res = ejecutar_autofix_interactivo(archivos, auto_confirmar=not interactive, console=console)
+    excluidas_set = set(r.strip() for r in exclude.split(",") if r.strip()) if exclude else None
+    reglas_set = set(r.strip().upper() for r in rules.split(",") if r.strip()) if rules else None
+
+    res = ejecutar_autofix_interactivo(
+        archivos,
+        auto_confirmar=not interactive,
+        console=console,
+        reglas_excluidas=excluidas_set,
+        reglas_habilitadas=reglas_set,
+    )
     tot = sum(res.values())
     console.print(f"[bold green]✓ Proceso completado: {tot} correcciones automáticas aplicadas en {len(archivos)} archivo(s).[/bold green]")
 

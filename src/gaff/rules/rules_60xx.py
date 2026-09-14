@@ -59,8 +59,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     if ctx.esta_activa("0x3008h"):
         re_ptr_zero = re.compile(r"\b\w*(?:ptr|nodo|lista|buffer|puntero|archivo|file)\w*\s*(?:==|!=)\s*0\b", re.IGNORECASE)
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
-            m = re_ptr_zero.search(linea)
-            if m:
+            for m in re_ptr_zero.finditer(linea):
+                prefix = linea[:m.start()].rstrip()
+                # Descartar si el puntero está desreferenciado (*ptr), se toma su dirección (&ptr) o acceso a miembro
+                if prefix.endswith(("*", "&", "->", ".")):
+                    continue
                 rcode, tit = ctx.regla_info("0x3008h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
@@ -672,8 +675,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 declared_ptrs.add(m_pd.group(1))
         for i, l in enumerate(lineas_sin_comentarios):
             for dp in declared_ptrs:
-                m_cmp = re.search(rf"\b{dp}\s*(?:==|!=|<|>|<=|>=)\s*([1-9]\d*)\b", l)
-                if m_cmp:
+                for m_cmp in re.finditer(rf"\b{dp}\s*(?:==|!=|<|>|<=|>=)\s*([1-9]\d*)\b", l):
+                    prefix = l[:m_cmp.start()].rstrip()
+                    # Descartar si el puntero está desreferenciado (*dp), se toma su dirección (&dp) o acceso a miembro
+                    if prefix.endswith(("*", "&", "->", ".")):
+                        continue
                     val = m_cmp.group(1)
                     rcode, tit = ctx.regla_info("0x3019h")
                     violaciones.append(ViolacionRegla(

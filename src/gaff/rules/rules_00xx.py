@@ -78,8 +78,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     ))
             for m_ar in re_arith_bin.finditer(linea):
                 left, sp1, op, sp2 = m_ar.group(1), m_ar.group(2), m_ar.group(3), m_ar.group(4)
-                if op == "*" and re.match(rf"^(?:{TIPOS_BASICOS})$", left):
-                    continue
+                if op == "*":
+                    if re.match(rf"^(?:{TIPOS_BASICOS})$", left) or re.match(r"^[A-Z]\w*$", left):
+                        continue
+                    prefix_ar = linea[:m_ar.start(1)].strip()
+                    if re.search(r"\b(?:struct|union|enum|const|static|extern|volatile)\s*$", prefix_ar):
+                        continue
                 if sp1 != " " or sp2 != " ":
                     rcode, tit = ctx.regla_info("0x0003h")
                     violaciones.append(ViolacionRegla(
@@ -852,13 +856,15 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
                 continue
-            m_u = re_bad_unary.search(l)
-            if m_u:
+            for m_u in re_bad_unary.finditer(l):
                 op = m_u.group(1)
                 target = m_u.group(2)
                 pre = l[:m_u.start(1)].strip()
-                if op in {"*", "&"} and pre and (pre[-1].isalnum() or pre[-1] in {")", "]"}) and pre not in {"return", "sizeof"}:
-                    continue
+                if op in {"*", "&"}:
+                    if pre and (pre[-1].isalnum() or pre[-1] in {")", "]"}) and pre not in {"return", "sizeof"}:
+                        continue
+                    if pre.endswith("*)") or pre.endswith("&)") or pre.endswith(":") or pre.endswith("?"):
+                        continue
                 rcode, tit = ctx.regla_info("0x0016h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,

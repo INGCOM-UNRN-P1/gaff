@@ -489,10 +489,10 @@ def test_sincronizacion_apunte_reglas():
     assert "0x4001h" in CATALOGO_REGLAS
     assert "0x5003h" in CATALOGO_REGLAS
 
-    # Verificar coincidencia de títulos con p1-apunte/reglas
-    r_0x0001 = obtener_regla("0x0001h")
-    assert r_0x0001 is not None
-    assert r_0x0001["titulo"] == "Los identificadores deben ser descriptivos"
+    # Verificar coincidencia de títulos con apunte/reglas
+    r_0x0101 = obtener_regla("0x0101h")
+    assert r_0x0101 is not None
+    assert r_0x0101["titulo"] == "Los identificadores deben ser descriptivos"
 
     r_0x1002 = obtener_regla("0x1002h")
     assert r_0x1002 is not None

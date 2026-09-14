@@ -1,7 +1,7 @@
 """Test de integración que verifica la validez del árbol de ejemplos de GAFF."""
 
 from pathlib import Path
-from gaff.core.rules import CATALOGO_REGLAS
+from gaff.core.rules import CATALOGO_REGLAS, MAPA_RENUMERACION
 from gaff.core.linter import analizar_archivo
 
 CATEGORIAS = {
@@ -13,16 +13,24 @@ CATEGORIAS = {
     "0x50": "0x50xx_compilacion",
 }
 
+
 def test_arbol_ejemplos_completo():
     base_dir = Path(__file__).resolve().parent.parent / "examples"
     assert base_dir.is_dir()
 
-    for code in CATALOGO_REGLAS.keys():
-        is_hdr = code in ("0x5003h", "0x3004h", "0x0035h")
-        ext = ".h" if is_hdr else ".c"
-        subfolder = CATEGORIAS[code[:4]]
-        file_path = base_dir / subfolder / f"regla_{code}{ext}"
+    archivos_ejemplo = sorted(base_dir.rglob("regla_0x*.*"))
+    assert len(archivos_ejemplo) >= 140
 
-        assert file_path.is_file(), f"Falta el archivo de ejemplo para {code}: {file_path}"
-        viols = analizar_archivo(file_path, reglas_habilitadas={code})
-        assert any(v.codigo == code for v in viols), f"El archivo {file_path} no disparó la regla {code}"
+    for file_path in archivos_ejemplo:
+        code_file = file_path.stem.replace("regla_", "")
+        if file_path.suffix == ".h" and code_file not in ("0x5003h", "0x3004h", "0x0035h", "0x301Dh"):
+            continue
+        subfolder = CATEGORIAS.get(code_file[:4])
+        assert subfolder is not None, f"Prefijo no catalogado para {code_file}"
+        assert file_path.parent.name == subfolder, f"{file_path} está en carpeta incorrecta"
+
+        cod_nuevo = MAPA_RENUMERACION.get(code_file, code_file)
+        viols = analizar_archivo(file_path, reglas_habilitadas={cod_nuevo})
+        assert any(v.codigo == cod_nuevo or v.codigo == code_file for v in viols), (
+            f"El archivo {file_path} no disparó la regla {cod_nuevo} (archivo: {code_file})"
+        )

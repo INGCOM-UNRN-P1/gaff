@@ -8,10 +8,42 @@ from typing import Any, Dict, List, Optional
 
 
 class RuleCode(str):
-    """Representa un código de regla de cátedra (ej. '0x0007h')."""
+    """Representa un código de regla de cátedra (ej. '0x0102h') con soporte de retrocompatibilidad."""
 
-    def __new__(cls, code: str, *args, **kwargs):
-        return super().__new__(cls, code)
+    def __new__(
+        cls,
+        code: str,
+        alias: Optional[str] = None,
+        codigo_anterior: Optional[str] = None,
+        *args,
+        **kwargs,
+    ):
+        obj = super().__new__(cls, code)
+        obj._alias = alias or ""
+        obj._codigo_anterior = codigo_anterior or ""
+        return obj
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            other_low = other.lower()
+            return (
+                super().__eq__(other)
+                or self.lower() == other_low
+                or (bool(getattr(self, "_alias", None)) and self._alias.lower() == other_low)
+                or (bool(getattr(self, "_codigo_anterior", None)) and self._codigo_anterior.lower() == other_low)
+            )
+        return super().__eq__(other)
+
+    @property
+    def alias(self) -> str:
+        return getattr(self, "_alias", "")
+
+    @property
+    def codigo_anterior(self) -> str:
+        return getattr(self, "_codigo_anterior", "")
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
 
 @dataclass

@@ -15,7 +15,7 @@ from gaff.core.contexto import (
     normalizar_exclusiones,
 )
 from gaff.core.models import ReporteArchivo, ReporteLinting, RuleCode, ViolacionRegla
-from gaff.core.rules import CATALOGO_REGLAS
+from gaff.core.rules import CATALOGO_REGLAS, MAPA_INVERSO, MAPA_RENUMERACION, normalizar_codigo
 
 
 def _tiene_comentario_documentacion(lineas: List[str], line_idx: int) -> bool:
@@ -133,21 +133,29 @@ def analizar_archivo(
             cod_ig = m_ig.group(1).lower()
             if not cod_ig.endswith("h") and cod_ig.startswith("0x"):
                 cod_ig += "h"
-            lineas_ignoradas.setdefault(idx_l + 1, set()).add(cod_ig)
+            cod_norm = normalizar_codigo(cod_ig).lower()
+            cod_ant = MAPA_INVERSO.get(cod_norm, "").lower()
+            cods_a_ignorar = {cod_ig, cod_norm}
+            if cod_ant:
+                cods_a_ignorar.add(cod_ant)
+            for c in list(cods_a_ignorar):
+                if c.endswith("h"):
+                    cods_a_ignorar.add(c[:-1])
+            lineas_ignoradas.setdefault(idx_l + 1, set()).update(cods_a_ignorar)
             if linea_raw.strip().startswith("//") or linea_raw.strip().startswith("/*"):
-                lineas_ignoradas.setdefault(idx_l + 2, set()).add(cod_ig)
+                lineas_ignoradas.setdefault(idx_l + 2, set()).update(cods_a_ignorar)
 
 
     # -------------------------------------------------------------------------
     # 0x000Ch: Nombres de archivo en snake_case en minúsculas (sin espacios)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x000Ch"):
+    if ctx.esta_activa("0x0104h"):
         nombre_archivo = ruta.name
         es_valido_snake = bool(re.match(r"^[a-z0-9_]+(?:\.[a-z0-9_]+)+$", nombre_archivo))
         if not es_valido_snake:
             sugerido = re.sub(r"[-\s]+", "_", nombre_archivo.lower())
             sugerido = re.sub(r"[^a-z0-9_\.]", "", sugerido)
-            rcode, tit = ctx.regla_info("0x000Ch")
+            rcode, tit = ctx.regla_info("0x0104h")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -445,7 +453,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
 
     # 0x0004h: Espaciado en palabras clave (if, for, while, switch) y operadores binarios
-    if ctx.esta_activa("0x0004h"):
+    if ctx.esta_activa("0x0003h"):
         re_kw = re.compile(r"\b(if|for|while|switch)\(")
         re_asgn_bin = re.compile(r'\b([a-zA-Z0-9_]+)([ \t]*)(\+=|-=|\*=|/=|%=|==|!=|<=|>=|&&|\|\||<|>|=)([ \t]*)([a-zA-Z0-9_]+)')
         re_arith_bin = re.compile(rf"\b([a-zA-Z0-9_]+)([ \t]*)(\+|\-|\*|\/|%)([ \t]*)([a-zA-Z0-9_]+)\b")
@@ -455,7 +463,7 @@ def analizar_archivo(
             m_kw = re_kw.search(linea)
             if m_kw:
                 kw = m_kw.group(1)
-                rcode, tit = ctx.regla_info("0x0004h")
+                rcode, tit = ctx.regla_info("0x0003h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -470,7 +478,7 @@ def analizar_archivo(
             for m_ab in re_asgn_bin.finditer(linea):
                 sp1, op, sp2 = m_ab.group(2), m_ab.group(3), m_ab.group(4)
                 if sp1 != " " or sp2 != " ":
-                    rcode, tit = ctx.regla_info("0x0004h")
+                    rcode, tit = ctx.regla_info("0x0003h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -487,7 +495,7 @@ def analizar_archivo(
                 if op == "*" and re.match(rf"^(?:{TIPOS_BASICOS})$", left):
                     continue
                 if sp1 != " " or sp2 != " ":
-                    rcode, tit = ctx.regla_info("0x0004h")
+                    rcode, tit = ctx.regla_info("0x0003h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -501,12 +509,12 @@ def analizar_archivo(
                     ))
 
     # 0x0006h: Asterisco junto al identificador (int* ptr -> int *ptr)
-    if ctx.esta_activa("0x0006h"):
+    if ctx.esta_activa("0x0005h"):
         re_ptr_junto_tipo = re.compile(rf"\b{TIPOS_BASICOS}\*\s+([a-zA-Z_]\w*)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m = re_ptr_junto_tipo.search(linea)
             if m and not linea.strip().startswith("#"):
-                rcode, tit = ctx.regla_info("0x0006h")
+                rcode, tit = ctx.regla_info("0x0005h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -520,10 +528,10 @@ def analizar_archivo(
                 ))
 
     # 0x0009h: Longitud de línea (> 80 chars)
-    if ctx.esta_activa("0x0009h"):
+    if ctx.esta_activa("0x0006h"):
         for idx, linea in enumerate(lineas, 1):
             if len(linea) > 80:
-                rcode, tit = ctx.regla_info("0x0009h")
+                rcode, tit = ctx.regla_info("0x0006h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -537,10 +545,10 @@ def analizar_archivo(
                 ))
 
     # 0x0005h: Indentación de cuatro espacios, sin tabuladores ni espacios finales
-    if ctx.esta_activa("0x0005h"):
+    if ctx.esta_activa("0x0004h"):
         for idx, linea in enumerate(lineas, 1):
             if linea.endswith(" ") or linea.endswith("\t"):
-                rcode, tit = ctx.regla_info("0x0005h")
+                rcode, tit = ctx.regla_info("0x0004h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -553,7 +561,7 @@ def analizar_archivo(
                     es_autofixable=True,
                 ))
             if "\t" in linea:
-                rcode, tit = ctx.regla_info("0x0005h")
+                rcode, tit = ctx.regla_info("0x0004h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -569,7 +577,7 @@ def analizar_archivo(
             if line_sin_com.strip() and not linea.lstrip().startswith(("*", "/*")):
                 lead_spaces = len(linea) - len(linea.lstrip(" "))
                 if lead_spaces > 0 and lead_spaces % 4 != 0 and "\t" not in linea[:lead_spaces]:
-                    rcode, tit = ctx.regla_info("0x0005h")
+                    rcode, tit = ctx.regla_info("0x0004h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -626,13 +634,13 @@ def analizar_archivo(
                     ))
 
     # 0x0008h: Constantes en MAYUSCULAS_SNAKE_CASE
-    if ctx.esta_activa("0x0008h"):
+    if ctx.esta_activa("0x0103h"):
         re_define_const = re.compile(r"^\s*#\s*define\s+([a-zA-Z_]\w*)\s+[\d\.\"\']", re.MULTILINE)
         for m in re_define_const.finditer(codigo_sin_comentarios):
             name = m.group(1)
             if name != name.upper():
                 line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
-                rcode, tit = ctx.regla_info("0x0008h")
+                rcode, tit = ctx.regla_info("0x0103h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -760,9 +768,9 @@ def analizar_archivo(
         col_fn = m_fh.start(1) - codigo_sin_comentarios.rfind("\n", 0, m_fh.start(1))
 
         # 0x0007h / 0x200Ah: camelCase en funciones
-        if ctx.esta_activa("0x0007h") or ctx.esta_activa("0x200Ah"):
+        if ctx.esta_activa("0x0102h") or ctx.esta_activa("0x2009h"):
             if raw_fn not in IGNORED_VAR_NAMES and any(c.isupper() for c in raw_fn) and any(c.islower() for c in raw_fn):
-                rcode_target = "0x200Ah" if (ctx.esta_activa("0x200Ah") and not ctx.esta_activa("0x0007h")) else "0x0007h"
+                rcode_target = "0x2009h" if (ctx.esta_activa("0x2009h") and not ctx.esta_activa("0x0102h")) else "0x0102h"
                 rcode, tit = ctx.regla_info(rcode_target)
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
@@ -777,9 +785,9 @@ def analizar_archivo(
                 ))
 
         # 0x0001h: Nombres de función excesivamente largos (> 31 caracteres)
-        if ctx.esta_activa("0x0001h"):
+        if ctx.esta_activa("0x0101h"):
             if len(raw_fn) > 31:
-                rcode, tit = ctx.regla_info("0x0001h")
+                rcode, tit = ctx.regla_info("0x0101h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -807,9 +815,9 @@ def analizar_archivo(
             col_p = lineas[line_fn - 1].find(p_name) + 1 if line_fn <= len(lineas) and p_name in lineas[line_fn - 1] else 1
 
             # camelCase en parámetros
-            if ctx.esta_activa("0x0007h") or ctx.esta_activa("0x200Ah"):
+            if ctx.esta_activa("0x0102h") or ctx.esta_activa("0x2009h"):
                 if any(c.isupper() for c in p_name) and any(c.islower() for c in p_name):
-                    rcode, tit = ctx.regla_info("0x0007h")
+                    rcode, tit = ctx.regla_info("0x0102h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -823,8 +831,8 @@ def analizar_archivo(
                     ))
 
             # 0x0037h / 0x0001h: Identificadores genéricos con sufijo numérico o afijos (numero1, num_1, n_a, a_n)
-            if (ctx.esta_activa("0x0037h") or ctx.esta_activa("0x0001h")) and _es_identificador_generico_numerado(p_name):
-                rule_target = "0x0037h" if ctx.esta_activa("0x0037h") else "0x0001h"
+            if (ctx.esta_activa("0x010Eh") or ctx.esta_activa("0x0101h")) and _es_identificador_generico_numerado(p_name):
+                rule_target = "0x010Eh" if ctx.esta_activa("0x010Eh") else "0x0101h"
                 rcode, tit = ctx.regla_info(rule_target)
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
@@ -839,10 +847,10 @@ def analizar_archivo(
                     severidad="ADVERTENCIA",
                 ))
             # 0x0001h: Parámetros descriptivos (cortos y largos)
-            elif ctx.esta_activa("0x0001h"):
+            elif ctx.esta_activa("0x0101h"):
                 if len(p_name) == 1:
                     if p_name.lower() not in CANONICAL_INDICES and p_name.lower() not in MATH_PARAM_NAMES:
-                        rcode, tit = ctx.regla_info("0x0001h")
+                        rcode, tit = ctx.regla_info("0x0101h")
                         violaciones.append(ViolacionRegla(
                             codigo=rcode,
                             titulo=tit,
@@ -855,7 +863,7 @@ def analizar_archivo(
                             es_autofixable=False,
                         ))
                 elif 1 < len(p_name) < 4 and p_name.lower() not in ALLOWED_SHORT_EXCEPTIONS:
-                    rcode, tit = ctx.regla_info("0x0001h")
+                    rcode, tit = ctx.regla_info("0x0101h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -868,7 +876,7 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
                 elif len(p_name) > 31:
-                    rcode, tit = ctx.regla_info("0x0001h")
+                    rcode, tit = ctx.regla_info("0x0101h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -906,9 +914,9 @@ def analizar_archivo(
             col_v = lineas[line_no - 1].find(var_name) + 1 if line_no <= len(lineas) and var_name in lineas[line_no - 1] else 1
 
             # 0x0007h: camelCase en variables locales y globales
-            if ctx.esta_activa("0x0007h") or ctx.esta_activa("0x200Ah"):
+            if ctx.esta_activa("0x0102h") or ctx.esta_activa("0x2009h"):
                 if any(c.isupper() for c in var_name) and any(c.islower() for c in var_name):
-                    rcode, tit = ctx.regla_info("0x0007h")
+                    rcode, tit = ctx.regla_info("0x0102h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -922,8 +930,8 @@ def analizar_archivo(
                     ))
 
             # 0x0037h / 0x0001h: Variables genéricas con sufijo numérico o afijos (numero1, num_1, n_a, a_n)
-            if (ctx.esta_activa("0x0037h") or ctx.esta_activa("0x0001h")) and _es_identificador_generico_numerado(var_name):
-                rule_target = "0x0037h" if ctx.esta_activa("0x0037h") else "0x0001h"
+            if (ctx.esta_activa("0x010Eh") or ctx.esta_activa("0x0101h")) and _es_identificador_generico_numerado(var_name):
+                rule_target = "0x010Eh" if ctx.esta_activa("0x010Eh") else "0x0101h"
                 rcode, tit = ctx.regla_info(rule_target)
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
@@ -938,10 +946,10 @@ def analizar_archivo(
                     severidad="ADVERTENCIA",
                 ))
             # 0x0001h: Variables cortas y largas
-            elif ctx.esta_activa("0x0001h"):
+            elif ctx.esta_activa("0x0101h"):
                 if len(var_name) == 1:
                     if var_name.lower() not in CANONICAL_INDICES:
-                        rcode, tit = ctx.regla_info("0x0001h")
+                        rcode, tit = ctx.regla_info("0x0101h")
                         violaciones.append(ViolacionRegla(
                             codigo=rcode,
                             titulo=tit,
@@ -954,7 +962,7 @@ def analizar_archivo(
                             es_autofixable=False,
                         ))
                 elif 1 < len(var_name) < 4 and var_name.lower() not in ALLOWED_SHORT_EXCEPTIONS:
-                    rcode, tit = ctx.regla_info("0x0001h")
+                    rcode, tit = ctx.regla_info("0x0101h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -967,7 +975,7 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
                 elif len(var_name) > 31:
-                    rcode, tit = ctx.regla_info("0x0001h")
+                    rcode, tit = ctx.regla_info("0x0101h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -981,8 +989,8 @@ def analizar_archivo(
                     ))
 
             # 0x0003h: Inicialización obligatoria
-            if ctx.esta_activa("0x0003h") and not has_init:
-                rcode, tit = ctx.regla_info("0x0003h")
+            if ctx.esta_activa("0x7001h") and not has_init:
+                rcode, tit = ctx.regla_info("0x7001h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1005,9 +1013,9 @@ def analizar_archivo(
         line_no = codigo_sin_comentarios[:m_fd.start(1)].count("\n") + 1
         col_vl = lineas[line_no - 1].find(var_lazo) + 1 if line_no <= len(lineas) and var_lazo in lineas[line_no - 1] else 1
 
-        if ctx.esta_activa("0x0007h") or ctx.esta_activa("0x200Ah"):
+        if ctx.esta_activa("0x0102h") or ctx.esta_activa("0x2009h"):
             if any(c.isupper() for c in var_lazo) and any(c.islower() for c in var_lazo):
-                rcode, tit = ctx.regla_info("0x0007h")
+                rcode, tit = ctx.regla_info("0x0102h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1021,8 +1029,8 @@ def analizar_archivo(
                 ))
 
         # 0x0037h / 0x0001h: Variables de lazo genéricas con sufijo numérico o afijos
-        if (ctx.esta_activa("0x0037h") or ctx.esta_activa("0x0001h")) and _es_identificador_generico_numerado(var_lazo):
-            rule_target = "0x0037h" if ctx.esta_activa("0x0037h") else "0x0001h"
+        if (ctx.esta_activa("0x010Eh") or ctx.esta_activa("0x0101h")) and _es_identificador_generico_numerado(var_lazo):
+            rule_target = "0x010Eh" if ctx.esta_activa("0x010Eh") else "0x0101h"
             rcode, tit = ctx.regla_info(rule_target)
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
@@ -1036,9 +1044,9 @@ def analizar_archivo(
                 es_autofixable=False,
                 severidad="ADVERTENCIA",
             ))
-        elif ctx.esta_activa("0x0001h"):
+        elif ctx.esta_activa("0x0101h"):
             if len(var_lazo) == 1 and var_lazo.lower() not in CANONICAL_INDICES:
-                rcode, tit = ctx.regla_info("0x0001h")
+                rcode, tit = ctx.regla_info("0x0101h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1051,7 +1059,7 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
             elif 1 < len(var_lazo) < 4 and var_lazo.lower() not in ALLOWED_SHORT_EXCEPTIONS:
-                rcode, tit = ctx.regla_info("0x0001h")
+                rcode, tit = ctx.regla_info("0x0101h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1064,7 +1072,7 @@ def analizar_archivo(
                     es_autofixable=False,
                 ))
             elif len(var_lazo) > 31:
-                rcode, tit = ctx.regla_info("0x0001h")
+                rcode, tit = ctx.regla_info("0x0101h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1078,11 +1086,11 @@ def analizar_archivo(
                 ))
 
     # 0x000Bh: Llaves en la misma línea (estilo K&R en vez de Allman)
-    if ctx.esta_activa("0x000Bh"):
+    if ctx.esta_activa("0x0007h"):
         re_knr = re.compile(r"(?:if|for|while|switch|\))\s*\{$")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             if re_knr.search(linea.rstrip()) and not linea.strip().startswith("struct") and not linea.strip().startswith("enum"):
-                rcode, tit = ctx.regla_info("0x000Bh")
+                rcode, tit = ctx.regla_info("0x0007h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1418,11 +1426,11 @@ def analizar_archivo(
                 ))
 
     # 0x0035h: TDA con struct no opaco en archivo .h
-    if ctx.esta_activa("0x0035h") and es_header:
+    if ctx.esta_activa("0x301Dh") and es_header:
         re_struct_body = re.compile(r"^\s*struct\s+\w+\s*\{[^}]+\}\s*;", re.MULTILINE)
         for m in re_struct_body.finditer(codigo_sin_comentarios):
             line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
-            rcode, tit = ctx.regla_info("0x0035h")
+            rcode, tit = ctx.regla_info("0x301Dh")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -1524,7 +1532,7 @@ def analizar_archivo(
                 ultimo_hito = i + 1
 
     # 0x000Dh: Código comentado (dead code)
-    if ctx.esta_activa("0x000Dh"):
+    if ctx.esta_activa("0x0202h"):
         re_codigo_comentado = re.compile(
             r"^\s*(?:"
             r"(?:if|for|while|switch|return|break|continue|else|do)\b"
@@ -1554,7 +1562,7 @@ def analizar_archivo(
                 continue
             line_no = contenido_original[:m.start()].count("\n") + 1
             columna = m.start() - contenido_original.rfind("\n", 0, m.start())
-            rcode, tit = ctx.regla_info("0x000Dh")
+            rcode, tit = ctx.regla_info("0x0202h")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -1570,7 +1578,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x000Eh: Nombres de funciones en snake_case estricto
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x000Eh"):
+    if ctx.esta_activa("0x0105h"):
         re_fn_decl = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^;{)]*\)\s*\{", re.MULTILINE)
         for m in re_fn_decl.finditer(codigo_sin_comentarios):
             fn_name = m.group(1)
@@ -1581,7 +1589,7 @@ def analizar_archivo(
                 line_no = codigo_sin_comentarios[:m.start(1)].count("\n") + 1
                 col = m.start(1) - codigo_sin_comentarios.rfind("\n", 0, m.start(1))
                 sugerido_fn = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", fn_name).lower()
-                rcode, tit = ctx.regla_info("0x000Eh")
+                rcode, tit = ctx.regla_info("0x0105h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1597,13 +1605,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x000Fh: Evitá comentarios obvios, redundantes, vacíos o TODO/FIXME pendientes
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x000Fh"):
+    if ctx.esta_activa("0x0203h"):
         for i, l in enumerate(lineas):
             if "//" in l:
                 coment = l.split("//", 1)[1].strip()
                 m_todo = re.search(r"\b(TODO|FIXME|XXX|HACK)\b", coment, re.IGNORECASE)
                 if m_todo:
-                    rcode, tit = ctx.regla_info("0x000Fh")
+                    rcode, tit = ctx.regla_info("0x0203h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -1616,7 +1624,7 @@ def analizar_archivo(
                         es_autofixable=False,
                     ))
                 elif not coment or re.search(r"^(?:incrementa|suma|guarda|asigna|imprime|retorna)\s+\w+", coment, re.IGNORECASE):
-                    rcode, tit = ctx.regla_info("0x000Fh")
+                    rcode, tit = ctx.regla_info("0x0203h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -1631,7 +1639,7 @@ def analizar_archivo(
             elif "/*" in l:
                 m_todo_blk = re.search(r"\b(TODO|FIXME|XXX|HACK)\b", l, re.IGNORECASE)
                 if m_todo_blk:
-                    rcode, tit = ctx.regla_info("0x000Fh")
+                    rcode, tit = ctx.regla_info("0x0203h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -1647,8 +1655,8 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0010h: Longitud máxima de archivos (máx 500 líneas)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0010h") and len(lineas) > 500:
-        rcode, tit = ctx.regla_info("0x0010h")
+    if ctx.esta_activa("0x0204h") and len(lineas) > 500:
+        rcode, tit = ctx.regla_info("0x0204h")
         violaciones.append(ViolacionRegla(
             codigo=rcode,
             titulo=tit,
@@ -1664,7 +1672,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0011h: Inclusión de cabecera propia en primer lugar en .c
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0011h") and ruta.suffix.lower() == ".c":
+    if ctx.esta_activa("0x0205h") and ruta.suffix.lower() == ".c":
         header_propio = f'"{ruta.stem}.h"'
         headers_encontrados = []
         for i, l in enumerate(lineas):
@@ -1674,7 +1682,7 @@ def analizar_archivo(
         if headers_encontrados and (ruta.parent / f"{ruta.stem}.h").is_file():
             primero_lin, primero_txt = headers_encontrados[0]
             if header_propio not in primero_txt:
-                rcode, tit = ctx.regla_info("0x0011h")
+                rcode, tit = ctx.regla_info("0x0205h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1690,7 +1698,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0012h: Variables globales deben ser static o usar prefijo g_
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0012h"):
+    if ctx.esta_activa("0x0106h"):
         re_global_var = re.compile(rf"^(?!static|const|extern|typedef)\s*{TIPOS_BASICOS}\s+([a-zA-Z_]\w*)\s*(?:=|;)", re.MULTILINE)
         # Buscar declaraciones fuera de funciones (al nivel de indentación 0)
         for i, l in enumerate(lineas):
@@ -1702,7 +1710,7 @@ def analizar_archivo(
             if m:
                 var_name = m.group(1)
                 if not var_name.startswith("g_"):
-                    rcode, tit = ctx.regla_info("0x0012h")
+                    rcode, tit = ctx.regla_info("0x0106h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -1718,13 +1726,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0000h: La claridad y prolijidad son de máxima importancia
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0000h"):
+    if ctx.esta_activa("0x0001h"):
         blanks = 0
         for i, l in enumerate(lineas):
             if not l.strip():
                 blanks += 1
                 if blanks >= 3:
-                    rcode, tit = ctx.regla_info("0x0000h")
+                    rcode, tit = ctx.regla_info("0x0001h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -1741,7 +1749,7 @@ def analizar_archivo(
 
         # Verificación de que los archivos terminen siempre con una nueva línea (\n)
         if contenido_original and not contenido_original.endswith("\n"):
-            rcode, tit = ctx.regla_info("0x0000h")
+            rcode, tit = ctx.regla_info("0x0001h")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -1757,12 +1765,12 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x000Ah: Comentarios que expliquen el "porqué", no el "qué"
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x000Ah"):
+    if ctx.esta_activa("0x0201h"):
         re_comentario_obvio = re.compile(r"//\s*(?:incrementa\s+\w+\s+en\s+1|aumenta\s+\w+\s+en\s+1|suma\s+1\s+a\s+\w+|asigna\s+\w+\s+a\s+\w+|retorna\s+0\b)", re.IGNORECASE)
         for i, l in enumerate(lineas):
             m_obv = re_comentario_obvio.search(l)
             if m_obv:
-                rcode, tit = ctx.regla_info("0x000Ah")
+                rcode, tit = ctx.regla_info("0x0201h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1778,7 +1786,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0036h: Asignar NULL al puntero tras liberar un recurso opaco / destructor TDA
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0036h"):
+    if ctx.esta_activa("0x301Eh"):
         re_destroy_call = re.compile(r"\b([a-zA-Z0-9_]+(?:_destruir|_destroy|_liberar|_cerrar))\s*\(\s*([a-zA-Z_]\w*)\s*\)\s*;")
         for i, l in enumerate(lineas_sin_comentarios):
             m_dest = re_destroy_call.search(l)
@@ -1788,7 +1796,7 @@ def analizar_archivo(
                 siguientes = " ".join(lineas_sin_comentarios[i:i + 4])
                 tiene_null = bool(re.search(rf"\b{pname}\s*=\s*NULL\s*;", siguientes))
                 if not tiene_null:
-                    rcode, tit = ctx.regla_info("0x0036h")
+                    rcode, tit = ctx.regla_info("0x301Eh")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -1881,7 +1889,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2006h: Una aserción por cada función de prueba
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2006h"):
+    if ctx.esta_activa("0x8001h"):
         re_fn_test = re.compile(r"^(?:void|int)\s+((?:test|prueba)_\w+)\s*\([^)]*\)\s*\{", re.MULTILINE)
         for m_test in re_fn_test.finditer(codigo_sin_comentarios):
             fn_name = m_test.group(1)
@@ -1899,7 +1907,7 @@ def analizar_archivo(
             asserts = len(re.findall(r"\b(?:assert|mu_assert|munit_assert)\s*\(", fn_body))
             if asserts > 1:
                 linea_num = contenido_original[:m_test.start()].count("\n") + 1
-                rcode, tit = ctx.regla_info("0x2006h")
+                rcode, tit = ctx.regla_info("0x8001h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1915,13 +1923,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2007h: Mantené el alcance de las variables al mínimo posible
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2007h"):
+    if ctx.esta_activa("0x2006h"):
         re_for_outer = re.compile(r"^\s*(?:int|size_t)\s+([a-zA-Z_]\w*)\s*;", re.MULTILINE)
         for m_var in re_for_outer.finditer(codigo_sin_comentarios):
             vname = m_var.group(1)
             if re.search(rf"\bfor\s*\(\s*{vname}\s*=\s*0", codigo_sin_comentarios[m_var.end():]):
                 linea_num = contenido_original[:m_var.start()].count("\n") + 1
-                rcode, tit = ctx.regla_info("0x2007h")
+                rcode, tit = ctx.regla_info("0x2006h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -1937,7 +1945,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2008h: Valores de retorno numéricos deben ser constantes o enums
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2008h"):
+    if ctx.esta_activa("0x2007h"):
         re_magic_ret = re.compile(r"^\s*return\s+(-?[1-9]\d*)\s*;", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
             m_ret = re_magic_ret.match(l)
@@ -1954,7 +1962,7 @@ def analizar_archivo(
                         break
                 if not es_main_o_test:
                     val = m_ret.group(1)
-                    rcode, tit = ctx.regla_info("0x2008h")
+                    rcode, tit = ctx.regla_info("0x2007h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -1970,7 +1978,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2009h: Los ejercicios deben ser resueltos mediante funciones (no monolítico en main)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2009h") and ruta.suffix.lower() == ".c":
+    if ctx.esta_activa("0x2008h") and ruta.suffix.lower() == ".c":
         re_main_block = re.compile(r"int\s+main\s*\([^)]*\)\s*\{", re.MULTILINE)
         m_main = re_main_block.search(codigo_sin_comentarios)
         if m_main:
@@ -1978,7 +1986,7 @@ def analizar_archivo(
             fns_auxiliares = [f for f in todas_fns if f != "main"]
             if not fns_auxiliares and len(lineas) > 35:
                 linea_num = contenido_original[:m_main.start()].count("\n") + 1
-                rcode, tit = ctx.regla_info("0x2009h")
+                rcode, tit = ctx.regla_info("0x2008h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2503,13 +2511,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0013h: Macros #define deben nombrarse en MAYUSCULAS_SNAKE_CASE
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0013h"):
+    if ctx.esta_activa("0x0107h"):
         re_macro_min = re.compile(r"^[ \t]*#define[ \t]+([a-z]\w*)", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
             m_mac = re_macro_min.match(l)
             if m_mac:
                 macro_nom = m_mac.group(1)
-                rcode, tit = ctx.regla_info("0x0013h")
+                rcode, tit = ctx.regla_info("0x0107h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2525,14 +2533,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Ah: Prohibición de asignaciones simples dentro de condiciones lógicas
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Ah"):
+    if ctx.esta_activa("0x1009h"):
         re_assign_in_cond = re.compile(r"\b(?:if|while)\s*\(\s*([a-zA-Z_]\w*)\s*=\s*([^=;()]+)\s*\)")
         for i, l in enumerate(lineas_sin_comentarios):
             m_as = re_assign_in_cond.search(l)
             if m_as:
                 var_nom = m_as.group(1)
                 val_expr = m_as.group(2).strip()
-                rcode, tit = ctx.regla_info("0x100Ah")
+                rcode, tit = ctx.regla_info("0x1009h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2548,12 +2556,12 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Bh: Prohibición de estructuras de control con cuerpo vacío (if (...);) o llaves vacías
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Bh"):
+    if ctx.esta_activa("0x100Ah"):
         re_empty_body = re.compile(r"^[ \t]*(?:if|while|for)\s*\([^)]*\)\s*;\s*$", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
             m_eb = re_empty_body.match(l)
             if m_eb:
-                rcode, tit = ctx.regla_info("0x100Bh")
+                rcode, tit = ctx.regla_info("0x100Ah")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2569,7 +2577,7 @@ def analizar_archivo(
         for i, l in enumerate(lineas_sin_comentarios):
             m_ebl = re_empty_block.match(l)
             if m_ebl:
-                rcode, tit = ctx.regla_info("0x100Bh")
+                rcode, tit = ctx.regla_info("0x100Ah")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2585,14 +2593,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x200Bh: Modularización: una función no debe exceder 4 parámetros de entrada
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x200Bh"):
+    if ctx.esta_activa("0x200Ah"):
         re_fn_params = re.compile(rf"^(?!typedef|extern)[ \t]*{TIPOS_BASICOS}\s+(\w+)\s*\(([^)]+)\)\s*(?:\{{|;)", re.MULTILINE)
         for m_fp in re_fn_params.finditer(codigo_sin_comentarios):
             fn_name = m_fp.group(1)
             params_raw = [p.strip() for p in m_fp.group(2).split(",") if p.strip()]
             if len(params_raw) > 4:
                 linea_num = contenido_original[:m_fp.start()].count("\n") + 1
-                rcode, tit = ctx.regla_info("0x200Bh")
+                rcode, tit = ctx.regla_info("0x200Ah")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2749,7 +2757,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0014h: Auditor de tipografía y prohibición de caracteres no ASCII en código
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0014h"):
+    if ctx.esta_activa("0x0108h"):
         for i, l in enumerate(lineas_sin_cadenas):
             if not l.strip() or l.strip().startswith(("//", "/*", "*")):
                 continue
@@ -2757,7 +2765,7 @@ def analizar_archivo(
             if re_typo:
                 char_bad = re_typo.group(0)
                 codepoint = f"U+{ord(char_bad):04X}"
-                rcode, tit = ctx.regla_info("0x0014h")
+                rcode, tit = ctx.regla_info("0x0108h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2771,7 +2779,7 @@ def analizar_archivo(
                 ))
             palabras = re.findall(r"\b([a-zA-Z0-9_]*[^\x00-\x7F\s;,\[\]\(\)\{\}]+[a-zA-Z0-9_]*)\b", l)
             for pal in palabras:
-                rcode, tit = ctx.regla_info("0x0014h")
+                rcode, tit = ctx.regla_info("0x0108h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2787,14 +2795,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0015h: Prohibición del operador coma para encadenar sentencias independientes
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0015h"):
+    if ctx.esta_activa("0x0008h"):
         re_comma_stmt = re.compile(r"^[ \t]*[a-zA-Z_]\w*\s*=[^,;]+,\s*[a-zA-Z_]\w*\s*=[^;]+;", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
             if l.strip().startswith("for"):
                 continue
             m_cs = re_comma_stmt.match(l)
             if m_cs:
-                rcode, tit = ctx.regla_info("0x0015h")
+                rcode, tit = ctx.regla_info("0x0008h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2810,14 +2818,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Ch: Exigencia de break explícito o comentario de fallthrough en bloques switch case
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Ch"):
+    if ctx.esta_activa("0x100Bh"):
         re_case_block = re.compile(r"\bcase\s+[^:]+:\s*\n((?:[^\n]+\n)*?)(?=\s*(?:case\s+[^:]+|default)\s*:)", re.MULTILINE)
         for m_cb in re_case_block.finditer(codigo_sin_comentarios):
             c_body = m_cb.group(1).strip()
             if c_body:
                 if not (re.search(r"\b(?:break|return)\s*;", c_body) or "fallthrough" in c_body.lower()):
                     linea_num = contenido_original[:m_cb.start()].count("\n") + 1
-                    rcode, tit = ctx.regla_info("0x100Ch")
+                    rcode, tit = ctx.regla_info("0x100Bh")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -2833,7 +2841,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Dh: Prohibición de modificar la variable de control dentro del cuerpo del for
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Dh"):
+    if ctx.esta_activa("0x301Bh"):
         re_for_head = re.compile(r"\bfor\s*\(\s*(?:int|size_t)?\s*([a-zA-Z_]\w*)\s*=[^;]*;[^;]*;\s*[^)]*\)\s*\{", re.MULTILINE)
         for m_fh in re_for_head.finditer(codigo_sin_comentarios):
             idx_var = m_fh.group(1)
@@ -2850,7 +2858,7 @@ def analizar_archivo(
             body_for = codigo_sin_comentarios[start_idx:curr_idx]
             if re.search(rf"\b{idx_var}\s*(?:\+\+|\-\-|\+=|\-=|=)\s*[^=]", body_for):
                 linea_num = contenido_original[:m_fh.start()].count("\n") + 1
-                rcode, tit = ctx.regla_info("0x100Dh")
+                rcode, tit = ctx.regla_info("0x301Bh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2866,13 +2874,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x200Ch: Prohibición de retornar la dirección de una variable local de stack
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x200Ch"):
+    if ctx.esta_activa("0x200Bh"):
         re_ret_addr = re.compile(r"^\s*return\s+&\s*([a-zA-Z_]\w*)\s*;", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
             m_ra = re_ret_addr.match(l)
             if m_ra:
                 vnom = m_ra.group(1)
-                rcode, tit = ctx.regla_info("0x200Ch")
+                rcode, tit = ctx.regla_info("0x200Bh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -2888,7 +2896,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x200Dh: Cada función debe tener a lo sumo un return
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x200Dh"):
+    if ctx.esta_activa("0x200Ch"):
         depth = 0
         start_pos = 0
         last_delim = 0
@@ -2942,7 +2950,7 @@ def analizar_archivo(
                             contenido_original[:start_pos + 1 + rm.start()].count("\n") + 1
                             for rm in returns_matches
                         ]
-                        rcode, tit = ctx.regla_info("0x200Dh")
+                        rcode, tit = ctx.regla_info("0x200Ch")
                         violaciones.append(ViolacionRegla(
                             codigo=rcode,
                             titulo=tit,
@@ -3079,13 +3087,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0016h: Prohibición de identificadores que colisionen con palabras clave o tipos estándar
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0016h"):
+    if ctx.esta_activa("0x0109h"):
         re_res_id = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+(restrict|inline|bool|true|false|nullptr|alignas)\b")
         for i, l in enumerate(lineas_sin_comentarios):
             m_ri = re_res_id.search(l)
             if m_ri:
                 nom = m_ri.group(1)
-                rcode, tit = ctx.regla_info("0x0016h")
+                rcode, tit = ctx.regla_info("0x0109h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3101,13 +3109,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0017h: Prohibición de notación húngara o prefijos redundantes de tipo en identificadores
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0017h"):
+    if ctx.esta_activa("0x0009h"):
         re_hungarian = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+((?:int|float|str|arr|char|p_str)_\w+)")
         for i, l in enumerate(lineas_sin_comentarios):
             m_hu = re_hungarian.search(l)
             if m_hu:
                 nom = m_hu.group(1)
-                rcode, tit = ctx.regla_info("0x0017h")
+                rcode, tit = ctx.regla_info("0x0009h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3123,13 +3131,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Eh: Prohibición de condiciones constantes o tautológicas en sentencias if
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Eh"):
+    if ctx.esta_activa("0x100Ch"):
         re_const_if = re.compile(r"\bif\s*\(\s*(1|0|true|false)\s*\)")
         for i, l in enumerate(lineas_sin_comentarios):
             m_ci = re_const_if.search(l)
             if m_ci:
                 val = m_ci.group(1)
-                rcode, tit = ctx.regla_info("0x100Eh")
+                rcode, tit = ctx.regla_info("0x100Ch")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3145,12 +3153,12 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Fh: Prohibición de condiciones de parada compuestas complejas en lazos for
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Fh"):
+    if ctx.esta_activa("0x100Dh"):
         re_for_complex = re.compile(r"\bfor\s*\([^;]*;([^;]*(?:&&|\|\|)[^;]*);[^)]*\)")
         for i, l in enumerate(lineas_sin_comentarios):
             m_fc = re_for_complex.search(l)
             if m_fc:
-                rcode, tit = ctx.regla_info("0x100Fh")
+                rcode, tit = ctx.regla_info("0x100Dh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3166,12 +3174,12 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x200Eh: Declaración explícita de (void) en funciones que no reciben parámetros
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x200Eh"):
+    if ctx.esta_activa("0x200Dh"):
         re_empty_paren_fn = re.compile(rf"^[ \t]*(?!typedef|extern){TIPOS_BASICOS}\s+(\w+)\s*\(\s*\)\s*(?:\{{|;)", re.MULTILINE)
         for m_ep in re_empty_paren_fn.finditer(codigo_sin_comentarios):
             fn_name = m_ep.group(1)
             linea_num = contenido_original[:m_ep.start()].count("\n") + 1
-            rcode, tit = ctx.regla_info("0x200Eh")
+            rcode, tit = ctx.regla_info("0x200Dh")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -3187,7 +3195,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x200Fh: Calificador static obligatorio en funciones auxiliares privadas de archivo
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x200Fh") and ruta.suffix.lower() == ".c":
+    if ctx.esta_activa("0x200Eh") and ruta.suffix.lower() == ".c":
         re_public_fn = re.compile(rf"^(?!static|typedef|extern)[ \t]*{TIPOS_BASICOS}\s+(\w+)\s*\([^)]*\)\s*\{{", re.MULTILINE)
         header_declaraciones = set()
         comp_h = ruta.with_suffix(".h")
@@ -3203,7 +3211,7 @@ def analizar_archivo(
                 continue
             if comp_h.is_file() and fn_name not in header_declaraciones:
                 linea_num = contenido_original[:m_pf.start()].count("\n") + 1
-                rcode, tit = ctx.regla_info("0x200Fh")
+                rcode, tit = ctx.regla_info("0x200Eh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3348,13 +3356,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0018h: Prohibición de identificadores con prefijos reservados (__ o _[A-Z])
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0018h"):
+    if ctx.esta_activa("0x010Ah"):
         re_res_pref = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+(__\w+|_([A-Z]\w*))\b")
         for i, l in enumerate(lineas_sin_comentarios):
             m_rp = re_res_pref.search(l)
             if m_rp:
                 nom = m_rp.group(1)
-                rcode, tit = ctx.regla_info("0x0018h")
+                rcode, tit = ctx.regla_info("0x010Ah")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3370,14 +3378,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0019h: Prohibición de espacios en blanco antes de separadores de sintaxis (; y ,)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0019h"):
+    if ctx.esta_activa("0x000Ah"):
         re_space_sep = re.compile(r"[ \t]+([;,])")
         for i, l in enumerate(lineas_sin_comentarios):
             if l.strip().startswith("for") or l.strip().startswith("/*") or l.strip().startswith("*"):
                 continue
             for m_ss in re_space_sep.finditer(l):
                 sep = m_ss.group(1)
-                rcode, tit = ctx.regla_info("0x0019h")
+                rcode, tit = ctx.regla_info("0x000Ah")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3393,12 +3401,12 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x1010h: Delimitación obligatoria con bloque de llaves en lazos do-while
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x1010h"):
+    if ctx.esta_activa("0x100Eh"):
         re_do_nok = re.compile(r"^[ \t]*do[ \t]+(?!\{)[a-zA-Z_]\w*", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
             m_dn = re_do_nok.match(l)
             if m_dn:
-                rcode, tit = ctx.regla_info("0x1010h")
+                rcode, tit = ctx.regla_info("0x100Eh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3414,11 +3422,11 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x1011h: Prohibición de cláusula else redundante tras sentencia de retorno anticipado
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x1011h"):
+    if ctx.esta_activa("0x100Fh"):
         re_else_ret = re.compile(r"\breturn\s*[^;]*;\s*\}\s*else\b", re.MULTILINE)
         for m_er in re_else_ret.finditer(codigo_sin_comentarios):
             linea_num = contenido_original[:m_er.start()].count("\n") + 1
-            rcode, tit = ctx.regla_info("0x1011h")
+            rcode, tit = ctx.regla_info("0x100Fh")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -3470,7 +3478,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2011h: Prohibición de reasignar o modificar parámetros recibidos por valor dentro de la función
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2011h"):
+    if ctx.esta_activa("0x2010h"):
         re_fn_val_params = re.compile(rf"^[ \t]*(?!typedef|extern){TIPOS_BASICOS}\s+(\w+)\s*\(([^)]+)\)\s*\{{", re.MULTILINE)
         for m_fvp in re_fn_val_params.finditer(codigo_sin_comentarios):
             raw_params = m_fvp.group(2)
@@ -3493,9 +3501,14 @@ def analizar_archivo(
                 curr_idx += 1
             body_fn = codigo_sin_comentarios[start_idx:curr_idx]
             for vp in val_params:
-                if re.search(rf"\b{vp}\s*(?:\+\+|\-\-|\+=|\-=|=)\s*[^=]", body_fn):
+                mut_matches = list(re.finditer(rf"\b{vp}\s*(?:\+\+|\-\-|\+=|\-=|=(?!=))", body_fn))
+                for mm in mut_matches:
+                    prefix_str = body_fn[:mm.start()].rstrip()
+                    m_prev_word = re.search(r"\b(\w+)$", prefix_str)
+                    if m_prev_word and m_prev_word.group(1) in ("int", "float", "char", "double", "void", "long", "short", "size_t", "bool"):
+                        continue
                     linea_num = contenido_original[:m_fvp.start()].count("\n") + 1
-                    rcode, tit = ctx.regla_info("0x2011h")
+                    rcode, tit = ctx.regla_info("0x2010h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -3613,12 +3626,12 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x001Ah: Prohibición de espacios en blanco alrededor de operadores de acceso a miembros (-> y .)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x001Ah"):
+    if ctx.esta_activa("0x000Bh"):
         re_member = re.compile(r"\b([a-zA-Z0-9_]+)[ \t]+->[ \t]*([a-zA-Z0-9_]+)|\b([a-zA-Z0-9_]+)[ \t]*->[ \t]+([a-zA-Z0-9_]+)|\b([a-zA-Z_]\w*)[ \t]+\.[ \t]*([a-zA-Z_]\w*)|\b([a-zA-Z_]\w*)[ \t]*\.[ \t]+([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
             m_mem = re_member.search(l)
             if m_mem:
-                rcode, tit = ctx.regla_info("0x001Ah")
+                rcode, tit = ctx.regla_info("0x000Bh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3634,12 +3647,12 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x001Bh: Prohibición de espacios en blanco entre operadores unarios (++, --, !) y su operando
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x001Bh"):
+    if ctx.esta_activa("0x000Ch"):
         re_unary = re.compile(r"\b([a-zA-Z_]\w*)[ \t]+(\+\+|\-\-)|(\+\+|\-\-)[ \t]+([a-zA-Z_]\w*)|(!)(?!=)[ \t]+([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
             m_un = re_unary.search(l)
             if m_un:
-                rcode, tit = ctx.regla_info("0x001Bh")
+                rcode, tit = ctx.regla_info("0x000Ch")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3655,13 +3668,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x001Ch: Espacio en blanco obligatorio tras la coma separadora en listas y argumentos
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x001Ch"):
+    if ctx.esta_activa("0x000Dh"):
         re_comma = re.compile(r',(?=[^\s\n\r/>])')
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#"):
                 continue
             for m_cm in re_comma.finditer(l):
-                rcode, tit = ctx.regla_info("0x001Ch")
+                rcode, tit = ctx.regla_info("0x000Dh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3677,14 +3690,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x001Dh: Prohibición de espacios en blanco internos inmediatamente tras '(' o antes de ')'
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x001Dh"):
+    if ctx.esta_activa("0x000Eh"):
         re_paren_sp = re.compile(r"\([ \t]+(?!\s|\))|(?<!\s|\()[ \t]+\)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#") or l.strip().startswith("*"):
                 continue
             m_psp = re_paren_sp.search(l)
             if m_psp:
-                rcode, tit = ctx.regla_info("0x001Dh")
+                rcode, tit = ctx.regla_info("0x000Eh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3700,14 +3713,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x001Eh: Prohibición de múltiples espacios en blanco consecutivos dentro de una línea de código
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x001Eh"):
+    if ctx.esta_activa("0x000Fh"):
         re_multi_sp = re.compile(r"(?<=\S)[ \t]{2,}(?=\S)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#") or l.strip().startswith("*"):
                 continue
             m_msp = re_multi_sp.search(l)
             if m_msp:
-                rcode, tit = ctx.regla_info("0x001Eh")
+                rcode, tit = ctx.regla_info("0x000Fh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3757,7 +3770,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Ch: Detección de comparaciones en estilo Yoda (CONST == var)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Ch"):
+    if ctx.esta_activa("0x100Bh"):
         re_yoda = re.compile(r"\b(NULL|0|[1-9]\d*|true|false)\s*(==|!=)\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#") or l.strip().startswith("*") or l.strip().startswith("//"):
@@ -3766,7 +3779,7 @@ def analizar_archivo(
                 val_const = m.group(1)
                 op = m.group(2)
                 var_ident = m.group(3)
-                rcode, tit = ctx.regla_info("0x100Ch")
+                rcode, tit = ctx.regla_info("0x100Bh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3782,7 +3795,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x200Eh: Comentarios de cierre en bloques extensos (> 25 líneas)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x200Eh"):
+    if ctx.esta_activa("0x200Dh"):
         stack_braces = []
         for i, l in enumerate(lineas_sin_cadenas):
             for c_idx, ch in enumerate(l):
@@ -3795,7 +3808,7 @@ def analizar_archivo(
                         if duracion > 25:
                             linea_orig = lineas[i]
                             if "//" not in linea_orig:
-                                rcode, tit = ctx.regla_info("0x200Eh")
+                                rcode, tit = ctx.regla_info("0x200Dh")
                                 violaciones.append(ViolacionRegla(
                                     codigo=rcode,
                                     titulo=tit,
@@ -3811,7 +3824,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x200Fh: Uso obligatorio de 'void' explícito en funciones sin parámetros
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x200Fh"):
+    if ctx.esta_activa("0x200Eh"):
         re_empty_proto = re.compile(rf"\b({TIPOS_BASICOS})\s+([a-zA-Z_]\w*)\s*\(\s*\)\s*([;{{])")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#") or l.strip().startswith("*") or l.strip().startswith("//"):
@@ -3821,7 +3834,7 @@ def analizar_archivo(
                 nom = m.group(2)
                 if nom in ("if", "for", "while", "switch", "return", "sizeof"):
                     continue
-                rcode, tit = ctx.regla_info("0x200Fh")
+                rcode, tit = ctx.regla_info("0x200Eh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3837,13 +3850,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Dh: Prohibición de casts de tipo innecesarios o redundantes
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Dh"):
+    if ctx.esta_activa("0x301Bh"):
         re_redundant_cast = re.compile(r"\((int|char|long|float|double|size_t)\)\s*(\(?\s*\b\d+(?:\.\d+)?f?\b|\(?(int|char|long|float|double|size_t)\))")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#"):
                 continue
             for m in re_redundant_cast.finditer(l):
-                rcode, tit = ctx.regla_info("0x100Dh")
+                rcode, tit = ctx.regla_info("0x301Bh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3859,7 +3872,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x100Eh: Espaciado obligatorio alrededor de operadores ternarios (? :)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x100Eh"):
+    if ctx.esta_activa("0x100Ch"):
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#") or "case " in l or "default:" in l:
                 continue
@@ -3868,7 +3881,7 @@ def analizar_archivo(
                 m_c = re.search(r"(\S:|:\S)", l)
                 if m_q or m_c:
                     pos = (m_q or m_c).start()
-                    rcode, tit = ctx.regla_info("0x100Eh")
+                    rcode, tit = ctx.regla_info("0x100Ch")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -3907,13 +3920,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x5012h: Directivas #pragma no estándar o privativas
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x5012h"):
+    if ctx.esta_activa("0x5010h"):
         re_pragma_bad = re.compile(r"^[ \t]*#pragma\s+(warning|comment|region|endregion|message|optimize)\b")
         for i, l in enumerate(lineas):
             m = re_pragma_bad.search(l)
             if m:
                 sub = m.group(1)
-                rcode, tit = ctx.regla_info("0x5012h")
+                rcode, tit = ctx.regla_info("0x5010h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -3929,7 +3942,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0015h: Alineación vertical consistente en asignaciones consecutivas
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0015h"):
+    if ctx.esta_activa("0x0008h"):
         for i in range(len(lineas_sin_cadenas) - 2):
             l1, l2, l3 = lineas_sin_cadenas[i], lineas_sin_cadenas[i+1], lineas_sin_cadenas[i+2]
             if not (l1.strip() and l2.strip() and l3.strip()):
@@ -3943,7 +3956,7 @@ def analizar_archivo(
                 ind2 = len(l2) - len(l2.lstrip())
                 ind3 = len(l3) - len(l3.lstrip())
                 if ind1 != ind2 and ind2 != ind3 and (ind1 % 4 != 0 or ind2 % 4 != 0 or ind3 % 4 != 0):
-                    rcode, tit = ctx.regla_info("0x0015h")
+                    rcode, tit = ctx.regla_info("0x0008h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -3984,7 +3997,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0038h: Prohibición de constantes numéricas mágicas en índices de arreglos
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0038h"):
+    if ctx.esta_activa("0x010Fh"):
         re_arr_magic = re.compile(r"\b([a-zA-Z_]\w*)\[([3-9]|\d{2,})\]")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#"):
@@ -3996,7 +4009,7 @@ def analizar_archivo(
                 idx_num = m.group(2)
                 if arr_nom in ("sizeof",):
                     continue
-                rcode, tit = ctx.regla_info("0x0038h")
+                rcode, tit = ctx.regla_info("0x010Fh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4012,13 +4025,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2010h: Prohibición de paréntesis superfluos en sentencia return
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2010h"):
+    if ctx.esta_activa("0x200Fh"):
         re_ret_paren = re.compile(r"^[ \t]*return\s*\(\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?|\d+|NULL)\s*\)\s*;")
         for i, l in enumerate(lineas_sin_cadenas):
             m = re_ret_paren.match(l)
             if m:
                 val = m.group(1)
-                rcode, tit = ctx.regla_info("0x2010h")
+                rcode, tit = ctx.regla_info("0x200Fh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4034,7 +4047,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0017h: Espaciado consistente en declaraciones de doble puntero (tipo **var)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0017h"):
+    if ctx.esta_activa("0x0009h"):
         re_double_ptr_bad = re.compile(rf"\b({TIPOS_BASICOS})\s*(\*(?:\s*\*|\s+\*))\s*([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#"):
@@ -4046,7 +4059,7 @@ def analizar_archivo(
                 matched_str = m.group(0)
                 expected_str = f"{tipo} **{nom}"
                 if matched_str != expected_str:
-                    rcode, tit = ctx.regla_info("0x0017h")
+                    rcode, tit = ctx.regla_info("0x0009h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -4062,11 +4075,11 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x5011h: Colisión de nombres de macros de guarda
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x5011h"):
+    if ctx.esta_activa("0x500Fh"):
         m_rep_guard = re.search(r"^[ \t]*#(?:ifndef|define)\s+(__COMUN_H__|__UTILS_H__|__HEADER_H__|__REGLA_0X5011H_[CH]__)\b", codigo_sin_comentarios, re.MULTILINE)
         if m_rep_guard:
             gname = m_rep_guard.group(1)
-            rcode, tit = ctx.regla_info("0x5011h")
+            rcode, tit = ctx.regla_info("0x500Fh")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -4082,11 +4095,11 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x5014h: Inclusiones cíclicas entre cabeceras
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x5014h"):
+    if ctx.esta_activa("0x5012h"):
         m_self_inc = re.search(r'^[ \t]*#include\s+"([^"]*(?:regla_0x5014h|ciclo)[^"]*)"', codigo_sin_comentarios, re.MULTILINE)
         if m_self_inc:
             inc_nom = m_self_inc.group(1)
-            rcode, tit = ctx.regla_info("0x5014h")
+            rcode, tit = ctx.regla_info("0x5012h")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -4102,14 +4115,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x5013h: Prohibición de declaraciones extern en archivos de implementación (.c)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x5013h") and not es_header:
+    if ctx.esta_activa("0x5011h") and not es_header:
         re_extern_c = re.compile(rf"^[ \t]*extern\s+({TIPOS_BASICOS}|\w+)\s+([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
             m = re_extern_c.match(l)
             if m:
                 tipo = m.group(1)
                 var = m.group(2)
-                rcode, tit = ctx.regla_info("0x5013h")
+                rcode, tit = ctx.regla_info("0x5011h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4125,7 +4138,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x001Fh: Prohibición de llaves redundantes en inicialización de tipos escalares
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x001Fh"):
+    if ctx.esta_activa("0x0010h"):
         re_scalar_braces = re.compile(
             rf"^[ \t]*(?!(?:struct|union)\b)(?:const\s+)?(?:static\s+)?({TIPOS_BASICOS})\s+(\*?\s*[a-zA-Z_]\w*)\s*=\s*\{{\s*([^,{{}}\n]+?)\s*\}}\s*;",
             re.MULTILINE
@@ -4139,7 +4152,7 @@ def analizar_archivo(
                 if "[" not in var_decl and "[" not in l:
                     tipo = m.group(1)
                     val = m.group(3).strip()
-                    rcode, tit = ctx.regla_info("0x001Fh")
+                    rcode, tit = ctx.regla_info("0x0010h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -4155,7 +4168,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x1012h: Prohibición de comparaciones encadenadas no idiomáticas en C (a < b < c)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x1012h"):
+    if ctx.esta_activa("0x1010h"):
         re_chained_cmp = re.compile(
             r"(?<![<>=!])\b([a-zA-Z0-9_]+)\s*(<=|<|>=|>|==)\s*([a-zA-Z0-9_]+)\s*(<=|<|>=|>|==)\s*([a-zA-Z0-9_]+)\b(?![<>=])"
         )
@@ -4170,7 +4183,7 @@ def analizar_archivo(
                 b_expr = m.group(3)
                 op2 = m.group(4)
                 c_expr = m.group(5)
-                rcode, tit = ctx.regla_info("0x1012h")
+                rcode, tit = ctx.regla_info("0x1010h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4186,7 +4199,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x1013h: Prohibición de saltos no estructurados goto hacia atrás o fuera de liberación de recursos
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x1013h"):
+    if ctx.esta_activa("0x1011h"):
         etiquetas_linea: Dict[str, int] = {}
         re_label = re.compile(r"^[ \t]*([a-zA-Z_]\w*)\s*:(?!\s*case\b|\s*default\b)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -4212,7 +4225,7 @@ def analizar_archivo(
                     motivo = f"Salto a etiqueta '{target}' que no corresponde al patrón canónico de liberación de recursos."
 
                 if es_salto_invalido:
-                    rcode, tit = ctx.regla_info("0x1013h")
+                    rcode, tit = ctx.regla_info("0x1011h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -4228,7 +4241,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2012h: Prohibición de asignaciones múltiples consecutivas sin lectura intermedia (dead store)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2012h"):
+    if ctx.esta_activa("0x2011h"):
         re_decl_assign = re.compile(rf"\b(?:{TIPOS_BASICOS}|\w+_t)\s+(?:\*\s*)?([a-zA-Z_]\w*)\s*=\s*([^;]+);")
         re_assign_only = re.compile(r"^[ \t]*([a-zA-Z_]\w*)\s*=\s*([^;]+);")
         pendientes_escritura: Dict[str, Tuple[int, int, str]] = {}
@@ -4273,7 +4286,7 @@ def analizar_archivo(
             if nueva_var_asignada:
                 if nueva_var_asignada in pendientes_escritura:
                     l_prev, col_prev, _ = pendientes_escritura[nueva_var_asignada]
-                    rcode, tit = ctx.regla_info("0x2012h")
+                    rcode, tit = ctx.regla_info("0x2011h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -4290,14 +4303,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2013h: Tipo de retorno obligatorio 'int' en la función main()
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2013h"):
+    if ctx.esta_activa("0x2012h"):
         re_void_main = re.compile(r"^[ \t]*void\s+main\s*\(")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*"):
                 continue
             m_vm = re_void_main.search(l)
             if m_vm:
-                rcode, tit = ctx.regla_info("0x2013h")
+                rcode, tit = ctx.regla_info("0x2012h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4313,7 +4326,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x5015h: Protección obligatoria con paréntesis envolventes en macros #define
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x5015h"):
+    if ctx.esta_activa("0x5013h"):
         re_macro_expr = re.compile(r"^[ \t]*#\s*define\s+([a-zA-Z_]\w*)(?:\([^)]*\))?[ \t]+(.+)$")
         for i, l in enumerate(lineas_sin_comentarios):
             m = re_macro_expr.match(l)
@@ -4342,7 +4355,7 @@ def analizar_archivo(
                         esta_envuelta = True
 
                 if not esta_envuelta:
-                    rcode, tit = ctx.regla_info("0x5015h")
+                    rcode, tit = ctx.regla_info("0x5013h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -4358,7 +4371,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0020h: Proporcionalidad en longitud de identificadores según su alcance
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0020h"):
+    if ctx.esta_activa("0x010Bh"):
         re_func_decl = re.compile(rf"^[ \t]*(?:static\s+)?{TIPOS_BASICOS}\s*\*?\s*([a-zA-Z_]\w*)\s*\(")
         re_glob_var = re.compile(rf"^[ \t]*(?:static\s+)?{TIPOS_BASICOS}\s*\*?\s*([a-zA-Z_]\w*)\s*(?:=|;)")
         nivel_llaves = 0
@@ -4370,7 +4383,7 @@ def analizar_archivo(
                 if m_fn:
                     fn_name = m_fn.group(1)
                     if fn_name not in ("main", "run") and len(fn_name) < 3:
-                        rcode, tit = ctx.regla_info("0x0020h")
+                        rcode, tit = ctx.regla_info("0x010Bh")
                         violaciones.append(ViolacionRegla(
                             codigo=rcode,
                             titulo=tit,
@@ -4387,7 +4400,7 @@ def analizar_archivo(
                     if m_gv:
                         gv_name = m_gv.group(1)
                         if len(gv_name) < 3 and not l.strip().startswith("typedef"):
-                            rcode, tit = ctx.regla_info("0x0020h")
+                            rcode, tit = ctx.regla_info("0x010Bh")
                             violaciones.append(ViolacionRegla(
                                 codigo=rcode,
                                 titulo=tit,
@@ -4406,7 +4419,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x5016h: Inclusión explícita obligatoria de cabeceras para funciones estándar
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x5016h"):
+    if ctx.esta_activa("0x5014h"):
         STD_HEADERS_MAP = {
             "stdio.h": {"printf", "scanf", "puts", "getchar", "putchar", "fopen", "fclose", "fread", "fwrite", "fprintf", "sprintf", "snprintf", "sscanf", "fgets", "fputs", "perror"},
             "stdlib.h": {"malloc", "free", "calloc", "realloc", "exit", "atoi", "atol", "rand", "srand", "qsort", "abs"},
@@ -4432,7 +4445,7 @@ def analizar_archivo(
                     if fn_nom in fns and hdr not in headers_incluidos:
                         if (fn_nom, hdr) not in ya_reportadas_fn:
                             ya_reportadas_fn.add((fn_nom, hdr))
-                            rcode, tit = ctx.regla_info("0x5016h")
+                            rcode, tit = ctx.regla_info("0x5014h")
                             violaciones.append(ViolacionRegla(
                                 codigo=rcode,
                                 titulo=tit,
@@ -4448,14 +4461,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x1014h: Prohibición de expresiones de asignación dentro de estructuras de control
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x1014h"):
+    if ctx.esta_activa("0x1012h"):
         re_ctrl_assign = re.compile(r"\b(if|while|switch)\s*\([^;]*?\(\s*([a-zA-Z_]\w*)\s*=(?!=)\s*[^;]*?\)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
                 continue
             m_ca = re_ctrl_assign.search(l)
             if m_ca:
-                rcode, tit = ctx.regla_info("0x1014h")
+                rcode, tit = ctx.regla_info("0x1012h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4471,13 +4484,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0022h: Validador de espaciado estricto en sentencias de control
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0022h"):
+    if ctx.esta_activa("0x0011h"):
         re_ctrl_no_space = re.compile(r"\b(if|for|while|switch)\(")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
                 continue
             for m in re_ctrl_no_space.finditer(l):
-                rcode, tit = ctx.regla_info("0x0022h")
+                rcode, tit = ctx.regla_info("0x0011h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4493,7 +4506,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0023h: Detector de variables locales no inicializadas con modificador const
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0023h"):
+    if ctx.esta_activa("0x301Ch"):
         re_const_uninit = re.compile(r"\bconst\s+(?:struct\s+\w+|\w+)\s*(\*+)?\s*([a-zA-Z_]\w*)\s*;")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
@@ -4501,7 +4514,7 @@ def analizar_archivo(
             m_cu = re_const_uninit.search(l)
             if m_cu:
                 var_n = m_cu.group(2)
-                rcode, tit = ctx.regla_info("0x0023h")
+                rcode, tit = ctx.regla_info("0x301Ch")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4517,7 +4530,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0025h: Formato canónico en firmas de punteros a función
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0025h"):
+    if ctx.esta_activa("0x0012h"):
         re_bad_fn_ptr = re.compile(r"\btypedef\s+[^;]*?\(\s*\*\s+([a-zA-Z_]\w*)\s*\)|\btypedef\s+[^;]*?\(\s*\*\s*([a-zA-Z_]\w*)\s+\)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
@@ -4525,7 +4538,7 @@ def analizar_archivo(
             m_fp = re_bad_fn_ptr.search(l)
             if m_fp:
                 fn_name = m_fp.group(1) or m_fp.group(2)
-                rcode, tit = ctx.regla_info("0x0025h")
+                rcode, tit = ctx.regla_info("0x0012h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4541,7 +4554,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0026h: Auditor de identificadores reservados (__ o _[A-Z])
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0026h"):
+    if ctx.esta_activa("0x010Ch"):
         re_reserved_id = re.compile(r"\b(__[a-zA-Z0-9_]+|_[A-Z][a-zA-Z0-9_]*)\b")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*"):
@@ -4553,7 +4566,7 @@ def analizar_archivo(
                 r_ident = m_res.group(1)
                 if r_ident in {"__FILE__", "__LINE__", "__DATE__", "__TIME__", "__func__", "__attribute__", "__STDC__", "__extension__"}:
                     continue
-                rcode, tit = ctx.regla_info("0x0026h")
+                rcode, tit = ctx.regla_info("0x010Ch")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4569,12 +4582,12 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0027h: Validador de presencia de cabecera de documentación obligatoria por archivo
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0027h"):
+    if ctx.esta_activa("0x0206h"):
         primeras = lineas[:20]
         texto_primeras = "\n".join(primeras)
         tiene_cabecera = ("/*" in texto_primeras and "*/" in texto_primeras) or (sum(1 for l in primeras if l.strip().startswith("//")) >= 2)
         if not tiene_cabecera and len(lineas) >= 10:
-            rcode, tit = ctx.regla_info("0x0027h")
+            rcode, tit = ctx.regla_info("0x0206h")
             violaciones.append(ViolacionRegla(
                 codigo=rcode,
                 titulo=tit,
@@ -4590,7 +4603,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0028h: Detector de etiquetas de salto goto no alineadas al margen izquierdo
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0028h"):
+    if ctx.esta_activa("0x0013h"):
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
                 continue
@@ -4600,7 +4613,7 @@ def analizar_archivo(
             m_lab = re.match(r"^[ \t]+([a-zA-Z_]\w*)\s*:\s*$", l)
             if m_lab and m_lab.group(1) not in {"default"}:
                 lbl_name = m_lab.group(1)
-                rcode, tit = ctx.regla_info("0x0028h")
+                rcode, tit = ctx.regla_info("0x0013h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4616,7 +4629,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x0029h: Auditor de inicialización de arreglos unidimensionales con exceso de elementos
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x0029h"):
+    if ctx.esta_activa("0x0014h"):
         re_arr_overflow = re.compile(r"\b\w+\s+([a-zA-Z_]\w*)\s*\[\s*(\d+)\s*\]\s*=\s*\{([^}]+)\}")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
@@ -4627,7 +4640,7 @@ def analizar_archivo(
                 cap = int(m_arr.group(2))
                 elems = [e.strip() for e in m_arr.group(3).split(",") if e.strip()]
                 if len(elems) > cap:
-                    rcode, tit = ctx.regla_info("0x0029h")
+                    rcode, tit = ctx.regla_info("0x0014h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -4643,13 +4656,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x002Bh: Validador de espaciado en listas de argumentos y llamadas a funciones
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x002Bh"):
+    if ctx.esta_activa("0x0015h"):
         re_bad_comma = re.compile(r"(?:[a-zA-Z_]\w*)\s*\([^;]*?(?:,[^\s\)\],]|\s+,)[^;]*?\)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
                 continue
             if re_bad_comma.search(l):
-                rcode, tit = ctx.regla_info("0x002Bh")
+                rcode, tit = ctx.regla_info("0x0015h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4665,14 +4678,14 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x002Ch: Auditor de consistencia en nombres de constantes simbólicas (#define)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x002Ch"):
+    if ctx.esta_activa("0x010Dh"):
         re_macro_const = re.compile(r"^[ \t]*#define[ \t]+([a-zA-Z_]\w*)(?!\s*\()[ \t]+([0-9\"'a-zA-Z_(].*)")
         for i, l in enumerate(lineas_sin_cadenas):
             m_mc = re_macro_const.match(l)
             if m_mc:
                 nom_m = m_mc.group(1)
                 if any(c.islower() for c in nom_m) and not nom_m.startswith("__"):
-                    rcode, tit = ctx.regla_info("0x002Ch")
+                    rcode, tit = ctx.regla_info("0x010Dh")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -4688,7 +4701,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x002Dh: Validador de espaciado en operadores unarios (*ptr, &var, !flag, ++i)
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x002Dh"):
+    if ctx.esta_activa("0x0016h"):
         re_bad_unary = re.compile(r"(?:^|[\s(,=;])(\*|&|!|\+\+|--)[ \t]+([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
@@ -4700,7 +4713,7 @@ def analizar_archivo(
                 pre = l[:m_u.start(1)].strip()
                 if op in {"*", "&"} and pre and (pre[-1].isalnum() or pre[-1] in {")", "]"}) and pre not in {"return", "sizeof"}:
                     continue
-                rcode, tit = ctx.regla_info("0x002Dh")
+                rcode, tit = ctx.regla_info("0x0016h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4716,7 +4729,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x1016h: Detector de expresiones booleanas complejas sin paréntesis aclaratorios
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x1016h"):
+    if ctx.esta_activa("0x1013h"):
         re_if_cond = re.compile(r"\b(if|while)\s*\((.+)\)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
@@ -4726,7 +4739,7 @@ def analizar_archivo(
                 cond = m_ic.group(2)
                 if "&&" in cond and "||" in cond:
                     if not re.search(r"\([^)]*?(&&|\|\|)[^)]*?\)", cond):
-                        rcode, tit = ctx.regla_info("0x1016h")
+                        rcode, tit = ctx.regla_info("0x1013h")
                         violaciones.append(ViolacionRegla(
                             codigo=rcode,
                             titulo=tit,
@@ -4742,7 +4755,7 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x1017h: Detector de operadores de incremento o decremento múltiples en una misma expresión
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x1017h"):
+    if ctx.esta_activa("0x1014h"):
         re_multi_inc = re.compile(r"(\+\+|--)\s*([a-zA-Z_]\w*)|([a-zA-Z_]\w*)\s*(\+\+|--)")
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
@@ -4753,7 +4766,7 @@ def analizar_archivo(
                 encontrados.append(var)
             if len(encontrados) > 1 and len(encontrados) != len(set(encontrados)):
                 rep = [v for v in set(encontrados) if encontrados.count(v) > 1][0]
-                rcode, tit = ctx.regla_info("0x1017h")
+                rcode, tit = ctx.regla_info("0x1014h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
@@ -4769,13 +4782,13 @@ def analizar_archivo(
     # -------------------------------------------------------------------------
     # 0x2016h: Detector de bloques else superfluos tras sentencias terminales
     # -------------------------------------------------------------------------
-    if ctx.esta_activa("0x2016h"):
+    if ctx.esta_activa("0x2013h"):
         for i in range(1, len(lineas_sin_cadenas)):
             l_curr = lineas_sin_cadenas[i].strip()
             l_prev = lineas_sin_cadenas[i - 1].strip()
             if l_curr.startswith("else") or l_curr.startswith("} else"):
                 if l_prev.startswith("return ") or l_prev.startswith("return;") or l_prev.startswith("exit(") or l_prev == "break;":
-                    rcode, tit = ctx.regla_info("0x2016h")
+                    rcode, tit = ctx.regla_info("0x2013h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
@@ -4816,7 +4829,14 @@ def analizar_archivo(
     def _esta_suprimida(v: ViolacionRegla) -> bool:
         cod = str(v.codigo).lower()
         regs = lineas_ignoradas.get(v.linea, set())
-        return "all" in regs or cod in regs or (cod.endswith("h") and cod[:-1] in regs)
+        if "all" in regs or cod in regs:
+            return True
+        if cod.endswith("h") and cod[:-1] in regs:
+            return True
+        cod_ant = getattr(v.codigo, "codigo_anterior", "").lower()
+        if cod_ant and (cod_ant in regs or (cod_ant.endswith("h") and cod_ant[:-1] in regs)):
+            return True
+        return False
 
     violaciones = [v for v in violaciones if not _esta_suprimida(v)]
 

@@ -70,8 +70,8 @@ def test_cli_check_con_flag_exclude(tmp_path: Path):
 
     # Sin excluir: debe advertir sobre num1
     result_sin = runner.invoke(app, ["check", str(fuente)])
-    assert "0x0037h" in result_sin.stdout or not result_sin.stdout
+    assert "0x010Eh" in result_sin.stdout or "0x0037h" in result_sin.stdout
 
-    # Con --exclude 0x0037h: no debe advertir sobre 0x0037h
-    result_con = runner.invoke(app, ["check", str(fuente), "--exclude", "0x0037h"])
-    assert "0x0037h" not in result_con.stdout
+    # Con --exclude 0x010Eh: no debe advertir sobre 0x010Eh
+    result_con = runner.invoke(app, ["check", str(fuente), "--exclude", "0x010Eh"])
+    assert "0x010Eh" not in result_con.stdout and "0x0037h" not in result_con.stdout

@@ -22,7 +22,7 @@ def test_cli_rules():
 
 
 def test_cli_explain():
-    res = runner.invoke(app, ["explain", "0x0007h"])
+    res = runner.invoke(app, ["explain", "0x0102h"])
     assert res.exit_code == 0
     assert "snake_case" in res.stdout
 

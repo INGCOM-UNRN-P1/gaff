@@ -8,12 +8,34 @@ de re-derivarla por su cuenta.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
 from gaff.core.models import RuleCode, ViolacionRegla
 from gaff.core.rules import CATALOGO_REGLAS
+
+
+def eliminar_comentarios(texto: str) -> str:
+    """Reemplaza comentarios de bloque y de línea por espacios sin alterar líneas/columnas."""
+    def replacer(match):
+        s = match.group(0)
+        if s.startswith("/"):
+            return "".join("\n" if c == "\n" else " " for c in s)
+        return s
+
+    pattern = re.compile(
+        r"//.*?$|/\*.*?\*/|'(?:\\.|[^\\'])*'|\"(?:\\.|[^\\\"])*\"",
+        re.DOTALL | re.MULTILINE,
+    )
+    return pattern.sub(replacer, texto)
+
+
+def enmascarar_literales(texto: str) -> str:
+    """Reemplaza literales de cadena y carácter por espacios preservando líneas/columnas."""
+    pattern = re.compile(r"'(?:\\.|[^\\'])*'|\"(?:\\.|[^\\\"])*\"", re.DOTALL)
+    return pattern.sub(lambda m: "".join("\n" if c == "\n" else " " for c in m.group(0)), texto)
 
 
 def normalizar_exclusiones(reglas_excluidas: Optional[Set[str]]) -> Set[str]:

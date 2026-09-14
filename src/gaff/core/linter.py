@@ -7,30 +7,15 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
-from gaff.core.contexto import ContextoAnalisis, normalizar_activas, normalizar_exclusiones
+from gaff.core.contexto import (
+    ContextoAnalisis,
+    eliminar_comentarios,
+    enmascarar_literales,
+    normalizar_activas,
+    normalizar_exclusiones,
+)
 from gaff.core.models import ReporteArchivo, ReporteLinting, RuleCode, ViolacionRegla
 from gaff.core.rules import CATALOGO_REGLAS
-
-
-def _eliminar_comentarios(texto: str) -> str:
-    """Reemplaza comentarios de bloque y de línea por espacios para no alterar líneas/columnas."""
-    def replacer(match):
-        s = match.group(0)
-        if s.startswith("/"):
-            return "".join("\n" if c == "\n" else " " for c in s)
-        return s
-
-    pattern = re.compile(
-        r"//.*?$|/\*.*?\*/|'(?:\\.|[^\\'])*'|\"(?:\\.|[^\\\"])*\"",
-        re.DOTALL | re.MULTILINE,
-    )
-    return pattern.sub(replacer, texto)
-
-
-def _enmascarar_literales(texto: str) -> str:
-    """Reemplaza literales de cadena y carácter por espacios preservando líneas/columnas."""
-    pattern = re.compile(r"'(?:\\.|[^\\'])*'|\"(?:\\.|[^\\\"])*\"", re.DOTALL)
-    return pattern.sub(lambda m: "".join("\n" if c == "\n" else " " for c in m.group(0)), texto)
 
 
 def _tiene_comentario_documentacion(lineas: List[str], line_idx: int) -> bool:
@@ -114,15 +99,10 @@ def analizar_archivo(
             return []
 
     lineas = contenido_original.splitlines()
-    codigo_sin_comentarios = _eliminar_comentarios(contenido_original)
+    codigo_sin_comentarios = eliminar_comentarios(contenido_original)
     lineas_sin_comentarios = codigo_sin_comentarios.splitlines()
 
-    def _enmascarar_cadenas_y_chars(texto: str) -> str:
-        def repl(m):
-            return "".join("\n" if c == "\n" else " " for c in m.group(0))
-        return re.sub(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', repl, texto)
-
-    codigo_sin_cadenas = _enmascarar_cadenas_y_chars(codigo_sin_comentarios)
+    codigo_sin_cadenas = enmascarar_literales(codigo_sin_comentarios)
     lineas_sin_cadenas = codigo_sin_cadenas.splitlines()
 
     es_header = ruta.suffix.lower() in (".h", ".hpp")
@@ -1225,7 +1205,7 @@ def analizar_archivo(
                 except Exception:
                     return set()
             lines_h = txt_h.splitlines()
-            code_h_sin_comentarios = _eliminar_comentarios(txt_h)
+            code_h_sin_comentarios = eliminar_comentarios(txt_h)
             doc_fns: Set[str] = set()
             re_proto_h = re.compile(
                 rf"^[ \t]*(?!(?:typedef|return)\b)(?:(?:static|inline|extern|const)[ \t]+)*(?:struct[ \t]+\w+|enum[ \t]+\w+|union[ \t]+\w+|{TIPOS_BASICOS}|[a-zA-Z_]\w*)[ \t]*(\*+[ \t]*|[ \t]+\*?)([a-zA-Z_]\w*)[ \t]*\(([\s\S]*?)\)[ \t]*;",
@@ -1465,7 +1445,7 @@ def analizar_archivo(
         for m_enum in list(re.finditer(r"\benum\b[^{;]*\{[^}]*\}", codigo_magicos, re.DOTALL)):
             relleno = "".join("\n" if c == "\n" else " " for c in m_enum.group(0))
             codigo_magicos = codigo_magicos[: m_enum.start()] + relleno + codigo_magicos[m_enum.end():]
-        codigo_magicos = _enmascarar_literales(codigo_magicos)
+        codigo_magicos = enmascarar_literales(codigo_magicos)
 
         re_num_magico = re.compile(
             r"(?<![\w.])(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:[uUlLfF]+)?"
@@ -1503,7 +1483,7 @@ def analizar_archivo(
 
     # 0x2001h (GAFF025 / GAFF065): Anidación máxima de 3 niveles dentro de funciones
     if ctx.esta_activa("0x2001h"):
-        codigo_nesting = _enmascarar_literales(codigo_sin_comentarios)
+        codigo_nesting = enmascarar_literales(codigo_sin_comentarios)
         re_no_funcion = re.compile(r"^\s*(?:typedef\s+)?(?:struct|enum|union)\b")
         profundidad = 0
         base_funcion: Optional[int] = None
@@ -3214,7 +3194,7 @@ def analizar_archivo(
         if comp_h.is_file():
             try:
                 txt_h = comp_h.read_text(encoding="utf-8", errors="replace")
-                header_declaraciones = set(re.findall(rf"\b{TIPOS_BASICOS}\s+(\w+)\s*\(", _eliminar_comentarios(txt_h)))
+                header_declaraciones = set(re.findall(rf"\b{TIPOS_BASICOS}\s+(\w+)\s*\(", eliminar_comentarios(txt_h)))
             except Exception:
                 pass
         for m_pf in re_public_fn.finditer(codigo_sin_comentarios):
@@ -5007,7 +4987,7 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
 
     # GAFF018 / 0x2003h: Autofix de esqueleto de documentación Doxygen para funciones no documentadas
     lineas_actuales = contenido_mod.splitlines()
-    codigo_sin_coments = _eliminar_comentarios(contenido_mod)
+    codigo_sin_coments = eliminar_comentarios(contenido_mod)
 
     pattern_fn = (
         r"^([ \t]*)(?!(?:typedef|return)\b)((?:(?:static|inline|extern|const)[ \t]+)*(?:struct[ \t]+\w+|enum[ \t]+\w+|union[ \t]+\w+|"
@@ -5024,7 +5004,7 @@ def aplicar_autofix_archivo(ruta: Path) -> int:
             try:
                 txt_h = comp_h.read_text(encoding="utf-8", errors="replace")
                 lines_h = txt_h.splitlines()
-                code_h = _eliminar_comentarios(txt_h)
+                code_h = eliminar_comentarios(txt_h)
                 for m_ph in re_fn_fix.finditer(code_h):
                     nom = m_ph.group(4)
                     l_i = code_h[:m_ph.start()].count("\n")

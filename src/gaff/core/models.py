@@ -115,6 +115,7 @@ class ReporteLinting:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "schema_version": "1.0.0",
             "ok": self.ok,
             "total_archivos": len(self.archivos),
             "total_violaciones": self.total_violaciones,

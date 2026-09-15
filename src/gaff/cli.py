@@ -50,7 +50,7 @@ def main_callback(
 
 def generar_seccion_markdown(reporte) -> str:
     """Genera una sección Markdown estructurada para fusión con Dredd."""
-    lines = ["## Auditoría de Estilo y Convenciones Cátedra (Gaff)\n"]
+    lines = ["<!-- dredd-section: gaff v1.0.0 -->\n## Auditoría de Estilo y Convenciones Cátedra (Gaff)\n"]
     lines.append(f"- **Archivos analizados:** {len(reporte.archivos)}")
     lines.append(f"- **Violaciones detectadas:** {reporte.total_violaciones}")
     if reporte.total_arreglos > 0:
@@ -62,9 +62,13 @@ def generar_seccion_markdown(reporte) -> str:
         lines.append("| Archivo | Línea | Regla | Descripción | Sugerencia | Autofix |")
         lines.append("| :--- | :---: | :---: | :--- | :--- | :---: |")
         for rep_arch in reporte.archivos:
+            arch_name = rep_arch.archivo.name.replace("|", "\\|")
             for v in rep_arch.violaciones:
                 fix_tag = "✓ Sí" if v.es_autofixable else "No"
-                lines.append(f"| `{rep_arch.archivo.name}` | {v.linea} | `{v.codigo}` | {v.mensaje} | {v.sugerencia} | {fix_tag} |")
+                cod = str(v.codigo).replace("|", "\\|")
+                msg = str(v.mensaje).replace("|", "\\|")
+                sug = str(v.sugerencia).replace("|", "\\|")
+                lines.append(f"| `{arch_name}` | {v.linea} | `{cod}` | {msg} | {sug} | {fix_tag} |")
         lines.append("")
     return "\n".join(lines)
 

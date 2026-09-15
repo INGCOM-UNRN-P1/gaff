@@ -217,8 +217,15 @@ def report_cmd(
 
 
 @app.command("rules")
-def rules_cmd() -> None:
+def rules_cmd(
+    json_output: bool = typer.Option(False, "--json", "-j", help="Emite el catálogo completo en formato JSON versionado."),
+) -> None:
     """Lista todas las reglas de estilo y arquitectura del catálogo de cátedra."""
+    if json_output:
+        from gaff.core.rules import exportar_catalogo_dict
+        print(json.dumps(exportar_catalogo_dict(), indent=2, ensure_ascii=False))
+        return
+
     reglas_hex = {k: v for k, v in CATALOGO_REGLAS.items() if k.startswith("0x")}
     tabla = Table(title=f"Catálogo de Reglas de Cátedra ({len(reglas_hex)} reglas)")
     tabla.add_column("Código", style="bold cyan", justify="center")

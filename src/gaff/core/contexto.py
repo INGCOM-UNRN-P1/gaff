@@ -13,13 +13,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
-from gaff.core.models import RuleCode, ViolacionRegla
+from gaff.core.models import ReglaInfo, RuleCode, ViolacionRegla
 from gaff.core.rules import (
     CATALOGO_REGLAS,
     MAPA_INVERSO,
     MAPA_RENUMERACION,
     normalizar_codigo,
     obtener_regla,
+    obtener_severidad,
 )
 
 
@@ -223,14 +224,21 @@ class ContextoAnalisis:
 
         return False
 
-    def regla_info(self, codigo_hex: str) -> Tuple[RuleCode, str]:
+    def regla_info(self, codigo_hex: str) -> ReglaInfo:
         """Retorna el código tipado canónico nuevo y el título de una regla del catálogo."""
         cod_canonico = normalizar_codigo(codigo_hex)
         info = obtener_regla(codigo_hex) or CATALOGO_REGLAS.get(cod_canonico, {})
         titulo = info.get("titulo", f"Regla {cod_canonico}")
         cod_ant = info.get("codigo_anterior", MAPA_INVERSO.get(cod_canonico, ""))
         alias = info.get("alias", f"GAFF_{cod_canonico}")
-        return RuleCode(cod_canonico, alias=alias, codigo_anterior=cod_ant), titulo
+        severidad = info.get("severidad", obtener_severidad(cod_canonico))
+        rule_code = RuleCode(
+            cod_canonico,
+            alias=alias,
+            codigo_anterior=cod_ant,
+            severidad=severidad,
+        )
+        return ReglaInfo(codigo=rule_code, titulo=titulo)
 
     def nueva_violacion(self, **kwargs) -> ViolacionRegla:
         """Construye una violación asociada al archivo del contexto."""

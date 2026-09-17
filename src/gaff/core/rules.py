@@ -34,6 +34,9 @@ MAPEO_SATELITES: Dict[str, Dict[str, str]] = {
 }
 
 # Mapeo de códigos viejos a códigos nuevos (cátedra)
+# DEPRECADO: MAPA_RENUMERACION se mantiene exclusivamente para retrocompatibilidad de entrada (input aliasing)
+# y se retirará formalmente en GAFF v2.0 (fecha límite: 2027-03-01). El motor GAFF emite y valida internamente
+# de forma exclusiva los códigos canónicos nuevos ('0x...').
 MAPA_RENUMERACION: Dict[str, str] = {'0x0000h': '0x0001h', '0x0001h': '0x0101h', '0x0002h': '0x0002h', '0x0003h': '0x7001h', '0x0004h': '0x0003h', '0x0005h': '0x0004h', '0x0006h': '0x0005h', '0x0007h': '0x0102h', '0x0008h': '0x0103h', '0x0009h': '0x0006h', '0x000Ah': '0x0201h', '0x000Bh': '0x0007h', '0x000Ch': '0x0104h', '0x000Dh': '0x0202h', '0x000Eh': '0x0105h', '0x000Fh': '0x0203h', '0x0010h': '0x0204h', '0x0011h': '0x0205h', '0x0012h': '0x0106h', '0x0013h': '0x0107h', '0x0014h': '0x0108h', '0x0015h': '0x0008h', '0x0016h': '0x0109h', '0x0017h': '0x0009h', '0x0018h': '0x010Ah', '0x0019h': '0x000Ah', '0x001Ah': '0x000Bh', '0x001Bh': '0x000Ch', '0x001Ch': '0x000Dh', '0x001Dh': '0x000Eh', '0x001Eh': '0x000Fh', '0x001Fh': '0x0010h', '0x0020h': '0x010Bh', '0x0022h': '0x0011h', '0x0023h': '0x301Ch', '0x0025h': '0x0012h', '0x0026h': '0x010Ch', '0x0027h': '0x0206h', '0x0028h': '0x0013h', '0x0029h': '0x0014h', '0x002Bh': '0x0015h', '0x002Ch': '0x010Dh', '0x002Dh': '0x0016h', '0x0035h': '0x301Dh', '0x0036h': '0x301Eh', '0x0037h': '0x010Eh', '0x0038h': '0x010Fh', '0x1001h': '0x1001h', '0x1002h': '0x1002h', '0x1003h': '0x1003h', '0x1004h': '0x1004h', '0x1005h': '0x1005h', '0x1006h': '0x1006h', '0x1007h': '0x1007h', '0x1008h': '0x1008h', '0x100Ah': '0x1009h', '0x100Bh': '0x100Ah', '0x100Ch': '0x100Bh', '0x100Dh': '0x301Bh', '0x100Eh': '0x100Ch', '0x100Fh': '0x100Dh', '0x1010h': '0x100Eh', '0x1011h': '0x100Fh', '0x1012h': '0x1010h', '0x1013h': '0x1011h', '0x1014h': '0x1012h', '0x1016h': '0x1013h', '0x1017h': '0x1014h', '0x2001h': '0x2001h', '0x2002h': '0x2002h', '0x2003h': '0x2003h', '0x2004h': '0x2004h', '0x2005h': '0x2005h', '0x2006h': '0x8001h', '0x2007h': '0x2006h', '0x2008h': '0x2007h', '0x2009h': '0x2008h', '0x200Ah': '0x2009h', '0x200Bh': '0x200Ah', '0x200Ch': '0x200Bh', '0x200Dh': '0x200Ch', '0x200Eh': '0x200Dh', '0x200Fh': '0x200Eh', '0x2010h': '0x200Fh', '0x2011h': '0x2010h', '0x2012h': '0x2011h', '0x2013h': '0x2012h', '0x2016h': '0x2013h', '0x3001h': '0x3001h', '0x3002h': '0x3002h', '0x3003h': '0x3003h', '0x3004h': '0x3004h', '0x3005h': '0x3005h', '0x3006h': '0x3006h', '0x3007h': '0x3007h', '0x3008h': '0x3008h', '0x3009h': '0x3009h', '0x300Ah': '0x300Ah', '0x300Bh': '0x300Bh', '0x300Ch': '0x300Ch', '0x300Dh': '0x300Dh', '0x300Eh': '0x300Eh', '0x300Fh': '0x300Fh', '0x3010h': '0x3010h', '0x3011h': '0x3011h', '0x3012h': '0x3012h', '0x3013h': '0x3013h', '0x3014h': '0x3014h', '0x3015h': '0x3015h', '0x3016h': '0x3016h', '0x3017h': '0x3017h', '0x3018h': '0x3018h', '0x3019h': '0x3019h', '0x301Ah': '0x301Ah', '0x4001h': '0x4001h', '0x4002h': '0x4002h', '0x4003h': '0x4003h', '0x4004h': '0x4004h', '0x4005h': '0x4005h', '0x4006h': '0x4006h', '0x4007h': '0x4007h', '0x4008h': '0x4008h', '0x4009h': '0x4009h', '0x400Ah': '0x400Ah', '0x5001h': '0x5001h', '0x5002h': '0x5002h', '0x5003h': '0x5003h', '0x5004h': '0x5004h', '0x5005h': '0x5005h', '0x5006h': '0x5006h', '0x5007h': '0x5007h', '0x5008h': '0x5008h', '0x5009h': '0x5009h', '0x500Ah': '0x500Ah', '0x500Bh': '0x500Bh', '0x500Ch': '0x500Ch', '0x500Dh': '0x500Dh', '0x500Eh': '0x500Eh', '0x5011h': '0x500Fh', '0x5012h': '0x5010h', '0x5013h': '0x5011h', '0x5014h': '0x5012h', '0x5015h': '0x5013h', '0x5016h': '0x5014h', '0x6001h': '0x6001h', '0x6002h': '0x6002h', '0x6003h': '0x2014h', '0x6004h': '0x1015h', '0x6005h': '0x6003h', '0x6006h': '0x6004h', '0x6007h': '0x2015h', '0x6008h': '0x2016h', '0x6009h': '0x0110h', '0x600Ah': '0x0111h', '0x600Bh': '0x0112h', '0x600Ch': '0x1016h', '0x600Dh': '0x1017h', '0x600Eh': '0x0017h', '0x600Fh': '0x6005h', '0x6010h': '0x7002h', '0x6011h': '0x7003h', '0x6012h': '0x7004h', '0x6013h': '0x7005h', '0x6014h': '0x7006h', '0x6015h': '0x7007h', '0x6016h': '0x8002h', '0x6017h': '0x8003h', '0x6018h': '0x8004h'}
 
 MAPA_INVERSO: Dict[str, str] = {v: k for k, v in MAPA_RENUMERACION.items()}
@@ -232,10 +235,64 @@ CATALOGO_REGLAS: Dict[str, Dict[str, Any]] = {
 CODIGOS_CANONICOS: Set[str] = set(CATALOGO_REGLAS.keys())
 _CODIGOS_CANONICOS_LOW: Dict[str, str] = {c.lower(): c for c in CODIGOS_CANONICOS}
 
-# Registrar alias retrocompatibles para códigos anteriores que no colisionen
-for _cod_ant, _cod_n in MAPA_RENUMERACION.items():
-    if _cod_ant not in CATALOGO_REGLAS and _cod_n in CATALOGO_REGLAS:
-        CATALOGO_REGLAS[_cod_ant] = CATALOGO_REGLAS[_cod_n]
+# Conjunto canónico de reglas críticas (memoria, fugas, UB, seguridad, flujos inválidos)
+REGLAS_SEVERIDAD_ERROR: Set[str] = {
+    # 0x10XX: Control de flujo crítico
+    "0x1006h",  # Lazos infinitos o condiciones inalcanzables
+    "0x1014h",  # Modificación de variable de control dentro del lazo for
+    # 0x20XX: Funciones
+    "0x2004h",  # Funciones no-void sin sentencia return garantizada
+    "0x200Bh",  # Modificación de argumentos por valor asumiendo efecto lateral
+    # 0x30XX: Memoria dinámica y punteros críticos
+    "0x3001h",  # Validación obligatoria de retorno de asignación de memoria (malloc/calloc/realloc)
+    "0x3002h",  # Liberación de memoria dinámica (detección de fugas / memory leaks)
+    "0x300Ch",  # Prohibición de punteros colgantes o uso post-free
+    "0x3012h",  # Prohibición de aritmética de punteros sobre void*
+    "0x3013h",  # Asignación de memoria con sizeof sobre puntero en lugar del tipo apuntado
+    "0x3014h",  # Prohibición de doble liberación de memoria (double free)
+    "0x3015h",  # Reallocación segura: no sobreescribir el puntero original directamente
+    "0x3019h",  # Prohibición de comparar punteros contra constantes numéricas distintas de NULL
+    # 0x40XX: Archivos y recursos
+    "0x4001h",  # Manejo y verificación obligatoria de apertura de archivos (fopen)
+    "0x4002h",  # Validación obligatoria de retorno de operaciones de lectura y escritura
+    "0x4006h",  # Prohibición del antipatrón while (!feof(f))
+    "0x400Ah",  # Prohibición de operar sobre flujos de archivo tras fclose() (use-after-close)
+    # 0x50XX: Compilación y seguridad
+    "0x5001h",  # Arreglos de longitud variable (VLA) prohibidos
+    "0x5008h",  # Prohibición de funciones obsoletas o inseguras (gets, atoi)
+    "0x500Ch",  # Prohibición de inclusión directa de archivos de código fuente C (.c)
+    "0x500Dh",  # Prohibición de redefinir palabras clave o tipos primitivos de C con #define
+    "0x5015h",  # Prohibición de invocación de shell con system() o popen()
+}
+
+# Conjunto canónico de reglas de advertencia (diseño, modularidad, robustez, control estructurado)
+REGLAS_SEVERIDAD_ADVERTENCIA: Set[str] = {
+    # 0x01XX: Nomenclatura con impacto funcional
+    "0x0106h", "0x0109h", "0x010Ah", "0x010Bh", "0x010Ch", "0x010Eh", "0x010Fh",
+    # 0x02XX: Arquitectura de archivos
+    "0x0204h",
+    # 0x10XX: Control de flujo y lazos
+    "0x1001h", "0x1002h", "0x1003h", "0x1004h", "0x1005h", "0x1007h", "0x1008h",
+    "0x1009h", "0x100Ah", "0x100Bh", "0x100Ch", "0x100Dh", "0x100Eh", "0x100Fh",
+    "0x1010h", "0x1011h", "0x1012h", "0x1013h", "0x1015h", "0x1016h", "0x1017h", "0x1018h",
+    # 0x20XX: Diseño de funciones
+    "0x2001h", "0x2002h", "0x2003h", "0x2005h", "0x2006h", "0x2007h", "0x2008h",
+    "0x2009h", "0x200Ah", "0x200Ch", "0x200Dh", "0x200Eh", "0x200Fh", "0x2010h",
+    "0x2011h", "0x2012h", "0x2013h", "0x2014h", "0x2015h", "0x2016h", "0x2017h", "0x2018h",
+    # 0x30XX: Punteros y memoria (buenas prácticas)
+    "0x3003h", "0x3004h", "0x3005h", "0x3006h", "0x3007h", "0x3008h", "0x3009h",
+    "0x300Ah", "0x300Bh", "0x300Dh", "0x300Eh", "0x300Fh", "0x3010h", "0x3011h",
+    "0x3016h", "0x3017h", "0x3018h", "0x301Ah", "0x301Bh", "0x301Ch", "0x301Dh", "0x301Eh", "0x301Fh",
+    # 0x40XX: Manejo de archivos y buffers
+    "0x4003h", "0x4004h", "0x4005h", "0x4007h", "0x4008h", "0x4009h", "0x400Bh", "0x400Ch",
+    # 0x50XX: Compilación y preprocesador
+    "0x5002h", "0x5003h", "0x5004h", "0x5005h", "0x5006h", "0x5007h", "0x5009h",
+    "0x500Ah", "0x500Bh", "0x500Eh", "0x500Fh", "0x5010h", "0x5011h", "0x5012h", "0x5013h", "0x5014h",
+    # 0x60XX, 0x70XX, 0x80XX: Proceso, robustez y verificación
+    "0x6001h", "0x6002h", "0x6003h", "0x6004h", "0x6005h",
+    "0x7001h", "0x7002h", "0x7003h", "0x7004h", "0x7005h", "0x7006h", "0x7007h",
+    "0x8001h", "0x8002h", "0x8003h", "0x8004h",
+}
 
 
 def normalizar_codigo(codigo: str) -> str:
@@ -255,6 +312,31 @@ def normalizar_codigo(codigo: str) -> str:
         if k.lower() == cod_low:
             return v
     return cod_h
+
+
+def obtener_severidad(codigo: str) -> str:
+    """Determina la severidad canónica ('ERROR', 'ADVERTENCIA', 'ESTILO') de una regla."""
+    cod_norm = normalizar_codigo(codigo)
+    if cod_norm in REGLAS_SEVERIDAD_ERROR:
+        return "ERROR"
+    if cod_norm in REGLAS_SEVERIDAD_ADVERTENCIA:
+        return "ADVERTENCIA"
+    info = CATALOGO_REGLAS.get(cod_norm) or CATALOGO_REGLAS.get(codigo)
+    if info and "severidad" in info:
+        return info["severidad"]
+    return "ESTILO"
+
+
+# Registrar alias retrocompatibles para códigos anteriores que no colisionen
+for _cod_ant, _cod_n in MAPA_RENUMERACION.items():
+    if _cod_ant not in CATALOGO_REGLAS and _cod_n in CATALOGO_REGLAS:
+        CATALOGO_REGLAS[_cod_ant] = CATALOGO_REGLAS[_cod_n]
+
+# Poblar severidad en todo el catálogo
+for _k, _info in CATALOGO_REGLAS.items():
+    if "severidad" not in _info:
+        _info["severidad"] = obtener_severidad(_k)
+
 
 
 def obtener_regla(codigo: str) -> Optional[Dict[str, Any]]:

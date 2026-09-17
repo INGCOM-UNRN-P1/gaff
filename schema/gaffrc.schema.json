@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GaffConfiguration",
+  "description": "Esquema de validación para la configuración pedagógica de estilo GAFF (.gaffrc / .gaffrc.json / gaff.yaml)",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "catedra": {
+      "type": "string",
+      "description": "Nombre de la cátedra o institución"
+    },
+    "tp": {
+      "type": "string",
+      "description": "Identificador o nombre del Trabajo Práctico"
+    },
+    "version": {
+      "type": "string",
+      "description": "Versión del formato de configuración"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripción informativa de la configuración"
+    },
+    "max_line_length": {
+      "type": "integer",
+      "minimum": 40,
+      "maximum": 200,
+      "default": 80,
+      "description": "Longitud máxima permitida por línea de código"
+    },
+    "max_function_lines": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 200,
+      "default": 40,
+      "description": "Longitud máxima permitida por función"
+    },
+    "max_file_lines": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 5000,
+      "default": 500,
+      "description": "Longitud máxima recomendada por archivo fuente"
+    },
+    "max_nesting_depth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 3,
+      "description": "Nivel máximo de anidamiento de estructuras de control"
+    },
+    "disallow_tabs": {
+      "type": "boolean",
+      "default": true,
+      "description": "Prohibir el uso de tabuladores duros (tabs) para indentación"
+    },
+    "enforce_allman": {
+      "type": "boolean",
+      "default": true,
+      "description": "Hacer cumplir el estilo de llaves Allman"
+    },
+    "excluded_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de códigos de regla excluidos de la evaluación"
+    },
+    "disabled_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Alias para excluded_rules"
+    }
+  },
+  "additionalProperties": true
+}

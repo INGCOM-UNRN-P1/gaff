@@ -223,11 +223,48 @@ def _desenmascarar_linea_autofix(linea: str, placeholders: Dict[str, str]) -> st
     return linea
 
 
+PATRON_LEXICO_COMEN_IDKFA = re.compile(
+    r"""(/\*[\s\S]*?\*/|//[^\r\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')"""
+)
+
+
+def enmascarar_comentarios_idkfa(codigo: str) -> Tuple[str, Dict[str, str]]:
+    """Enmascara todos los comentarios C (// y /* */) con placeholders opacos para clang-format y autofix."""
+    placeholders: Dict[str, str] = {}
+    contador = 0
+
+    def repl(m: re.Match) -> str:
+        nonlocal contador
+        tok = m.group(1)
+        if tok.startswith("//"):
+            ph = f"//___GAFF_IDKFA_LINE_{contador}___"
+            placeholders[ph] = tok
+            contador += 1
+            return ph
+        elif tok.startswith("/*"):
+            ph = f"/*___GAFF_IDKFA_BLOCK_{contador}___*/"
+            placeholders[ph] = tok
+            contador += 1
+            return ph
+        return tok
+
+    codigo_enmascarado = PATRON_LEXICO_COMEN_IDKFA.sub(repl, codigo)
+    return codigo_enmascarado, placeholders
+
+
+def desenmascarar_comentarios_idkfa(codigo: str, placeholders: Dict[str, str]) -> str:
+    """Restaura los comentarios intactos a partir de los placeholders preservados."""
+    for ph, orig in placeholders.items():
+        codigo = codigo.replace(ph, orig)
+    return codigo
+
+
 def aplicar_autofix_archivo(
     ruta: Path,
     reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
     config: Optional[Dict[str, Any]] = None,
+    idkfa: bool = False,
 ) -> int:
     """Aplica correcciones automáticas sobre reglas autofixables respetando exclusiones y protegiendo literales."""
     if not ruta.is_file():
@@ -466,7 +503,7 @@ def aplicar_autofix_archivo(
 
 
     # GAFF018 / 0x2003h: Autofix de esqueleto de documentación Doxygen para funciones no documentadas
-    if _activa("0x2003h"):
+    if _activa("0x2003h") and not idkfa:
         lineas_actuales = contenido_mod.splitlines()
         codigo_sin_coments = eliminar_comentarios(contenido_mod)
 
@@ -572,6 +609,11 @@ def aplicar_autofix_archivo(
         )
         try:
             contenido_pre = ruta.read_text(encoding=encoding_detectado, errors="replace") if ruta.exists() else ""
+            placeholders_idkfa: Dict[str, str] = {}
+            if idkfa and contenido_pre:
+                contenido_enmascarado, placeholders_idkfa = enmascarar_comentarios_idkfa(contenido_pre)
+                ruta.write_text(contenido_enmascarado, encoding=encoding_detectado)
+
             res = subprocess.run(
                 ["clang-format", "-i", f"-style={allman_style}", str(ruta)],
                 check=False,
@@ -579,6 +621,12 @@ def aplicar_autofix_archivo(
                 stderr=subprocess.PIPE,
                 timeout=5,
             )
+
+            if idkfa and placeholders_idkfa:
+                contenido_fmt = ruta.read_text(encoding=encoding_detectado, errors="replace")
+                contenido_restaurado = desenmascarar_comentarios_idkfa(contenido_fmt, placeholders_idkfa)
+                ruta.write_text(contenido_restaurado, encoding=encoding_detectado)
+
             if res.returncode == 0:
                 contenido_post = ruta.read_text(encoding=encoding_detectado, errors="replace")
                 if contenido_post != contenido_pre:
@@ -597,6 +645,7 @@ def ejecutar_linter(
     reglas_habilitadas: Optional[Set[str]] = None,
     recursive: bool = False,
     config: Optional[Dict[str, Any]] = None,
+    idkfa: bool = False,
 ) -> ReporteLinting:
     """Ejecuta el linter sobre un conjunto de archivos o directorios aplicando configuración por exclusión."""
     from gaff.core.config import cargar_configuracion_gaff
@@ -636,6 +685,7 @@ def ejecutar_linter(
                 reglas_excluidas=reglas_excluidas,
                 reglas_habilitadas=reglas_habilitadas,
                 config=config,
+                idkfa=idkfa,
             )
         viols = analizar_archivo(
             arch,

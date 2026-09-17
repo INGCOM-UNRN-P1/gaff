@@ -99,6 +99,7 @@ def check_cmd(
     sarif: bool = typer.Option(False, "--sarif", help="Emitir informe en formato estándar OASIS SARIF 2.1.0."),
     github_summary: bool = typer.Option(False, "--github-summary", help="Exportar resumen de cumplimiento en Markdown para GitHub Actions ($GITHUB_STEP_SUMMARY)."),
     convert_guards: bool = typer.Option(False, "--convert-guards", help="Convierte automáticamente directivas #pragma once en guardas canónicas #ifndef."),
+    idkfa: bool = typer.Option(False, "--idkfa", help="Modo IDKFA: preserva intactos todos los comentarios sin formatearlos ni modificarlos."),
 ) -> None:
     """Audita archivos de código C comprobando las reglas de estilo y arquitectura de la cátedra."""
     excluidas_set = set(r.strip() for r in exclude.split(",") if r.strip()) if exclude else None
@@ -109,6 +110,7 @@ def check_cmd(
         reglas_excluidas=excluidas_set,
         reglas_habilitadas=reglas_set,
         recursive=recursive,
+        idkfa=idkfa,
     )
 
     if badge:
@@ -324,6 +326,7 @@ def fix_cmd(
     rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Reglas a aplicar."),
     exclude: Optional[str] = typer.Option(None, "--exclude", "-e", help="Reglas a excluir separadas por comas."),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Previsualiza el diff de cada cambio antes de aplicar."),
+    idkfa: bool = typer.Option(False, "--idkfa", help="Modo IDKFA: preserva intactos todos los comentarios sin formatearlos ni modificarlos."),
 ) -> None:
     """Aplica correcciones automáticas de estilo con opción de vista previa interactiva."""
     from gaff.core.interactive_fix import ejecutar_autofix_interactivo
@@ -350,6 +353,7 @@ def fix_cmd(
         console=console,
         reglas_excluidas=excluidas_set,
         reglas_habilitadas=reglas_set,
+        idkfa=idkfa,
     )
     tot = sum(res.values())
     console.print(f"[bold green]✓ Proceso completado: {tot} correcciones automáticas aplicadas en {len(archivos)} archivo(s).[/bold green]")
@@ -359,10 +363,13 @@ def fix_cmd(
 def format_cmd(
     rutas: List[Path] = typer.Argument(..., help="Archivos o directorios a formatear"),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
+    idkfa: bool = typer.Option(False, "--idkfa", help="Modo IDKFA: preserva intactos todos los comentarios sin formatearlos ni modificarlos."),
 ) -> None:
     """Formatea código C/H aplicando las convenciones canónicas de la cátedra."""
     import subprocess
     import shutil
+    from gaff.core.linter import enmascarar_comentarios_idkfa, desenmascarar_comentarios_idkfa
+
     clang_fmt = shutil.which("clang-format")
     files_to_fmt = []
     for r in rutas:
@@ -379,12 +386,33 @@ def format_cmd(
         raise typer.Exit(code=0)
 
     if clang_fmt:
+        placeholders_por_archivo = {}
+        if idkfa:
+            for f in files_to_fmt:
+                try:
+                    txt = f.read_text(encoding="utf-8", errors="replace")
+                    txt_enm, phs = enmascarar_comentarios_idkfa(txt)
+                    f.write_text(txt_enm, encoding="utf-8")
+                    placeholders_por_archivo[f] = phs
+                except Exception:
+                    pass
+
         cmd = [clang_fmt, "-i"] + [str(f) for f in files_to_fmt]
         subprocess.run(cmd, check=False)
+
+        if idkfa and placeholders_por_archivo:
+            for f, phs in placeholders_por_archivo.items():
+                try:
+                    txt_fmt = f.read_text(encoding="utf-8", errors="replace")
+                    txt_rest = desenmascarar_comentarios_idkfa(txt_fmt, phs)
+                    f.write_text(txt_rest, encoding="utf-8")
+                except Exception:
+                    pass
+
         console.print(f"[bold green]✓ {len(files_to_fmt)} archivo(s) formateados con clang-format.[/bold green]")
     else:
         # Fallback a autofix nativo de GAFF
-        reporte = ejecutar_linter(files_to_fmt, fix=True, recursive=recursive)
+        reporte = ejecutar_linter(files_to_fmt, fix=True, recursive=recursive, idkfa=idkfa)
         console.print(f"[bold green]✓ Formato básico y correcciones de estilo aplicadas ({reporte.total_arreglos} arreglos).[/bold green]")
 
 

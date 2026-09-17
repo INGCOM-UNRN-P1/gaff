@@ -21,6 +21,7 @@ def ejecutar_autofix_interactivo(
     console: Optional[Console] = None,
     reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
+    idkfa: bool = False,
 ) -> Dict[str, int]:
     """Previsualiza y aplica autofix a los archivos seleccionados tras confirmación interactiva [y/n/q]."""
     cons = console or Console()
@@ -40,6 +41,7 @@ def ejecutar_autofix_interactivo(
                 tmp_path,
                 reglas_excluidas=reglas_excluidas,
                 reglas_habilitadas=reglas_habilitadas,
+                idkfa=idkfa,
             )
             contenido_despues = tmp_path.read_text(encoding="utf-8", errors="replace")
 

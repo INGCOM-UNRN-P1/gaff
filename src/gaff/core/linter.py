@@ -169,6 +169,31 @@ def analizar_archivo(
     return violaciones
 
 
+def analizar_codigo(
+    codigo: str,
+    nombre_archivo: str = "codigo.c",
+    reglas_excluidas: Optional[Set[str]] = None,
+    reglas_habilitadas: Optional[Set[str]] = None,
+) -> List[ViolacionRegla]:
+    """Analiza una cadena de texto con código C en memoria sin requerir guardarlo en disco."""
+    import tempfile
+    suffix = ".h" if nombre_archivo.endswith((".h", ".hpp")) else ".c"
+    with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False, encoding="utf-8") as tmp:
+        tmp.write(codigo)
+        tmp_path = Path(tmp.name)
+    try:
+        viols = analizar_archivo(
+            tmp_path,
+            reglas_excluidas=reglas_excluidas,
+            reglas_habilitadas=reglas_habilitadas,
+        )
+        for v in viols:
+            v.archivo = Path(nombre_archivo)
+        return viols
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
 def _enmascarar_linea_autofix(linea: str) -> Tuple[str, Dict[str, str]]:
     """Enmascara literales de cadena, caracteres y comentarios para protegerlos durante el autofix."""
     placeholders: Dict[str, str] = {}

@@ -21,6 +21,12 @@ from gaff.core.rules import (
 )
 
 
+# `(?<![ \t])` ancla la búsqueda al inicio de cada racha de blancos. Sin él, la sangría de un
+# archivo muy anidado (cientos de espacios) se re-escaneaba desde cada posición interior y el
+# costo por línea era cuadrático en la longitud de la racha.
+RE_ESPACIO_ANTES_DE_SEPARADOR = re.compile(r"(?<![ \t])[ \t]+([;,])")
+
+
 def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     """Evalúa las reglas de Comentarios y estructura documental sobre el contexto del archivo."""
     violaciones: List[ViolacionRegla] = []
@@ -84,7 +90,7 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     # 0x0019h: Prohibición de espacios en blanco antes de separadores de sintaxis (; y ,)
     # -------------------------------------------------------------------------
     if ctx.esta_activa("0x000Ah"):
-        re_space_sep = re.compile(r"[ \t]+([;,])")
+        re_space_sep = RE_ESPACIO_ANTES_DE_SEPARADOR
         for i, l in enumerate(lineas_sin_comentarios):
             if l.strip().startswith("for") or l.strip().startswith("/*") or l.strip().startswith("*"):
                 continue

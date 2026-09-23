@@ -50,7 +50,8 @@ def main_callback(
 
 def generar_seccion_markdown(reporte) -> str:
     """Genera una sección Markdown estructurada para fusión con Dredd."""
-    lines = ["<!-- dredd-section: gaff v1.0.0 -->\n## Auditoría de Estilo y Convenciones Cátedra (Gaff)\n"]
+    status = "ok" if reporte.ok else "fail"
+    lines = [f"<!-- dredd-section: gaff, tool=gaff, version=1.0.0, status={status} -->\n## Auditoría de Estilo y Convenciones Cátedra (Gaff)\n"]
     lines.append(f"- **Archivos analizados:** {len(reporte.archivos)}")
     lines.append(f"- **Violaciones detectadas:** {reporte.total_violaciones}")
     if reporte.total_arreglos > 0:

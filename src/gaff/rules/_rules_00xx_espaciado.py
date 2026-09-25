@@ -35,7 +35,9 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
     lineas_sin_comentarios = ctx.lineas_sin_comentarios
     codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     es_header = ctx.es_header
     contenido_original = ctx.contenido_original
 

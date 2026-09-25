@@ -11,6 +11,7 @@ from gaff.core.contexto import (
     ContextoAnalisis,
     eliminar_comentarios,
     enmascarar_literales,
+    enmascarar_literales_opacos,
     normalizar_activas,
     normalizar_exclusiones,
 )
@@ -105,6 +106,7 @@ def analizar_archivo(
 
     codigo_sin_cadenas = enmascarar_literales(codigo_sin_comentarios)
     lineas_sin_cadenas = codigo_sin_cadenas.splitlines()
+    lineas_literales_opacas = enmascarar_literales_opacos(codigo_sin_comentarios).splitlines()
 
     es_header = ruta.suffix.lower() in (".h", ".hpp")
 
@@ -123,6 +125,7 @@ def analizar_archivo(
         es_header=es_header,
         excluidas_norm=excluidas_norm,
         reglas_norm=reglas_norm,
+        lineas_literales_opacas=lineas_literales_opacas,
     )
 
     # Directivas de supresión // gaff:ignore <regla> <justificación>

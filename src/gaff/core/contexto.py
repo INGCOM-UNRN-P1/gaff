@@ -39,10 +39,27 @@ def eliminar_comentarios(texto: str) -> str:
     return pattern.sub(replacer, texto)
 
 
+_RE_LITERAL = re.compile(r"'(?:\\.|[^\\'])*'|\"(?:\\.|[^\\\"])*\"", re.DOTALL)
+
+# Carácter con el que se tapa un literal en la máscara opaca: no es blanco, ni
+# parte de un identificador o número, ni un operador de C.
+MARCA_LITERAL = "\u00b7"
+
+
 def enmascarar_literales(texto: str) -> str:
     """Reemplaza literales de cadena y carácter por espacios preservando líneas/columnas."""
-    pattern = re.compile(r"'(?:\\.|[^\\'])*'|\"(?:\\.|[^\\\"])*\"", re.DOTALL)
-    return pattern.sub(lambda m: "".join("\n" if c == "\n" else " " for c in m.group(0)), texto)
+    return _RE_LITERAL.sub(lambda m: "".join("\n" if c == "\n" else " " for c in m.group(0)), texto)
+
+
+def enmascarar_literales_opacos(texto: str) -> str:
+    """Tapa cada literal (comillas incluidas) con MARCA_LITERAL, preservando líneas/columnas.
+
+    Las reglas de espaciado no pueden usar la máscara con espacios: convertía
+    `(c != 'a')` en `(c !=    )` y `printf("%d", x)` en `printf(    , x)`, y
+    esos blancos artificiales disparaban avisos de espacios junto a paréntesis,
+    espacios múltiples y comas mal espaciadas en código correcto.
+    """
+    return _RE_LITERAL.sub(lambda m: "".join("\n" if c == "\n" else MARCA_LITERAL for c in m.group(0)), texto)
 
 
 def normalizar_exclusiones(reglas_excluidas: Optional[Set[str]]) -> Set[str]:
@@ -181,6 +198,9 @@ class ContextoAnalisis:
     excluidas_norm: Set[str] = field(default_factory=set)
     reglas_norm: Set[str] = field(default_factory=set)
     config: Dict[str, Any] = field(default_factory=dict)
+    # Líneas sin comentarios con los literales tapados por MARCA_LITERAL (no por
+    # espacios): las usan las reglas que miden espacios en blanco.
+    lineas_literales_opacas: List[str] = field(default_factory=list)
 
     @property
     def max_line_length(self) -> int:

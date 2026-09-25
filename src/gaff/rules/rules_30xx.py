@@ -195,6 +195,15 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     if ctx.esta_activa("0x2011h"):
         re_decl_assign = re.compile(rf"\b(?:{TIPOS_BASICOS}|\w+_t)\s+(?:\*\s*)?([a-zA-Z_]\w*)\s*=\s*([^;]+);")
         re_assign_only = re.compile(r"^[ \t]*([a-zA-Z_]\w*)\s*=\s*([^;]+);")
+        # Líneas que cortan el flujo secuencial: las ramas de un switch (case /
+        # default / break), saltos, else/if/do y etiquetas. Dos asignaciones
+        # separadas por una de ellas pueden estar en caminos distintos, así que
+        # no son un dead store (N-GAFF-05: cada `case` de un switch que asigna
+        # `resultado` se marcaba como sobreescritura del anterior).
+        re_corte_flujo = re.compile(
+            r"^(?:case\b|default\s*:|break\s*;|continue\s*;|return\b|goto\b|else\b|if\b|do\b"
+            r"|[a-zA-Z_]\w*\s*:(?!:))"
+        )
         pendientes_escritura: Dict[str, Tuple[int, int, str]] = {}
 
         for i, l in enumerate(lineas_sin_cadenas):
@@ -202,7 +211,8 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
             if not l_strip or l_strip.startswith(("//", "/*", "*", "#")):
                 continue
 
-            if "{" in l_strip or "}" in l_strip or l_strip.startswith(("for ", "for(", "while ", "while(")):
+            if ("{" in l_strip or "}" in l_strip or l_strip.startswith(("for ", "for(", "while ", "while("))
+                    or re_corte_flujo.match(l_strip)):
                 pendientes_escritura.clear()
                 continue
 

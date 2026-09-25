@@ -29,6 +29,11 @@ jobs:
       - name: Ejecutar suite de pruebas
         run: uv run pytest -q
 
+      # mypy estaba configurado en pyproject pero no corría en ningún lado
+      # (N-GAFF-03); hoy no hay errores y el CI evita que vuelvan.
+      - name: Tipado (mypy)
+        run: uv run mypy src
+
   calidad:
     name: Errores de Python y dependencias vulnerables
     runs-on: ubuntu-24.04

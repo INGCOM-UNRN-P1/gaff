@@ -10,6 +10,10 @@ from typing import Any, Dict, List, NamedTuple, Optional
 class RuleCode(str):
     """Representa un código de regla de cátedra (ej. '0x0102h') con soporte de retrocompatibilidad y severidad."""
 
+    _alias: str
+    _codigo_anterior: str
+    _severidad: str
+
     def __new__(
         cls,
         code: str,

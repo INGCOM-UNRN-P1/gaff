@@ -323,7 +323,7 @@ def obtener_severidad(codigo: str) -> str:
         return "ADVERTENCIA"
     info = CATALOGO_REGLAS.get(cod_norm) or CATALOGO_REGLAS.get(codigo)
     if info and "severidad" in info:
-        return info["severidad"]
+        return str(info["severidad"])
     return "ESTILO"
 
 

@@ -114,9 +114,9 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 continue
             if "(" in l or ")" in l or l.strip().startswith("#"):
                 continue
-            m = re_global_var.match(l)
-            if m:
-                var_name = m.group(1)
+            m_linea = re_global_var.match(l)
+            if m_linea:
+                var_name = m_linea.group(1)
                 if not var_name.startswith("g_"):
                     rcode, tit = ctx.regla_info("0x0106h")
                     violaciones.append(ViolacionRegla(

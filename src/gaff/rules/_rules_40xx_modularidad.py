@@ -231,16 +231,16 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     if ctx.esta_activa("0x200Fh"):
         re_ret_paren = re.compile(r"^[ \t]*return\s*\(\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?|\d+|NULL)\s*\)\s*;")
         for i, l in enumerate(lineas_sin_cadenas):
-            m = re_ret_paren.match(l)
-            if m:
-                val = m.group(1)
+            m_linea = re_ret_paren.match(l)
+            if m_linea:
+                val = m_linea.group(1)
                 rcode, tit = ctx.regla_info("0x200Fh")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
                     archivo=ruta,
                     linea=i + 1,
-                    columna=m.start() + 1,
+                    columna=m_linea.start() + 1,
                     mensaje=f"Paréntesis superfluos en sentencia return: 'return ({val});'.",
                     sugerencia=f"En C 'return' es una palabra clave, no una función. Escribí 'return {val};'.",
                     codigo_linea=lineas[i],

@@ -127,15 +127,15 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     if ctx.esta_activa("0x1003h"):
         re_for_empty = re.compile(r"\bfor\s*\(\s*;\s*;\s*\)|\bfor\s*\(\s*;\s*[^;]+;\s*\)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
-            m = re_for_empty.search(linea)
-            if m:
+            m_linea = re_for_empty.search(linea)
+            if m_linea:
                 rcode, tit = ctx.regla_info("0x1003h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,
                     titulo=tit,
                     archivo=ruta,
                     linea=idx,
-                    columna=m.start() + 1,
+                    columna=m_linea.start() + 1,
                     mensaje="Uso de 'for' como lazo puramente lógico o indefinido.",
                     sugerencia="Utilizá 'while' para lazos condicionales y reservá 'for' para conteo definido.",
                     codigo_linea=lineas[idx - 1],
@@ -336,8 +336,9 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
             if "?" in l and ":" in l:
                 m_q = re.search(r"(\S\?|\?\S)", l)
                 m_c = re.search(r"(\S:|:\S)", l)
-                if m_q or m_c:
-                    pos = (m_q or m_c).start()
+                coincidencia = m_q if m_q is not None else m_c
+                if coincidencia is not None:
+                    pos = coincidencia.start()
                     rcode, tit = ctx.regla_info("0x100Ch")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,

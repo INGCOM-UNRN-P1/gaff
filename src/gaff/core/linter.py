@@ -249,7 +249,7 @@ def enmascarar_comentarios_idkfa(codigo: str) -> Tuple[str, Dict[str, str]]:
             placeholders[ph] = tok
             contador += 1
             return ph
-        return tok
+        return str(tok)
 
     codigo_enmascarado = PATRON_LEXICO_COMEN_IDKFA.sub(repl, codigo)
     return codigo_enmascarado, placeholders
@@ -535,7 +535,7 @@ def aplicar_autofix_archivo(
                     pass
 
         for m_fn in re_fn_fix.finditer(codigo_sin_coments):
-            indent = m_fn.group(1)
+            sangria = m_fn.group(1)
             ret_type = m_fn.group(2)
             fn_name = m_fn.group(4)
             params_str = m_fn.group(5)
@@ -568,22 +568,22 @@ def aplicar_autofix_archivo(
 
             # Esqueleto con marcas [completar: …]: 0x2003h sigue avisando hasta
             # que el estudiante escriba la documentación real (N-GAFF-02).
-            lineas_doc = [f"{indent}/**", f"{indent} * @brief [completar: qué hace {fn_name}]"]
+            lineas_doc = [f"{sangria}/**", f"{sangria} * @brief [completar: qué hace {fn_name}]"]
 
             raw_params = [p.strip() for p in params_str.split(",") if p.strip()]
             if raw_params and not (len(raw_params) == 1 and raw_params[0] == "void"):
-                lineas_doc.append(f"{indent} *")
+                lineas_doc.append(f"{sangria} *")
                 for p in raw_params:
                     m_arg = re.search(r"([a-zA-Z_]\w*)\s*(?:\[[^\]]*\])?$", p)
                     arg_name = m_arg.group(1) if m_arg else "param"
-                    lineas_doc.append(f"{indent} * @param {arg_name} [completar: qué representa {arg_name}]")
+                    lineas_doc.append(f"{sangria} * @param {arg_name} [completar: qué representa {arg_name}]")
 
             ret_clean = ret_type.strip()
             es_void = ret_clean == "void" or ret_clean.endswith(" void") or ret_clean.endswith("\tvoid")
             if not es_void:
-                lineas_doc.append(f"{indent} * @return [completar: qué devuelve]")
+                lineas_doc.append(f"{sangria} * @return [completar: qué devuelve]")
 
-            lineas_doc.append(f"{indent} */")
+            lineas_doc.append(f"{sangria} */")
             texto_doc = "\n".join(lineas_doc)
 
             inserciones.append((line_idx_start, texto_doc))
@@ -731,12 +731,13 @@ def detectar_inclusiones_ciclicas(rutas: List[Path]) -> List[Tuple[str, str]]:
         includes = set(re.findall(r'^[ \t]*#include\s+"([^"]+)"', txt, re.MULTILINE))
         grafo[p.name] = includes
 
-    ciclos = []
+    ciclos: List[Tuple[str, str]] = []
     for header, incls in grafo.items():
         for inc in incls:
             inc_name = Path(inc).name
             if inc_name in grafo and header in grafo[inc_name]:
-                par = tuple(sorted([header, inc_name]))
+                primero, segundo = sorted([header, inc_name])
+                par = (primero, segundo)
                 if par not in ciclos:
                     ciclos.append(par)
     return ciclos

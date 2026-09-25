@@ -263,9 +263,9 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                                 break
                     if p_start > 0:
                         before = header_clean[:p_start].strip()
-                        m = re.search(r"(\b[a-zA-Z_]\w*)$", before)
-                        if m and m.group(1) not in ("if", "while", "for", "switch", "catch"):
-                            fn_name = m.group(1)
+                        m_linea = re.search(r"(\b[a-zA-Z_]\w*)$", before)
+                        if m_linea and m_linea.group(1) not in ("if", "while", "for", "switch", "catch"):
+                            fn_name = m_linea.group(1)
                             fn_start_line = (
                                 contenido_original[:last_delim + header.rfind(fn_name)].count("\n") + 1
                                 if fn_name in header

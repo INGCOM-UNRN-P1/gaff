@@ -292,19 +292,19 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("*"):
                 continue
-            m = re_scalar_braces.search(l)
-            if m:
-                var_decl = m.group(2)
+            m_linea = re_scalar_braces.search(l)
+            if m_linea:
+                var_decl = m_linea.group(2)
                 if "[" not in var_decl and "[" not in l:
-                    tipo = m.group(1)
-                    val = m.group(3).strip()
+                    tipo = m_linea.group(1)
+                    val = m_linea.group(3).strip()
                     rcode, tit = ctx.regla_info("0x0010h")
                     violaciones.append(ViolacionRegla(
                         codigo=rcode,
                         titulo=tit,
                         archivo=ruta,
                         linea=i + 1,
-                        columna=m.start() + 1,
+                        columna=m_linea.start() + 1,
                         mensaje=f"Uso de llaves redundantes en la inicialización del tipo escalar '{tipo} {var_decl} = {{{val}}}'.",
                         sugerencia=f"Inicializá el escalar directamente sin llaves: '{tipo} {var_decl} = {val};'.",
                         codigo_linea=lineas[i],

@@ -21,6 +21,7 @@ console = Console()
 err_console = Console(stderr=True)
 
 app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
     name="gaff",
     help="📏 GAFF — Linter pedagógico de estilo arquitectónico y convenciones obligatorias de cátedra con autofix.",
     add_completion=True,
@@ -448,9 +449,17 @@ exit 0
 
 
 @app.command("doctor")
-def doctor_cmd() -> None:
+def doctor_cmd(
+    json_output: bool = typer.Option(False, "--json", help="Emitir el diagnóstico como JSON (schema_version 1.0.0)."),
+) -> None:
     """Verifica dependencias externas de GAFF (clang-format, git, gcc)."""
-    from gaff.core.doctor import ejecutar_diagnostico_doctor
+    from gaff.core.doctor import diagnosticar, ejecutar_diagnostico_doctor, informe_json
+    if json_output:
+        informe = informe_json(diagnosticar())
+        print(json.dumps(informe, ensure_ascii=False, indent=2))
+        if not informe["ok"]:
+            raise typer.Exit(code=1)
+        return
     ok = ejecutar_diagnostico_doctor(console=console)
     if not ok:
         raise typer.Exit(code=1)

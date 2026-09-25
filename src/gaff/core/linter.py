@@ -566,7 +566,9 @@ def aplicar_autofix_archivo(
             if not es_proto and fn_name in prototipos_doc:
                 continue
 
-            lineas_doc = [f"{indent}/**", f"{indent} * @brief Descripción de la función {fn_name}."]
+            # Esqueleto con marcas [completar: …]: 0x2003h sigue avisando hasta
+            # que el estudiante escriba la documentación real (N-GAFF-02).
+            lineas_doc = [f"{indent}/**", f"{indent} * @brief [completar: qué hace {fn_name}]"]
 
             raw_params = [p.strip() for p in params_str.split(",") if p.strip()]
             if raw_params and not (len(raw_params) == 1 and raw_params[0] == "void"):
@@ -574,12 +576,12 @@ def aplicar_autofix_archivo(
                 for p in raw_params:
                     m_arg = re.search(r"([a-zA-Z_]\w*)\s*(?:\[[^\]]*\])?$", p)
                     arg_name = m_arg.group(1) if m_arg else "param"
-                    lineas_doc.append(f"{indent} * @param {arg_name} Descripción del parámetro {arg_name}.")
+                    lineas_doc.append(f"{indent} * @param {arg_name} [completar: qué representa {arg_name}]")
 
             ret_clean = ret_type.strip()
             es_void = ret_clean == "void" or ret_clean.endswith(" void") or ret_clean.endswith("\tvoid")
             if not es_void:
-                lineas_doc.append(f"{indent} * @return Descripción del valor de retorno.")
+                lineas_doc.append(f"{indent} * @return [completar: qué devuelve]")
 
             lineas_doc.append(f"{indent} */")
             texto_doc = "\n".join(lineas_doc)

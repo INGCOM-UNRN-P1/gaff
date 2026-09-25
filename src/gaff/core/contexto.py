@@ -178,6 +178,50 @@ def _tiene_comentario_documentacion(lineas: List[str], line_idx: int) -> bool:
     return False
 
 
+# Textos que inserta `gaff fix` como esqueleto de documentación (0x2003h), y los
+# de versiones anteriores. Un docblock que todavía los contiene no documenta nada.
+_RE_DOC_ESQUELETO = re.compile(
+    r"\[completar\b"
+    r"|@brief\s+Descripción de la función\b"
+    r"|@param\s+\w+\s+Descripción del parámetro\b"
+    r"|@return\s+Descripción del valor de retorno\b",
+    re.IGNORECASE,
+)
+
+
+def texto_documentacion_previa(lineas: List[str], line_idx: int) -> str:
+    """Texto del comentario que precede inmediatamente a la línea (0-indexed), o ''.
+
+    Sigue el mismo criterio que _tiene_comentario_documentacion: hasta dos
+    líneas en blanco entre el comentario y la declaración.
+    """
+    idx = line_idx - 1
+    blancas = 0
+    while idx >= 0 and not lineas[idx].strip():
+        blancas += 1
+        idx -= 1
+        if blancas > 2:
+            return ""
+    if idx < 0:
+        return ""
+    anterior = lineas[idx].strip()
+    if anterior.endswith("*/"):
+        inicio = idx
+        while inicio >= 0 and "/*" not in lineas[inicio]:
+            inicio -= 1
+        return "\n".join(lineas[max(inicio, 0):idx + 1]) if inicio >= 0 else ""
+    if anterior.startswith("//"):
+        inicio = idx
+        while inicio - 1 >= 0 and lineas[inicio - 1].strip().startswith("//"):
+            inicio -= 1
+        return "\n".join(lineas[inicio:idx + 1])
+    return ""
+
+
+def documentacion_es_esqueleto(lineas: List[str], line_idx: int) -> bool:
+    """True si el docblock previo conserva textos de esqueleto sin completar."""
+    return bool(_RE_DOC_ESQUELETO.search(texto_documentacion_previa(lineas, line_idx)))
+
 @dataclass
 class ContextoAnalisis:
     """Datos derivados y estado de activación compartidos por todas las reglas.

@@ -162,14 +162,17 @@ def test_autofix_genera_esqueleto_doxygen_con_argumentos(tmp_path: Path):
     # 3. Comprobar que el contenido ahora incluye el esqueleto Doxygen
     contenido = src.read_text(encoding="utf-8")
     assert "/**" in contenido
-    assert "@brief Descripción de la función sumar." in contenido
-    assert "@param a Descripción del parámetro a." in contenido
-    assert "@param b Descripción del parámetro b." in contenido
-    assert "@return Descripción del valor de retorno." in contenido
+    assert "@brief [completar: qué hace sumar]" in contenido
+    assert "@param a [completar: qué representa a]" in contenido
+    assert "@param b [completar: qué representa b]" in contenido
+    assert "@return [completar: qué devuelve]" in contenido
 
-    # 4. El archivo ya no debe tener violaciones de 0x2003h
+    # 4. El esqueleto no documenta nada: 0x2003h sigue avisando hasta que se
+    #    complete, y ya no es autofixable (N-GAFF-02)
     viols_post = analizar_archivo(src, reglas_habilitadas={"0x2003h"})
-    assert len(viols_post) == 0
+    assert len(viols_post) == 1
+    assert "esqueleto sin completar" in viols_post[0].mensaje
+    assert viols_post[0].es_autofixable is False
 
 
 def test_autofix_prototipo_en_header(tmp_path: Path):
@@ -194,14 +197,15 @@ def test_autofix_prototipo_en_header(tmp_path: Path):
 
     contenido = hdr.read_text(encoding="utf-8")
     assert "/**" in contenido
-    assert "@brief Descripción de la función procesar_vector." in contenido
-    assert "@param vector Descripción del parámetro vector." in contenido
-    assert "@param longitud Descripción del parámetro longitud." in contenido
+    assert "@brief [completar: qué hace procesar_vector]" in contenido
+    assert "@param vector [completar: qué representa vector]" in contenido
+    assert "@param longitud [completar: qué representa longitud]" in contenido
     # void no debe incluir @return
     assert "@return" not in contenido
 
     viols_post = analizar_archivo(hdr, reglas_habilitadas={"0x2003h"})
-    assert len(viols_post) == 0
+    assert len(viols_post) == 1
+    assert "esqueleto sin completar" in viols_post[0].mensaje
 
 
 def test_autofix_funcion_void_sin_parametros(tmp_path: Path):
@@ -220,9 +224,10 @@ def test_autofix_funcion_void_sin_parametros(tmp_path: Path):
 
     contenido = src.read_text(encoding="utf-8")
     assert "/**" in contenido
-    assert "@brief Descripción de la función reiniciar." in contenido
+    assert "@brief [completar: qué hace reiniciar]" in contenido
     assert "@param" not in contenido
     assert "@return" not in contenido
 
     viols_post = analizar_archivo(src, reglas_habilitadas={"0x2003h"})
-    assert len(viols_post) == 0
+    assert len(viols_post) == 1
+    assert "esqueleto sin completar" in viols_post[0].mensaje

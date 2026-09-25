@@ -10,6 +10,7 @@ from gaff.core.contexto import (
     ContextoAnalisis,
     TIPOS_BASICOS,
     _tiene_comentario_documentacion,
+    documentacion_es_esqueleto,
     eliminar_comentarios,
     enmascarar_literales,
 )
@@ -77,7 +78,7 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
             for m_p in re_proto_h.finditer(code_h_sin_comentarios):
                 fn_nom = m_p.group(2)
                 l_idx = code_h_sin_comentarios[:m_p.start()].count("\n")
-                if _tiene_comentario_documentacion(lines_h, l_idx):
+                if _tiene_comentario_documentacion(lines_h, l_idx) and not documentacion_es_esqueleto(lines_h, l_idx):
                     doc_fns.add(fn_nom)
             return doc_fns
 
@@ -97,6 +98,9 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
         prototipos_documentados_mismo_archivo: Set[str] = set()
         prototipos_no_documentados: List[Tuple[str, int, int]] = []
         definiciones_no_documentadas: List[Tuple[str, int, int]] = []
+        # Docblocks que conservan el esqueleto de `gaff fix` sin completar:
+        # no cuentan como documentación (N-GAFF-02).
+        esqueletos_sin_completar: List[Tuple[str, int, int]] = []
 
         for m_fn in re_fn_decl_all.finditer(codigo_sin_comentarios):
             fn_name = m_fn.group(2)
@@ -108,6 +112,9 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
             line_idx_start = codigo_sin_comentarios[:m_fn.start()].count("\n")
 
             tiene_doc = _tiene_comentario_documentacion(lineas, line_idx_start)
+            if tiene_doc and documentacion_es_esqueleto(lineas, line_idx_start):
+                esqueletos_sin_completar.append((fn_name, line_fn, col_fn))
+                continue
 
             char_cierre = m_fn.group(4)
             pos_despues_paren = m_fn.end()
@@ -135,6 +142,19 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     definiciones_no_documentadas.append((fn_name, line_fn, col_fn))
 
         rcode, tit = ctx.regla_info("0x2003h")
+
+        for fn_name, l_no, c_no in esqueletos_sin_completar:
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=l_no,
+                columna=c_no,
+                mensaje=f"La documentación de '{fn_name}' es un esqueleto sin completar (conserva textos de plantilla).",
+                sugerencia="Reemplazá cada '[completar: …]' por la descripción real de la función, de sus parámetros y de lo que devuelve.",
+                codigo_linea=lineas[l_no - 1] if l_no <= len(lineas) else "",
+                es_autofixable=False,
+            ))
 
         if es_header:
             for fn_name, l_no, c_no in prototipos_no_documentados:

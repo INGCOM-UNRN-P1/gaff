@@ -6,7 +6,7 @@ import difflib
 import tempfile
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt

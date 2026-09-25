@@ -160,7 +160,7 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
         for i, l in enumerate(lineas_sin_cadenas):
             if not l.strip() or l.strip().startswith(("//", "/*", "*")):
                 continue
-            re_typo = re.search(r"[“”‘’«»–—− ​﻿]", l)
+            re_typo = re.search(r"[“”‘’«»–—−\u00a0\u200b\ufeff]", l)
             if re_typo:
                 char_bad = re_typo.group(0)
                 codepoint = f"U+{ord(char_bad):04X}"

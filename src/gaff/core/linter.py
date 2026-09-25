@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
-from typing import List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from gaff.core.contexto import (
     ContextoAnalisis,

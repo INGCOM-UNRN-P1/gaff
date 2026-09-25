@@ -161,7 +161,7 @@ def test_qol_idiomatic_bool_0x301Ah(tmp_path: Path):
 
 
 def test_catalogo_myst_generado():
-    cat_dir = Path("/home/mrtin/dev/tools/gaff/catalogo")
+    cat_dir = Path(__file__).resolve().parents[1] / "catalogo"
     assert (cat_dir / "index.md").is_file()
     assert (cat_dir / "0x0001h.md").is_file()
     assert (cat_dir / "0x0022h.md").is_file()

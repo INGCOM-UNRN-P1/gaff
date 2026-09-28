@@ -48,7 +48,7 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     # -------------------------------------------------------------------------
     if ctx.esta_activa("0x0008h"):
         re_comma_stmt = re.compile(r"^[ \t]*[a-zA-Z_]\w*\s*=[^,;]+,\s*[a-zA-Z_]\w*\s*=[^;]+;", re.MULTILINE)
-        for i, l in enumerate(lineas_sin_comentarios):
+        for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("for"):
                 continue
             m_cs = re_comma_stmt.match(l)
@@ -71,7 +71,7 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     # -------------------------------------------------------------------------
     if ctx.esta_activa("0x0009h"):
         re_hungarian = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+((?:int|float|str|arr|char|p_str)_\w+)")
-        for i, l in enumerate(lineas_sin_comentarios):
+        for i, l in enumerate(lineas_sin_cadenas):
             m_hu = re_hungarian.search(l)
             if m_hu:
                 nom = m_hu.group(1)
@@ -93,7 +93,8 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
     # -------------------------------------------------------------------------
     if ctx.esta_activa("0x000Ah"):
         re_space_sep = RE_ESPACIO_ANTES_DE_SEPARADOR
-        for i, l in enumerate(lineas_sin_comentarios):
+        # Con los literales tapados (N-GAFF-06): "uno ,dos" no es un separador mal espaciado.
+        for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("for") or l.strip().startswith("/*") or l.strip().startswith("*"):
                 continue
             for m_ss in re_space_sep.finditer(l):

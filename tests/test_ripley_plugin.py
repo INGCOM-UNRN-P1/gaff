@@ -1,5 +1,6 @@
 from pathlib import Path
 import tempfile
+from gaff import __version__
 from gaff.ripley_plugin import GaffPlugin
 
 
@@ -7,7 +8,7 @@ def test_gaff_plugin_available():
     plugin = GaffPlugin()
     assert plugin.is_available() is True
     assert plugin.name == "style"
-    assert plugin.version == "0.1.0"
+    assert plugin.version == __version__
 
 
 def test_gaff_plugin_execute():

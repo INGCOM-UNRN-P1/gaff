@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List
 
+from gaff import __version__
 from gaff.core.linter import ejecutar_linter
 
 
@@ -12,7 +13,7 @@ class GaffPlugin:
     """Plugin linter de estilo y convenciones arquitectónicas para Ripley."""
 
     name = "style"
-    version = "0.1.0"
+    version = __version__
 
     def is_available(self) -> bool:
         return True

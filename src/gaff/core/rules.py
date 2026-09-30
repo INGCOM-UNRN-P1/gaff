@@ -367,16 +367,28 @@ def obtener_regla(codigo: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _ancestro(ruta: Path, nivel: int) -> Optional[Path]:
+    """`ruta.parents[nivel]`, o None si la ruta no es tan profunda."""
+    padres = ruta.parents
+    return padres[nivel] if nivel < len(padres) else None
+
+
 def cargar_reglas_desde_apunte(directorio_apunte: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
     """Carga y sincroniza las reglas canónicas desde renumeracion.json y apunte/reglas."""
+    # Las carpetas vecinas se piden con _ancestro: en un directorio poco profundo (/tmp, /, C:\tp)
+    # `Path.cwd().parents[1]` no existe y gaff no arrancaba (se llama al importar el módulo, N-GAFF-08).
+    cwd = Path.cwd()
+    vecinas = [
+        (_ancestro(cwd, 0), ("apunte", "reglas")),
+        (_ancestro(cwd, 1), ("edu-sitios", "p1-apunte", "reglas")),
+        (_ancestro(Path(__file__).resolve(), 4), ("apunte", "reglas")),
+    ]
     rutas_candidatas = [
         Path(os.environ.get("P1_REGLAS_DIR", "")) if os.environ.get("P1_REGLAS_DIR") else None,
         directorio_apunte,
         Path("/home/mrtin/dev/tools/apunte/reglas"),
         Path("/home/mrtin/dev/edu-sitios/p1-apunte/reglas"),
-        Path.cwd().parents[0] / "apunte" / "reglas",
-        Path.cwd().parents[1] / "edu-sitios" / "p1-apunte" / "reglas",
-        Path(__file__).resolve().parents[4] / "apunte" / "reglas",
+        *(base.joinpath(*partes) for base, partes in vecinas if base is not None),
     ]
     dir_valido: Optional[Path] = None
     for r in rutas_candidatas:

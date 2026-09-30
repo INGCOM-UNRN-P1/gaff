@@ -34,7 +34,7 @@ dependencies = [
     "pyyaml>=6.0",
     "tomli>=1.1.0; python_version < '3.11'",
     # Núcleo común del ecosistema (N-ECO-14): contrato de línea de comandos y textos en español.
-    "yutani @ git+https://github.com/INGCOM-UNRN-P1/yutani@e4c8e1050e5dd87a930c5404aba6b65d1be1665a",
+    "yutani @ git+https://github.com/INGCOM-UNRN-P1/yutani@4b99a428c28ab5f3c3013b770b9692ade6182fc2",
 ]
 
 [project.urls]

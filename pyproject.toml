@@ -33,6 +33,8 @@ dependencies = [
     "rich>=13.0.0",
     "pyyaml>=6.0",
     "tomli>=1.1.0; python_version < '3.11'",
+    # Núcleo común del ecosistema (N-ECO-14): contrato de línea de comandos y textos en español.
+    "yutani @ git+https://github.com/INGCOM-UNRN-P1/yutani@e4c8e1050e5dd87a930c5404aba6b65d1be1665a",
 ]
 
 [project.urls]
@@ -48,6 +50,10 @@ style = "gaff.ripley_plugin:GaffPlugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gaff"]
+
+[tool.hatch.metadata]
+# yutani es una referencia directa a git (nunca por nombre en PyPI).
+allow-direct-references = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

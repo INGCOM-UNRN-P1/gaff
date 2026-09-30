@@ -59,7 +59,7 @@ def generar_seccion_markdown(reporte) -> str:
 
 @app.command("check")
 def check_cmd(
-    rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a analizar."),
+    rutas: List[Path] = typer.Argument(..., exists=True, help="Archivos C/H o directorios a analizar."),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     fix: bool = typer.Option(False, "--fix", "-f", help="Aplica automáticamente correcciones en reglas autofixables."),
     exclude: Optional[str] = typer.Option(
@@ -142,13 +142,29 @@ def check_cmd(
         print(json.dumps(sarif_payload, indent=2, ensure_ascii=False))
         raise typer.Exit(code=0 if reporte.ok else 1)
 
+    sin_archivos = not reporte.archivos
+    aviso_sin_archivos = (
+        f"No se encontró ningún archivo C (.c/.h) para analizar en: {', '.join(str(r) for r in rutas)}"
+        + ("" if recursive else ". Si el código está en subcarpetas, usá --recursive.")
+    )
+
     if json_output:
-        print(json.dumps(reporte.to_dict(), indent=2, ensure_ascii=False))
+        datos = reporte.to_dict()
+        if sin_archivos:
+            datos["advertencia"] = aviso_sin_archivos
+        print(json.dumps(datos, indent=2, ensure_ascii=False))
         raise typer.Exit(code=0 if reporte.ok else 1)
 
     if quiet:
         for rep_arch in reporte.archivos:
             rep_arch.violaciones = [v for v in rep_arch.violaciones if getattr(v, "severidad", "").upper() == "ERROR"]
+
+    if sin_archivos:
+        # Antes decía «✓ Todos los archivos (0) cumplen…»: un nombre mal escrito o una carpeta sin
+        # --recursive parecían una entrega sin problemas (N-GAFF-07). No es un error: el hook de
+        # pre-commit corre `gaff check .` también en repos sin archivos C en la raíz.
+        console.print(Panel(f"[yellow]{aviso_sin_archivos}[/yellow]", title="GAFF: nada que analizar", border_style="yellow"))
+        raise typer.Exit(code=0)
 
     if reporte.ok:
         msg = f"[green]✓ Todos los archivos ({len(reporte.archivos)}) cumplen con las reglas de estilo de la cátedra.[/green]"
@@ -185,7 +201,7 @@ def check_cmd(
 
 @app.command("report")
 def report_cmd(
-    rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a analizar."),
+    rutas: List[Path] = typer.Argument(..., exists=True, help="Archivos C/H o directorios a analizar."),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Ruta de destino del archivo Markdown."),
     rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Reglas a habilitar."),
@@ -305,7 +321,7 @@ def init_config_cmd(
 
 @app.command("fix")
 def fix_cmd(
-    rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a corregir."),
+    rutas: List[Path] = typer.Argument(..., exists=True, help="Archivos C/H o directorios a corregir."),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     rules: Optional[str] = typer.Option(None, "--rules", "-R", help="Reglas a aplicar."),
     exclude: Optional[str] = typer.Option(None, "--exclude", "-e", help="Reglas a excluir separadas por comas."),
@@ -345,7 +361,7 @@ def fix_cmd(
 
 @app.command("format")
 def format_cmd(
-    rutas: List[Path] = typer.Argument(..., help="Archivos o directorios a formatear"),
+    rutas: List[Path] = typer.Argument(..., exists=True, help="Archivos o directorios a formatear"),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     idkfa: bool = typer.Option(False, "--idkfa", help="Modo IDKFA: preserva intactos todos los comentarios sin formatearlos ni modificarlos."),
 ) -> None:
@@ -464,7 +480,7 @@ def export_rules_cmd(
 
 @app.command("badge")
 def badge_cmd(
-    rutas: List[Path] = typer.Argument(..., help="Archivos C/H o directorios a auditar para el badge."),
+    rutas: List[Path] = typer.Argument(..., exists=True, help="Archivos C/H o directorios a auditar para el badge."),
     output: Path = typer.Option(Path("gaff-badge.svg"), "--output", "-o", help="Ruta donde guardar el badge SVG."),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
 ) -> None:

@@ -100,3 +100,28 @@ def test_cli_fix_recursivo(tmp_path):
     assert "correcciones" in res.stdout
     assert "if (" in f_sub.read_text(encoding="utf-8")
 
+
+
+def test_check_de_un_archivo_que_no_existe_es_un_error_de_uso(tmp_path, monkeypatch):
+    """N-GAFF-07: `gaff check mian.c` (nombre mal escrito) respondía «✓ Todos los archivos (0) cumplen»."""
+    monkeypatch.chdir(tmp_path)
+    res = runner.invoke(app, ["check", "mian.c"], env={"COLUMNS": "200"})
+    assert res.exit_code == 2
+    assert "mian.c" in res.output
+    assert "cumplen" not in res.output
+
+
+def test_check_sin_archivos_c_avisa_en_lugar_de_aprobar(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.c").write_text("int main(void)\n{\n    return 0;\n}\n", encoding="utf-8")
+    res = runner.invoke(app, ["check", str(tmp_path)], env={"COLUMNS": "200"})
+    assert res.exit_code == 0  # el hook de pre-commit corre `gaff check .`: no puede bloquear
+    assert "No se encontró ningún archivo C" in res.output and "--recursive" in res.output
+    assert "Todos los archivos" not in res.output
+
+    res = runner.invoke(app, ["check", str(tmp_path), "--json"])
+    datos = json.loads(res.stdout)
+    assert datos["total_archivos"] == 0 and "advertencia" in datos
+
+    res = runner.invoke(app, ["check", str(tmp_path), "--recursive", "--json"])
+    assert "advertencia" not in json.loads(res.stdout)

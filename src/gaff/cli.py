@@ -495,7 +495,7 @@ def badge_cmd(
 
 @app.command("diff")
 def diff_cmd(
-    rutas: Optional[List[Path]] = typer.Argument(None, help="Rutas o archivos a restringir el diff."),
+    rutas: Optional[List[Path]] = typer.Argument(None, exists=True, help="Rutas o archivos a restringir el diff."),
     base: str = typer.Option("HEAD", "--base", "-b", help="Referencia base de git contra la cual comparar (ej. 'HEAD', 'main')."),
     fix: bool = typer.Option(False, "--fix", "-f", help="Aplica automáticamente correcciones en reglas autofixables."),
     json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en JSON."),
@@ -562,7 +562,7 @@ def diff_cmd(
 
 @app.command("lsp-quickfix")
 def lsp_quickfix_cmd(
-    archivo: Path = typer.Argument(..., help="Archivo C/H a generar acciones rápidas LSP."),
+    archivo: Path = typer.Argument(..., exists=True, help="Archivo C/H a generar acciones rápidas LSP."),
 ) -> None:
     """Genera acciones rápidas CodeAction compatibles con el protocolo LSP para editores de texto."""
     from gaff.ripley_plugin import GaffPlugin

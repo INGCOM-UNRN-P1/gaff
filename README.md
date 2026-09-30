@@ -75,3 +75,33 @@ gaff explain 0x0001h
 # 6. Diagnóstico del entorno y dependencias
 gaff doctor
 ```
+
+<!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
+
+## Referencia rápida
+
+### Requisitos
+
+- Python ≥ 3.11 y [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Comandos
+
+| Comando | Descripción |
+|:--|:--|
+| `gaff check` | Audita archivos de código C comprobando las reglas de estilo y arquitectura de la cátedra. |
+| `gaff report` | Genera directamente la sección de reporte Markdown de GAFF para Dredd. |
+| `gaff rules` | Lista todas las reglas de estilo y arquitectura del catálogo de cátedra. |
+| `gaff explain` | Explica en detalle una regla de cátedra con ejemplos de código correctos e incorrectos. |
+| `gaff init-config` | Exporta la configuración de estilo de la cátedra (.clang-format o .gaffrc.json). |
+| `gaff fix` | Aplica correcciones automáticas de estilo con opción de vista previa interactiva. |
+| `gaff format` | Formatea código C/H aplicando las convenciones canónicas de la cátedra. |
+| `gaff install-hook` | Instala un hook pre-commit de git para verificar estilo con GAFF antes de commitear. |
+| `gaff doctor` | Verifica dependencias externas de GAFF (clang-format, git, gcc). |
+| `gaff export-rules` | Exporta el manual y catálogo oficial de reglas de estilo en formato Markdown. |
+| `gaff badge` | Genera un badge SVG con el puntaje y estado de cumplimiento de estilo GAFF (formato Shields.io). |
+| `gaff diff` | Audita únicamente las líneas añadidas o modificadas según git diff. |
+| `gaff lsp-quickfix` | Genera acciones rápidas CodeAction compatibles con el protocolo LSP para editores de texto. |
+
+Ayuda de cada comando: `gaff <comando> -h`.
+
+<!-- p1:referencia:fin -->

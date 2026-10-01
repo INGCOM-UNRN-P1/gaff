@@ -21,122 +21,114 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Convenciones léxicas y nombres sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# -------------------------------------------------------------------------
+# 0x0001h, 0x0003h, 0x0007h (GAFF001 / GAFF032)
+# Inspección Exhaustiva de Identificadores (Funciones, Variables, Parámetros y Lazos)
+# -------------------------------------------------------------------------
+CANONICAL_INDICES = {"i", "j", "k", "n", "x", "y", "z", "f", "c", "r"}
+MATH_PARAM_NAMES = {"a", "b"}
+ALLOWED_SHORT_EXCEPTIONS = {"fd", "fp", "in", "ok", "x1", "y1", "z1", "x2", "y2", "z2"}
+CRYPTIC_SHORT_NAMES = {
+    "aux", "tmp", "val", "res", "cnt", "ptr", "num", "idx", "buf", "str", "vec", "len", "pos"
+}
+IGNORED_VAR_NAMES = {"main", "argc", "argv", "envp", "void", "NULL", "stdin", "stdout", "stderr"}
+GENERIC_STEMS = {
+    "numero", "numeros", "num", "nums", "nro", "nros", "n",
+    "var", "variable", "variables",
+    "dato", "datos", "val", "valor", "valores",
+    "elem", "elemento", "elementos",
+    "aux", "auxiliar", "tmp", "temp",
+    "arg", "param", "parametro", "parametros",
+    "item", "items", "cosa", "cosas", "obj", "objeto", "objetos",
+    "entrada", "salida", "texto", "str", "string",
+    "res", "resultado", "resultados",
+    "vec", "vector", "vectores", "arr", "array", "arreglo", "arreglos",
+}
+RE_GENERIC_NUMERIC = re.compile(
+    r"^(?:"
+    r"(?:numero|numeros|num|nums|nro|nros|n|"
+    r"var|variable|variables|"
+    r"dato|datos|val|valor|valores|"
+    r"elem|elemento|elementos|"
+    r"aux|auxiliar|tmp|temp|"
+    r"arg|param|parametro|parametros|"
+    r"item|items|cosa|cosas|obj|objeto|objetos|"
+    r"entrada|salida|texto|str|string|"
+    r"res|resultado|resultados|"
+    r"vec|vector|vectores|arr|array|arreglo|arreglos)_?[0-9]+"
+    r"|"
+    r"_?[0-9]+_?(?:numero|numeros|num|nums|nro|nros|n|"
+    r"var|variable|variables|"
+    r"dato|datos|val|valor|valores|"
+    r"elem|elemento|elementos|"
+    r"aux|auxiliar|tmp|temp|"
+    r"arg|param|parametro|parametros|"
+    r"item|items|cosa|cosas|obj|objeto|objetos|"
+    r"entrada|salida|texto|str|string|"
+    r"res|resultado|resultados|"
+    r"vec|vector|vectores|arr|array|arreglo|arreglos)"
+    r")$",
+    re.IGNORECASE,
+)
+RE_GENERIC_NUMBERED_IDENTIFIER = RE_GENERIC_NUMERIC
+
+
+def _es_identificador_generico_numerado(name: str) -> bool:
+    if not name or name in IGNORED_VAR_NAMES:
+        return False
+    lower = name.lower()
+    if lower in ALLOWED_SHORT_EXCEPTIONS:
+        return False
+    if len(name) == 1:
+        return False
+    if RE_GENERIC_NUMERIC.match(lower):
+        return True
+    if lower in {"na", "nb", "nc", "an", "bn", "cn"}:
+        return True
+    parts = [p for p in lower.split("_") if p]
+    if len(parts) >= 2:
+        stem_indices = [i for i, p in enumerate(parts) if p in GENERIC_STEMS]
+        if stem_indices:
+            other_parts = [p for i, p in enumerate(parts) if i not in stem_indices]
+            if other_parts and all(p.isdigit() or len(p) == 1 or re.fullmatch(r"[a-z]?[0-9]+|[0-9]+[a-z]?", p) for p in other_parts):
+                return True
+    return False
+
+def _split_decl_items(decl: str) -> List[str]:
+    items: List[str] = []
+    current: List[str] = []
+    depth = 0
+    in_quote = False
+    quote_char = ""
+    for char in decl:
+        if in_quote:
+            current.append(char)
+            if char == quote_char:
+                in_quote = False
+        elif char in ('"', "'"):
+            in_quote = True
+            quote_char = char
+            current.append(char)
+        elif char in ("(", "[", "{"):
+            depth += 1
+            current.append(char)
+        elif char in (")", "]", "}"):
+            depth = max(0, depth - 1)
+            current.append(char)
+        elif char == "," and depth == 0:
+            items.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    if current:
+        items.append("".join(current).strip())
+    return [it for it in items if it]
+
+
+def _nombres_de_funciones_y_parametros(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-
-    # -------------------------------------------------------------------------
-    # 0x0001h, 0x0003h, 0x0007h (GAFF001 / GAFF032)
-    # Inspección Exhaustiva de Identificadores (Funciones, Variables, Parámetros y Lazos)
-    # -------------------------------------------------------------------------
-    CANONICAL_INDICES = {"i", "j", "k", "n", "x", "y", "z", "f", "c", "r"}
-    MATH_PARAM_NAMES = {"a", "b"}
-    ALLOWED_SHORT_EXCEPTIONS = {"fd", "fp", "in", "ok", "x1", "y1", "z1", "x2", "y2", "z2"}
-    CRYPTIC_SHORT_NAMES = {
-        "aux", "tmp", "val", "res", "cnt", "ptr", "num", "idx", "buf", "str", "vec", "len", "pos"
-    }
-    IGNORED_VAR_NAMES = {"main", "argc", "argv", "envp", "void", "NULL", "stdin", "stdout", "stderr"}
-    GENERIC_STEMS = {
-        "numero", "numeros", "num", "nums", "nro", "nros", "n",
-        "var", "variable", "variables",
-        "dato", "datos", "val", "valor", "valores",
-        "elem", "elemento", "elementos",
-        "aux", "auxiliar", "tmp", "temp",
-        "arg", "param", "parametro", "parametros",
-        "item", "items", "cosa", "cosas", "obj", "objeto", "objetos",
-        "entrada", "salida", "texto", "str", "string",
-        "res", "resultado", "resultados",
-        "vec", "vector", "vectores", "arr", "array", "arreglo", "arreglos",
-    }
-    RE_GENERIC_NUMERIC = re.compile(
-        r"^(?:"
-        r"(?:numero|numeros|num|nums|nro|nros|n|"
-        r"var|variable|variables|"
-        r"dato|datos|val|valor|valores|"
-        r"elem|elemento|elementos|"
-        r"aux|auxiliar|tmp|temp|"
-        r"arg|param|parametro|parametros|"
-        r"item|items|cosa|cosas|obj|objeto|objetos|"
-        r"entrada|salida|texto|str|string|"
-        r"res|resultado|resultados|"
-        r"vec|vector|vectores|arr|array|arreglo|arreglos)_?[0-9]+"
-        r"|"
-        r"_?[0-9]+_?(?:numero|numeros|num|nums|nro|nros|n|"
-        r"var|variable|variables|"
-        r"dato|datos|val|valor|valores|"
-        r"elem|elemento|elementos|"
-        r"aux|auxiliar|tmp|temp|"
-        r"arg|param|parametro|parametros|"
-        r"item|items|cosa|cosas|obj|objeto|objetos|"
-        r"entrada|salida|texto|str|string|"
-        r"res|resultado|resultados|"
-        r"vec|vector|vectores|arr|array|arreglo|arreglos)"
-        r")$",
-        re.IGNORECASE,
-    )
-    RE_GENERIC_NUMBERED_IDENTIFIER = RE_GENERIC_NUMERIC
-
-    def _es_identificador_generico_numerado(name: str) -> bool:
-        if not name or name in IGNORED_VAR_NAMES:
-            return False
-        lower = name.lower()
-        if lower in ALLOWED_SHORT_EXCEPTIONS:
-            return False
-        if len(name) == 1:
-            return False
-        if RE_GENERIC_NUMERIC.match(lower):
-            return True
-        if lower in {"na", "nb", "nc", "an", "bn", "cn"}:
-            return True
-        parts = [p for p in lower.split("_") if p]
-        if len(parts) >= 2:
-            stem_indices = [i for i, p in enumerate(parts) if p in GENERIC_STEMS]
-            if stem_indices:
-                other_parts = [p for i, p in enumerate(parts) if i not in stem_indices]
-                if other_parts and all(p.isdigit() or len(p) == 1 or re.fullmatch(r"[a-z]?[0-9]+|[0-9]+[a-z]?", p) for p in other_parts):
-                    return True
-        return False
-
-    def _split_decl_items(decl: str) -> List[str]:
-        items: List[str] = []
-        current: List[str] = []
-        depth = 0
-        in_quote = False
-        quote_char = ""
-        for char in decl:
-            if in_quote:
-                current.append(char)
-                if char == quote_char:
-                    in_quote = False
-            elif char in ('"', "'"):
-                in_quote = True
-                quote_char = char
-                current.append(char)
-            elif char in ("(", "[", "{"):
-                depth += 1
-                current.append(char)
-            elif char in (")", "]", "}"):
-                depth = max(0, depth - 1)
-                current.append(char)
-            elif char == "," and depth == 0:
-                items.append("".join(current).strip())
-                current = []
-            else:
-                current.append(char)
-        if current:
-            items.append("".join(current).strip())
-        return [it for it in items if it]
-
     # 1. Nombres de funciones y parámetros
     re_fn_header = re.compile(
         rf"^\s*(?:static\s+|inline\s+|extern\s+)*(?:{TIPOS_BASICOS}|[a-zA-Z_]\w*)\s+(\*?\s*[a-zA-Z_]\w*)\s*\(([^;{{)]*)\)",
@@ -271,6 +263,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
+
+def _declaraciones_de_variables(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     # 2. Declaraciones de variables
     re_var_stmt = re.compile(
         rf"^[ \t]*(?:static\s+|const\s+|volatile\s+|register\s+)*(?:(?:struct|union|enum)\s+[a-zA-Z_]\w*|{TIPOS_BASICOS}|[A-Z]\w*)\s+(?!\()([^;{{}}]+);",
@@ -385,6 +383,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
+
+def _variables_de_lazos_for(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     # 3. Variables de lazo for (ej: for (int i = 0; ...))
     re_for_decl = re.compile(
         rf"\bfor\s*\(\s*(?:{TIPOS_BASICOS})\s+([a-zA-Z_]\w*)\s*=",
@@ -467,6 +470,18 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
 
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _nombres_de_funciones_y_parametros,
+    _declaraciones_de_variables,
+    _variables_de_lazos_for,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Convenciones léxicas y nombres sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

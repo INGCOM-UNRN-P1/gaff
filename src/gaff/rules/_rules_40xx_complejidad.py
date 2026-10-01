@@ -23,20 +23,10 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Funciones y modularización sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x2005h: Longitud máxima de función (> 50 líneas)
+def _regla_2005(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
-    lineas = ctx.lineas
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # 0x2005h: Longitud máxima de función (> 50 líneas)
     if ctx.esta_activa("0x2005h"):
         re_fn_start = re.compile(r"^[ 	]*(?:[a-zA-Z0-9_*]+[ 	]+)+([a-zA-Z0-9_]+)[ 	]*\([^)]*\)[ 	]*\{?", re.MULTILINE)
         for m in re_fn_start.finditer(codigo_sin_comentarios):
@@ -71,7 +61,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x2002h: printf/scanf en funciones auxiliares
+
+# 0x2002h: printf/scanf en funciones auxiliares
+def _regla_2002(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    es_header = ctx.es_header
     if ctx.esta_activa("0x2002h") and not es_header:
         re_fn_any = re.compile(r"^[ 	]*(?:[a-zA-Z0-9_*]+[ 	]+)+([a-zA-Z0-9_]+)[ 	]*\([^)]*\)[ 	]*\{?", re.MULTILINE)
         for m in re_fn_any.finditer(codigo_sin_comentarios):
@@ -109,7 +105,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x2001h (GAFF025 / GAFF065): Anidación máxima de 3 niveles dentro de funciones
+
+# 0x2001h (GAFF025 / GAFF065): Anidación máxima de 3 niveles dentro de funciones
+def _regla_2001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x2001h"):
         codigo_nesting = enmascarar_literales(codigo_sin_comentarios)
         re_no_funcion = re.compile(r"^\s*(?:typedef\s+)?(?:struct|enum|union)\b")
@@ -151,9 +152,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
             elif ch == ";":
                 ultimo_hito = i + 1
 
-    # -------------------------------------------------------------------------
-    # 0x2008h: Valores de retorno numéricos deben ser constantes o enums
-    # -------------------------------------------------------------------------
+
+# 0x2008h: Valores de retorno numéricos deben ser constantes o enums
+def _regla_2007(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x2007h"):
         re_magic_ret = re.compile(r"^\s*return\s+(-?[1-9]\d*)\s*;", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
@@ -184,9 +188,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x2009h: Los ejercicios deben ser resueltos mediante funciones (no monolítico en main)
-    # -------------------------------------------------------------------------
+
+# 0x2009h: Los ejercicios deben ser resueltos mediante funciones (no monolítico en main)
+def _regla_2008(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x2008h") and ruta.suffix.lower() == ".c":
         re_main_block = re.compile(r"int\s+main\s*\([^)]*\)\s*\{", re.MULTILINE)
         m_main = re_main_block.search(codigo_sin_comentarios)
@@ -208,9 +216,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x200Bh: Modularización: una función no debe exceder 4 parámetros de entrada
-    # -------------------------------------------------------------------------
+
+# 0x200Bh: Modularización: una función no debe exceder 4 parámetros de entrada
+def _regla_200a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x200Ah"):
         re_fn_params = re.compile(rf"^(?!typedef|extern)[ \t]*{TIPOS_BASICOS}\s+(\w+)\s*\(([^)]+)\)\s*(?:\{{|;)", re.MULTILINE)
         for m_fp in re_fn_params.finditer(codigo_sin_comentarios):
@@ -231,9 +243,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x200Dh: Cada función debe tener a lo sumo un return
-    # -------------------------------------------------------------------------
+
+# 0x200Dh: Cada función debe tener a lo sumo un return
+def _regla_200c(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_cadenas = ctx.codigo_sin_cadenas
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x200Ch"):
         depth = 0
         start_pos = 0
@@ -306,7 +322,22 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 last_delim = i + 1
             i += 1
 
-    # -------------------------------------------------------------------------
-    # 0x200Eh: Declaración explícita de (void) en funciones que no reciben parámetros
 
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_2005,
+    _regla_2002,
+    _regla_2001,
+    _regla_2007,
+    _regla_2008,
+    _regla_200a,
+    _regla_200c,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Funciones y modularización sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

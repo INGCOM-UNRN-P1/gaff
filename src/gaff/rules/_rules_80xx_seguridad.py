@@ -21,23 +21,13 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Manejo de errores y contratos sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x50XXh: Compilación y Buenas Prácticas
+# 0x500Ah: Protección obligatoria de parámetros en macros funcionales mediante paréntesis
+def _regla_500a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
     contenido_original = ctx.contenido_original
-
-
-    # -------------------------------------------------------------------------
-    # 0x50XXh: Compilación y Buenas Prácticas
-    # 0x500Ah: Protección obligatoria de parámetros en macros funcionales mediante paréntesis
-    # -------------------------------------------------------------------------
     if ctx.esta_activa("0x500Ah"):
         re_macro_fn = re.compile(r"^[ \t]*#define\s+([a-zA-Z_]\w*)\s*\(([^)]+)\)\s+([^\n]+)", re.MULTILINE)
         for m_mf in re_macro_fn.finditer(codigo_sin_comentarios):
@@ -61,9 +51,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     ))
                     break
 
-    # -------------------------------------------------------------------------
-    # 0x500Bh: Inclusión obligatoria de cabeceras estándar para funciones estándar
-    # -------------------------------------------------------------------------
+
+# 0x500Bh: Inclusión obligatoria de cabeceras estándar para funciones estándar
+def _regla_500b(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x500Bh") and ruta.suffix.lower() == ".c":
         chequeos_headers = [
             (r"\b(?:printf|scanf|puts|getchar|putchar)\s*\(", "<stdio.h>"),
@@ -87,9 +80,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x500Ch: Prohibición de inclusión directa de archivos de código fuente C (.c)
-    # -------------------------------------------------------------------------
+
+# 0x500Ch: Prohibición de inclusión directa de archivos de código fuente C (.c)
+def _regla_500c(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x500Ch"):
         re_inc_c = re.compile(r"^[ \t]*#include[ \t]+[<\"][^>\"]+\.c[>\"]")
         for i, l in enumerate(lineas):
@@ -108,9 +103,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x500Dh: Prohibición de redefinir palabras clave o tipos primitivos de C con #define
-    # -------------------------------------------------------------------------
+
+# 0x500Dh: Prohibición de redefinir palabras clave o tipos primitivos de C con #define
+def _regla_500d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x500Dh"):
         re_kw_redef = re.compile(r"^[ \t]*#define\s+(if|else|for|while|do|switch|case|default|break|continue|return|goto|int|char|float|double|void|typedef|struct|union|enum|const|static|volatile|sizeof)\b", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
@@ -130,9 +128,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x500Eh: Prohibición de la biblioteca obsoleta y no estándar <conio.h>
-    # -------------------------------------------------------------------------
+
+# 0x500Eh: Prohibición de la biblioteca obsoleta y no estándar <conio.h>
+def _regla_500e(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x500Eh"):
         re_conio = re.compile(r"^[ \t]*#include[ \t]+<conio\.h>|\b(?:getch|getche|clrscr|gotoxy)\s*\(", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
@@ -151,9 +152,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x5012h: Directivas #pragma no estándar o privativas
-    # -------------------------------------------------------------------------
+
+# 0x5012h: Directivas #pragma no estándar o privativas
+def _regla_5010(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x5010h"):
         re_pragma_bad = re.compile(r"^[ \t]*#pragma\s+(warning|comment|region|endregion|message|optimize)\b")
         for i, l in enumerate(lineas):
@@ -173,9 +176,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x5011h: Colisión de nombres de macros de guarda
-    # -------------------------------------------------------------------------
+
+# 0x5011h: Colisión de nombres de macros de guarda
+def _regla_500f(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x500Fh"):
         m_rep_guard = re.search(r"^[ \t]*#(?:ifndef|define)\s+(__COMUN_H__|__UTILS_H__|__HEADER_H__|__REGLA_0X5011H_[CH]__)\b", codigo_sin_comentarios, re.MULTILINE)
         if m_rep_guard:
@@ -193,9 +199,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # -------------------------------------------------------------------------
-    # 0x5014h: Inclusiones cíclicas entre cabeceras
-    # -------------------------------------------------------------------------
+
+# 0x5014h: Inclusiones cíclicas entre cabeceras
+def _regla_5012(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x5012h"):
         m_self_inc = re.search(r'^[ \t]*#include\s+"([^"]*(?:regla_0x5014h|ciclo)[^"]*)"', codigo_sin_comentarios, re.MULTILINE)
         if m_self_inc:
@@ -213,9 +222,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # -------------------------------------------------------------------------
-    # 0x5013h: Prohibición de declaraciones extern en archivos de implementación (.c)
-    # -------------------------------------------------------------------------
+
+# 0x5013h: Prohibición de declaraciones extern en archivos de implementación (.c)
+def _regla_5011(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
+    es_header = ctx.es_header
     if ctx.esta_activa("0x5011h") and not es_header:
         re_extern_c = re.compile(rf"^[ \t]*extern\s+({TIPOS_BASICOS}|\w+)\s+([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -236,9 +249,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x5015h: Protección obligatoria con paréntesis envolventes en macros #define
-    # -------------------------------------------------------------------------
+
+# 0x5015h: Protección obligatoria con paréntesis envolventes en macros #define
+def _regla_5013(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x5013h"):
         re_macro_expr = re.compile(r"^[ \t]*#\s*define\s+([a-zA-Z_]\w*)(?:\([^)]*\))?[ \t]+(.+)$")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -281,9 +297,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=True,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x5016h: Inclusión explícita obligatoria de cabeceras para funciones estándar
-    # -------------------------------------------------------------------------
+
+# 0x5016h: Inclusión explícita obligatoria de cabeceras para funciones estándar
+def _regla_5014(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x5014h"):
         STD_HEADERS_MAP = {
             "stdio.h": {"printf", "scanf", "puts", "getchar", "putchar", "fopen", "fclose", "fread", "fwrite", "fprintf", "sprintf", "snprintf", "sscanf", "fgets", "fputs", "perror"},
@@ -323,4 +342,26 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                                 es_autofixable=False,
                             ))
 
+
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_500a,
+    _regla_500b,
+    _regla_500c,
+    _regla_500d,
+    _regla_500e,
+    _regla_5010,
+    _regla_500f,
+    _regla_5012,
+    _regla_5011,
+    _regla_5013,
+    _regla_5014,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Manejo de errores y contratos sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

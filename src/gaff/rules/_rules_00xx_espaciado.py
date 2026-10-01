@@ -27,25 +27,13 @@ from gaff.core.rules import (
 RE_ESPACIO_ANTES_DE_SEPARADOR = re.compile(r"(?<![ \t])[ \t]+([;,])")
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Comentarios y estructura documental sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x0015h: Prohibición del operador coma para encadenar sentencias independientes
+def _regla_0008(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
-    codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
     # Reglas de espaciado: los literales se tapan con un carácter no blanco para
     # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
     lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # -------------------------------------------------------------------------
-    # -------------------------------------------------------------------------
-    # 0x0015h: Prohibición del operador coma para encadenar sentencias independientes
-    # -------------------------------------------------------------------------
     if ctx.esta_activa("0x0008h"):
         re_comma_stmt = re.compile(r"^[ \t]*[a-zA-Z_]\w*\s*=[^,;]+,\s*[a-zA-Z_]\w*\s*=[^;]+;", re.MULTILINE)
         for i, l in enumerate(lineas_sin_cadenas):
@@ -66,9 +54,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0017h: Prohibición de notación húngara o prefijos redundantes de tipo en identificadores
-    # -------------------------------------------------------------------------
+
+# 0x0017h: Prohibición de notación húngara o prefijos redundantes de tipo en identificadores
+def _regla_0009(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0009h"):
         re_hungarian = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+((?:int|float|str|arr|char|p_str)_\w+)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -88,9 +81,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0019h: Prohibición de espacios en blanco antes de separadores de sintaxis (; y ,)
-    # -------------------------------------------------------------------------
+
+# 0x0019h: Prohibición de espacios en blanco antes de separadores de sintaxis (; y ,)
+def _regla_000a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x000Ah"):
         re_space_sep = RE_ESPACIO_ANTES_DE_SEPARADOR
         # Con los literales tapados (N-GAFF-06): "uno ,dos" no es un separador mal espaciado.
@@ -113,9 +111,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 ))
 
 
-    # -------------------------------------------------------------------------
-    # 0x001Ah: Prohibición de espacios en blanco alrededor de operadores de acceso a miembros (-> y .)
-    # -------------------------------------------------------------------------
+# 0x001Ah: Prohibición de espacios en blanco alrededor de operadores de acceso a miembros (-> y .)
+def _regla_000b(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x000Bh"):
         re_member = re.compile(r"\b([a-zA-Z0-9_]+)[ \t]+->[ \t]*([a-zA-Z0-9_]+)|\b([a-zA-Z0-9_]+)[ \t]*->[ \t]+([a-zA-Z0-9_]+)|\b([a-zA-Z_]\w*)[ \t]+\.[ \t]*([a-zA-Z_]\w*)|\b([a-zA-Z_]\w*)[ \t]*\.[ \t]+([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -134,9 +136,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x001Bh: Prohibición de espacios en blanco entre operadores unarios (++, --, !) y su operando
-    # -------------------------------------------------------------------------
+
+# 0x001Bh: Prohibición de espacios en blanco entre operadores unarios (++, --, !) y su operando
+def _regla_000c(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x000Ch"):
         re_unary = re.compile(r"\b([a-zA-Z_]\w*)[ \t]+(\+\+|\-\-)|(\+\+|\-\-)[ \t]+([a-zA-Z_]\w*)|(!)(?!=)[ \t]+([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -155,9 +162,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x001Ch: Espacio en blanco obligatorio tras la coma separadora en listas y argumentos
-    # -------------------------------------------------------------------------
+
+# 0x001Ch: Espacio en blanco obligatorio tras la coma separadora en listas y argumentos
+def _regla_000d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x000Dh"):
         re_comma = re.compile(r',(?=[^\s\n\r/>])')
         for i, l in enumerate(lineas_sin_cadenas):
@@ -177,9 +189,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x001Dh: Prohibición de espacios en blanco internos inmediatamente tras '(' o antes de ')'
-    # -------------------------------------------------------------------------
+
+# 0x001Dh: Prohibición de espacios en blanco internos inmediatamente tras '(' o antes de ')'
+def _regla_000e(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x000Eh"):
         re_paren_sp = re.compile(r"\([ \t]+(?!\s|\))|(?<!\s|\()[ \t]+\)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -200,9 +217,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x001Eh: Prohibición de múltiples espacios en blanco consecutivos dentro de una línea de código
-    # -------------------------------------------------------------------------
+
+# 0x001Eh: Prohibición de múltiples espacios en blanco consecutivos dentro de una línea de código
+def _regla_000f(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x000Fh"):
         re_multi_sp = re.compile(r"(?<=\S)[ \t]{2,}(?=\S)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -223,9 +245,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0015h: Alineación vertical consistente en asignaciones consecutivas
-    # -------------------------------------------------------------------------
+
+# 0x0015h: Alineación vertical consistente en asignaciones consecutivas
+def _regla_0008_2(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0008h"):
         for i in range(len(lineas_sin_cadenas) - 2):
             l1, l2, l3 = lineas_sin_cadenas[i], lineas_sin_cadenas[i+1], lineas_sin_cadenas[i+2]
@@ -254,9 +281,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     ))
                     break
 
-    # -------------------------------------------------------------------------
-    # 0x0017h: Espaciado consistente en declaraciones de doble puntero (tipo **var)
-    # -------------------------------------------------------------------------
+
+# 0x0017h: Espaciado consistente en declaraciones de doble puntero (tipo **var)
+def _regla_0009_2(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0009h"):
         re_double_ptr_bad = re.compile(rf"\b({TIPOS_BASICOS})\s*(\*(?:\s*\*|\s+\*))\s*([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -282,9 +314,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=True,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x001Fh: Prohibición de llaves redundantes en inicialización de tipos escalares
-    # -------------------------------------------------------------------------
+
+# 0x001Fh: Prohibición de llaves redundantes en inicialización de tipos escalares
+def _regla_0010(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0010h"):
         re_scalar_braces = re.compile(
             rf"^[ \t]*(?!(?:struct|union)\b)(?:const\s+)?(?:static\s+)?({TIPOS_BASICOS})\s+(\*?\s*[a-zA-Z_]\w*)\s*=\s*\{{\s*([^,{{}}\n]+?)\s*\}}\s*;",
@@ -312,9 +349,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=True,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x0022h: Validador de espaciado estricto en sentencias de control
-    # -------------------------------------------------------------------------
+
+# 0x0022h: Validador de espaciado estricto en sentencias de control
+def _regla_0011(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0011h"):
         re_ctrl_no_space = re.compile(r"\b(if|for|while|switch)\(")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -334,9 +376,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0025h: Formato canónico en firmas de punteros a función
-    # -------------------------------------------------------------------------
+
+# 0x0025h: Formato canónico en firmas de punteros a función
+def _regla_0012(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0012h"):
         re_bad_fn_ptr = re.compile(r"\btypedef\s+[^;]*?\(\s*\*\s+([a-zA-Z_]\w*)\s*\)|\btypedef\s+[^;]*?\(\s*\*\s*([a-zA-Z_]\w*)\s+\)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -358,9 +405,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0027h: Validador de presencia de cabecera de documentación obligatoria por archivo
-    # -------------------------------------------------------------------------
+
+# 0x0027h: Validador de presencia de cabecera de documentación obligatoria por archivo
+def _regla_0206(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x0206h"):
         primeras = lineas[:20]
         texto_primeras = "\n".join(primeras)
@@ -379,9 +428,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # -------------------------------------------------------------------------
-    # 0x0028h: Detector de etiquetas de salto goto no alineadas al margen izquierdo
-    # -------------------------------------------------------------------------
+
+# 0x0028h: Detector de etiquetas de salto goto no alineadas al margen izquierdo
+def _regla_0013(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0013h"):
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
@@ -405,9 +459,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0029h: Auditor de inicialización de arreglos unidimensionales con exceso de elementos
-    # -------------------------------------------------------------------------
+
+# 0x0029h: Auditor de inicialización de arreglos unidimensionales con exceso de elementos
+def _regla_0014(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0014h"):
         re_arr_overflow = re.compile(r"\b\w+\s+([a-zA-Z_]\w*)\s*\[\s*(\d+)\s*\]\s*=\s*\{([^}]+)\}")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -432,9 +491,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x002Bh: Validador de espaciado en listas de argumentos y llamadas a funciones
-    # -------------------------------------------------------------------------
+
+# 0x002Bh: Validador de espaciado en listas de argumentos y llamadas a funciones
+def _regla_0015(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0015h"):
         re_bad_comma = re.compile(r"(?:[a-zA-Z_]\w*)\s*\([^;]*?(?:,[^\s\)\],]|\s+,)[^;]*?\)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -454,9 +518,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x002Dh: Validador de espaciado en operadores unarios (*ptr, &var, !flag, ++i)
-    # -------------------------------------------------------------------------
+
+# 0x002Dh: Validador de espaciado en operadores unarios (*ptr, &var, !flag, ++i)
+def _regla_0016(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
+    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
+    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0016h"):
         re_bad_unary = re.compile(r"(?:^|[\s(,=;])(\*|&|!|\+\+|--)[ \t]+([a-zA-Z_]\w*)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -484,4 +553,33 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
+
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_0008,
+    _regla_0009,
+    _regla_000a,
+    _regla_000b,
+    _regla_000c,
+    _regla_000d,
+    _regla_000e,
+    _regla_000f,
+    _regla_0008_2,
+    _regla_0009_2,
+    _regla_0010,
+    _regla_0011,
+    _regla_0012,
+    _regla_0206,
+    _regla_0013,
+    _regla_0014,
+    _regla_0015,
+    _regla_0016,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Comentarios y estructura documental sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

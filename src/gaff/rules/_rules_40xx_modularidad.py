@@ -23,20 +23,11 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Funciones y modularización sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+def _regla_200d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
     contenido_original = ctx.contenido_original
-
-
-    # -------------------------------------------------------------------------
     if ctx.esta_activa("0x200Dh"):
         re_empty_paren_fn = re.compile(rf"^[ \t]*(?!typedef|extern){TIPOS_BASICOS}\s+(\w+)\s*\(\s*\)\s*(?:\{{|;)", re.MULTILINE)
         for m_ep in re_empty_paren_fn.finditer(codigo_sin_comentarios):
@@ -55,9 +46,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=True,
             ))
 
-    # -------------------------------------------------------------------------
-    # 0x200Fh: Calificador static obligatorio en funciones auxiliares privadas de archivo
-    # -------------------------------------------------------------------------
+
+# 0x200Fh: Calificador static obligatorio en funciones auxiliares privadas de archivo
+def _regla_200e(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x200Eh") and ruta.suffix.lower() == ".c":
         re_public_fn = re.compile(rf"^(?!static|typedef|extern)[ \t]*{TIPOS_BASICOS}\s+(\w+)\s*\([^)]*\)\s*\{{", re.MULTILINE)
         header_declaraciones = set()
@@ -87,9 +82,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x2010h: Prohibición de sombreado de parámetros mediante variables locales con el mismo nombre
-    # -------------------------------------------------------------------------
+
+# 0x2010h: Prohibición de sombreado de parámetros mediante variables locales con el mismo nombre
+def _regla_2010(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x2010h"):
         re_fn_with_params = re.compile(rf"^[ \t]*(?!typedef|extern){TIPOS_BASICOS}\s+(\w+)\s*\(([^)]+)\)\s*\{{", re.MULTILINE)
         for m_fwp in re_fn_with_params.finditer(codigo_sin_comentarios):
@@ -123,9 +122,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x2011h: Prohibición de reasignar o modificar parámetros recibidos por valor dentro de la función
-    # -------------------------------------------------------------------------
+
+# 0x2011h: Prohibición de reasignar o modificar parámetros recibidos por valor dentro de la función
+def _regla_2010_2(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x2010h"):
         re_fn_val_params = re.compile(rf"^[ \t]*(?!typedef|extern){TIPOS_BASICOS}\s+(\w+)\s*\(([^)]+)\)\s*\{{", re.MULTILINE)
         for m_fvp in re_fn_val_params.finditer(codigo_sin_comentarios):
@@ -170,9 +173,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     ))
                     break
 
-    # -------------------------------------------------------------------------
-    # 0x200Eh: Comentarios de cierre en bloques extensos (> 25 líneas)
-    # -------------------------------------------------------------------------
+
+# 0x200Eh: Comentarios de cierre en bloques extensos (> 25 líneas)
+def _regla_200d_2(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x200Dh"):
         stack_braces = []
         for i, l in enumerate(lineas_sin_cadenas):
@@ -199,9 +205,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                                     es_autofixable=False,
                                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x200Fh: Uso obligatorio de 'void' explícito en funciones sin parámetros
-    # -------------------------------------------------------------------------
+
+# 0x200Fh: Uso obligatorio de 'void' explícito en funciones sin parámetros
+def _regla_200e_2(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x200Eh"):
         re_empty_proto = re.compile(rf"\b({TIPOS_BASICOS})\s+([a-zA-Z_]\w*)\s*\(\s*\)\s*([;{{])")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -225,9 +234,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x2010h: Prohibición de paréntesis superfluos en sentencia return
-    # -------------------------------------------------------------------------
+
+# 0x2010h: Prohibición de paréntesis superfluos en sentencia return
+def _regla_200f(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x200Fh"):
         re_ret_paren = re.compile(r"^[ \t]*return\s*\(\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?|\d+|NULL)\s*\)\s*;")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -247,9 +259,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x2013h: Tipo de retorno obligatorio 'int' en la función main()
-    # -------------------------------------------------------------------------
+
+# 0x2013h: Tipo de retorno obligatorio 'int' en la función main()
+def _regla_2012(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x2012h"):
         re_void_main = re.compile(r"^[ \t]*void\s+main\s*\(")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -270,9 +285,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x2016h: Detector de bloques else superfluos tras sentencias terminales
-    # -------------------------------------------------------------------------
+
+# 0x2016h: Detector de bloques else superfluos tras sentencias terminales
+def _regla_2013(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x2013h"):
         for i in range(1, len(lineas_sin_cadenas)):
             l_curr = lineas_sin_cadenas[i].strip()
@@ -292,4 +310,24 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
+
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_200d,
+    _regla_200e,
+    _regla_2010,
+    _regla_2010_2,
+    _regla_200d_2,
+    _regla_200e_2,
+    _regla_200f,
+    _regla_2012,
+    _regla_2013,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Funciones y modularización sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

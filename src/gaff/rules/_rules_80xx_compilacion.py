@@ -21,24 +21,12 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Manejo de errores y contratos sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x50XXh: Compilación y Buenas Prácticas
+# 0x5003h: Guardas de inclusión en cabeceras (.h)
+def _regla_5003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
-    lineas = ctx.lineas
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # -------------------------------------------------------------------------
-    # 0x50XXh: Compilación y Buenas Prácticas
-    # -------------------------------------------------------------------------
-
-    # 0x5003h: Guardas de inclusión en cabeceras (.h)
     if ctx.esta_activa("0x5003h") and es_header:
         tiene_pragma = bool(re.search(r"^[ \t]*#pragma\s+once\b", codigo_sin_comentarios, re.MULTILINE))
         m_guard = re.search(r"^[ \t]*#ifndef\s+(\w+)", codigo_sin_comentarios, re.MULTILINE)
@@ -95,7 +83,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # 0x5004h: Operaciones de cadenas inseguras (strcpy, strcat, sprintf)
+
+# 0x5004h: Operaciones de cadenas inseguras (strcpy, strcat, sprintf)
+def _regla_5004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x5004h"):
         re_str_inseguro = re.compile(r"\b(strcpy|strcat|sprintf)\s*\(")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
@@ -115,7 +108,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x5006h: gets() prohibida y scanf("%s") inseguro
+
+# 0x5006h: gets() prohibida y scanf("%s") inseguro
+def _regla_5006(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x5006h"):
         re_gets = re.compile(r"\bgets\s*\(")
         re_scanf_s = re.compile(r'\bscanf\s*\(\s*"[^"]*%s[^"]*"')
@@ -149,7 +147,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x5001h: Arreglos de longitud variable (VLAs) y tamaños mágicos
+
+# 0x5001h: Arreglos de longitud variable (VLAs) y tamaños mágicos
+def _regla_5001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    es_header = ctx.es_header
     if ctx.esta_activa("0x5001h") and not es_header:
         re_vla = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\w+\s*\[\s*([a-zA-Z_]\w*)\s*\]\s*;", re.MULTILINE)
         for m in re_vla.finditer(codigo_sin_comentarios):
@@ -188,9 +192,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x2006h: Una aserción por cada función de prueba
-    # -------------------------------------------------------------------------
+
+# 0x2006h: Una aserción por cada función de prueba
+def _regla_8001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x8001h"):
         re_fn_test = re.compile(r"^(?:void|int)\s+((?:test|prueba)_\w+)\s*\([^)]*\)\s*\{", re.MULTILINE)
         for m_test in re_fn_test.finditer(codigo_sin_comentarios):
@@ -222,9 +230,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x5002h: Desarrollá y compilá siempre con todas las advertencias (prohibido silenciar warnings)
-    # -------------------------------------------------------------------------
+
+# 0x5002h: Desarrollá y compilá siempre con todas las advertencias (prohibido silenciar warnings)
+def _regla_5002(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x5002h"):
         re_pragma_warn = re.compile(r"#pragma\s+(?:GCC\s+diagnostic\s+ignored|warning\s*\(\s*disable)", re.IGNORECASE)
         for i, l in enumerate(lineas):
@@ -243,9 +253,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x5007h: Inclusiones redundantes o duplicadas de la misma cabecera #include
-    # -------------------------------------------------------------------------
+
+# 0x5007h: Inclusiones redundantes o duplicadas de la misma cabecera #include
+def _regla_5007(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x5007h"):
         headers_vistos: Dict[str, int] = {}
         re_inc_line = re.compile(r"^[ \t]*#include[ \t]+([<\"].+[>\"])")
@@ -269,9 +281,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 else:
                     headers_vistos[h_name] = i + 1
 
-    # -------------------------------------------------------------------------
-    # 0x5008h: Prohibición de funciones obsoletas o inseguras (gets, atoi)
-    # -------------------------------------------------------------------------
+
+# 0x5008h: Prohibición de funciones obsoletas o inseguras (gets, atoi)
+def _regla_5008(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x5008h"):
         re_unsafe_fn = re.compile(r"\b(gets|atoi)\s*\(")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -292,9 +307,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x5009h: Prohibición de división entera no intencional asignada a flotantes
-    # -------------------------------------------------------------------------
+
+# 0x5009h: Prohibición de división entera no intencional asignada a flotantes
+def _regla_5009(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x5009h"):
         re_int_div_float = re.compile(r"\b(?:float|double)\s+[a-zA-Z_]\w*\s*=\s*(\d+)\s*/\s*(\d+)\s*;")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -315,6 +333,24 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
 
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_5003,
+    _regla_5004,
+    _regla_5006,
+    _regla_5001,
+    _regla_8001,
+    _regla_5002,
+    _regla_5007,
+    _regla_5008,
+    _regla_5009,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Manejo de errores y contratos sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

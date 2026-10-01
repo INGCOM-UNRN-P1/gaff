@@ -21,23 +21,9 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Convenciones léxicas y nombres sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x000Ch: Nombres de archivo en snake_case en minúsculas (sin espacios)
+def _regla_0104(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
-    lineas = ctx.lineas
-    codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-
-    # -------------------------------------------------------------------------
-    # 0x000Ch: Nombres de archivo en snake_case en minúsculas (sin espacios)
-    # -------------------------------------------------------------------------
     if ctx.esta_activa("0x0104h"):
         nombre_archivo = ruta.name
         es_valido_snake = bool(re.match(r"^[a-z0-9_]+(?:\.[a-z0-9_]+)+$", nombre_archivo))
@@ -56,7 +42,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # 0x0008h: Constantes en MAYUSCULAS_SNAKE_CASE
+
+# 0x0008h: Constantes en MAYUSCULAS_SNAKE_CASE
+def _regla_0103(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x0103h"):
         re_define_const = re.compile(r"^\s*#\s*define\s+([a-zA-Z_]\w*)\s+[\d\.\"\']", re.MULTILINE)
         for m in re_define_const.finditer(codigo_sin_comentarios):
@@ -76,9 +67,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x000Eh: Nombres de funciones en snake_case estricto
-    # -------------------------------------------------------------------------
+
+# 0x000Eh: Nombres de funciones en snake_case estricto
+def _regla_0105(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x0105h"):
         re_fn_decl = re.compile(r"^\s*(?:[a-zA-Z0-9_*]+\s+)+([a-zA-Z0-9_]+)\s*\([^;{)]*\)\s*\{", re.MULTILINE)
         for m in re_fn_decl.finditer(codigo_sin_comentarios):
@@ -103,9 +97,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0012h: Variables globales deben ser static o usar prefijo g_
-    # -------------------------------------------------------------------------
+
+# 0x0012h: Variables globales deben ser static o usar prefijo g_
+def _regla_0106(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x0106h"):
         re_global_var = re.compile(rf"^(?!static|const|extern|typedef)\s*{TIPOS_BASICOS}\s+([a-zA-Z_]\w*)\s*(?:=|;)", re.MULTILINE)
         # Buscar declaraciones fuera de funciones (al nivel de indentación 0)
@@ -131,9 +127,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x0013h: Macros #define deben nombrarse en MAYUSCULAS_SNAKE_CASE
-    # -------------------------------------------------------------------------
+
+# 0x0013h: Macros #define deben nombrarse en MAYUSCULAS_SNAKE_CASE
+def _regla_0107(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x0107h"):
         re_macro_min = re.compile(r"^[ \t]*#define[ \t]+([a-z]\w*)", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
@@ -153,9 +152,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0014h: Auditor de tipografía y prohibición de caracteres no ASCII en código
-    # -------------------------------------------------------------------------
+
+# 0x0014h: Auditor de tipografía y prohibición de caracteres no ASCII en código
+def _regla_0108(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0108h"):
         for i, l in enumerate(lineas_sin_cadenas):
             if not l.strip() or l.strip().startswith(("//", "/*", "*")):
@@ -191,9 +193,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0016h: Prohibición de identificadores que colisionen con palabras clave o tipos estándar
-    # -------------------------------------------------------------------------
+
+# 0x0016h: Prohibición de identificadores que colisionen con palabras clave o tipos estándar
+def _regla_0109(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x0109h"):
         re_res_id = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+(restrict|inline|bool|true|false|nullptr|alignas)\b")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -213,9 +218,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0018h: Prohibición de identificadores con prefijos reservados (__ o _[A-Z])
-    # -------------------------------------------------------------------------
+
+# 0x0018h: Prohibición de identificadores con prefijos reservados (__ o _[A-Z])
+def _regla_010a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x010Ah"):
         re_res_pref = re.compile(rf"\b(?:{TIPOS_BASICOS})\s+(__\w+|_([A-Z]\w*))\b")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -235,9 +243,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0038h: Prohibición de constantes numéricas mágicas en índices de arreglos
-    # -------------------------------------------------------------------------
+
+# 0x0038h: Prohibición de constantes numéricas mágicas en índices de arreglos
+def _regla_010f(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x010Fh"):
         re_arr_magic = re.compile(r"\b([a-zA-Z_]\w*)\[([3-9]|\d{2,})\]")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -263,9 +274,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0020h: Proporcionalidad en longitud de identificadores según su alcance
-    # -------------------------------------------------------------------------
+
+# 0x0020h: Proporcionalidad en longitud de identificadores según su alcance
+def _regla_010b(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x010Bh"):
         re_func_decl = re.compile(rf"^[ \t]*(?:static\s+)?{TIPOS_BASICOS}\s*\*?\s*([a-zA-Z_]\w*)\s*\(")
         re_glob_var = re.compile(rf"^[ \t]*(?:static\s+)?{TIPOS_BASICOS}\s*\*?\s*([a-zA-Z_]\w*)\s*(?:=|;)")
@@ -311,9 +325,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
             if nivel_llaves < 0:
                 nivel_llaves = 0
 
-    # -------------------------------------------------------------------------
-    # 0x0026h: Auditor de identificadores reservados (__ o _[A-Z])
-    # -------------------------------------------------------------------------
+
+# 0x0026h: Auditor de identificadores reservados (__ o _[A-Z])
+def _regla_010c(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x010Ch"):
         re_reserved_id = re.compile(r"\b(__[a-zA-Z0-9_]+|_[A-Z][a-zA-Z0-9_]*)\b")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -339,9 +356,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x002Ch: Auditor de consistencia en nombres de constantes simbólicas (#define)
-    # -------------------------------------------------------------------------
+
+# 0x002Ch: Auditor de consistencia en nombres de constantes simbólicas (#define)
+def _regla_010d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x010Dh"):
         re_macro_const = re.compile(r"^[ \t]*#define[ \t]+([a-zA-Z_]\w*)(?!\s*\()[ \t]+([0-9\"'a-zA-Z_(].*)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -362,4 +382,27 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
+
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_0104,
+    _regla_0103,
+    _regla_0105,
+    _regla_0106,
+    _regla_0107,
+    _regla_0108,
+    _regla_0109,
+    _regla_010a,
+    _regla_010f,
+    _regla_010b,
+    _regla_010c,
+    _regla_010d,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Convenciones léxicas y nombres sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

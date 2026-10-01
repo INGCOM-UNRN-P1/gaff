@@ -23,20 +23,11 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Memoria y recursos dinámicos sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x3003h: No mezclar asignación y comparación en la misma línea
+def _regla_3003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
-    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # 0x3003h: No mezclar asignación y comparación en la misma línea
     if ctx.esta_activa("0x3003h"):
         re_asig_comp = re.compile(r"\b(?:if|while)\s*\(\s*\(\s*[a-zA-Z_]\w*\s*=\s*.+?\)\s*(?:==|!=|<|>|<=|>=)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
@@ -55,7 +46,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x3008h: Comparación de punteros contra 0 en vez de NULL
+
+# 0x3008h: Comparación de punteros contra 0 en vez de NULL
+def _regla_3008(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x3008h"):
         re_ptr_zero = re.compile(r"\b\w*(?:ptr|nodo|lista|buffer|puntero|archivo|file)\w*\s*(?:==|!=)\s*0\b", re.IGNORECASE)
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
@@ -77,7 +73,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x3005h: Punteros triples (***) o más niveles de indirección
+
+# 0x3005h: Punteros triples (***) o más niveles de indirección
+def _regla_3005(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x3005h"):
         re_triple_ptr = re.compile(r"\b\w+\s*\*\*\*\s*\w+")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
@@ -96,7 +97,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x300Bh: malloc(literal) sin sizeof
+
+# 0x300Bh: malloc(literal) sin sizeof
+def _regla_300b(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x300Bh"):
         re_malloc_literal = re.compile(r"\bmalloc\s*\(\s*\d+\s*\)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
@@ -115,7 +121,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x0035h: TDA con struct no opaco en archivo .h
+
+# 0x0035h: TDA con struct no opaco en archivo .h
+def _regla_301d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    es_header = ctx.es_header
     if ctx.esta_activa("0x301Dh") and es_header:
         re_struct_body = re.compile(r"^\s*struct\s+\w+\s*\{[^}]+\}\s*;", re.MULTILINE)
         for m in re_struct_body.finditer(codigo_sin_comentarios):
@@ -132,11 +143,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # -------------------------------------------------------------------------
-    # Serie GAFF06x: 0x300Dh, 0x2001h, 0x000Dh
-    # -------------------------------------------------------------------------
 
-    # 0x300Dh (GAFF006 / GAFF061): Números mágicos (literales fuera de 0, 1, 2, -1)
+# Serie GAFF06x: 0x300Dh, 0x2001h, 0x000Dh
+# 0x300Dh (GAFF006 / GAFF061): Números mágicos (literales fuera de 0, 1, 2, -1)
+def _regla_300d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x300Dh"):
         codigo_magicos = codigo_sin_comentarios
         # Los bloques enum son contexto válido para literales numéricos
@@ -179,9 +192,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0036h: Asignar NULL al puntero tras liberar un recurso opaco / destructor TDA
-    # -------------------------------------------------------------------------
+
+# 0x0036h: Asignar NULL al puntero tras liberar un recurso opaco / destructor TDA
+def _regla_301e(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x301Eh"):
         re_destroy_call = re.compile(r"\b([a-zA-Z0-9_]+(?:_destruir|_destroy|_liberar|_cerrar))\s*\(\s*([a-zA-Z_]\w*)\s*\)\s*;")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -205,9 +221,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x3001h: Siempre verificar asignación de memoria dinámica contra NULL
-    # -------------------------------------------------------------------------
+
+# 0x3001h: Siempre verificar asignación de memoria dinámica contra NULL
+def _regla_3001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x3001h"):
         re_alloc_call = re.compile(r"\b([a-zA-Z_]\w*)\s*=\s*(?:\([a-zA-Z0-9_* ]+\)\s*)?(?:malloc|calloc|realloc)\s*\(")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -230,9 +249,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x3002h: Liberar memoria dinámica y asignar NULL al puntero
-    # -------------------------------------------------------------------------
+
+# 0x3002h: Liberar memoria dinámica y asignar NULL al puntero
+def _regla_3002(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x3002h"):
         re_free_call = re.compile(r"\bfree\s*\(\s*([a-zA-Z_]\w*)\s*\)\s*;")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -255,9 +277,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x3006h: Documentar la propiedad de los recursos al utilizar punteros
-    # -------------------------------------------------------------------------
+
+# 0x3006h: Documentar la propiedad de los recursos al utilizar punteros
+def _regla_3006(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x3006h"):
         re_creator_fn = re.compile(r"^(?:[a-zA-Z_]\w*\*|\w+\s*\*)\s*([a-zA-Z_]\w*(?:_crear|_create|_nuevo|_new))\s*\([^)]*\)\s*\{", re.MULTILINE)
         for m_cr in re_creator_fn.finditer(codigo_sin_comentarios):
@@ -284,9 +310,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x3007h: Argumentos puntero const si la función no los modifica
-    # -------------------------------------------------------------------------
+
+# 0x3007h: Argumentos puntero const si la función no los modifica
+def _regla_3007(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x3007h"):
         re_readonly_fn = re.compile(r"\b(?:void|int|size_t)\s+((?:imprimir|mostrar|calcular|contar|buscar|es|son|verificar)_\w+)\s*\(([^)]+)\)", re.MULTILINE)
         for m_ro in re_readonly_fn.finditer(codigo_sin_comentarios):
@@ -309,9 +339,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x3009h: Documentar explícitamente casos donde una función puede retornar NULL
-    # -------------------------------------------------------------------------
+
+# 0x3009h: Documentar explícitamente casos donde una función puede retornar NULL
+def _regla_3009(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x3009h"):
         re_fn_ptr = re.compile(r"^(?:[a-zA-Z_]\w*\*|\w+\s*\*)\s*([a-zA-Z_]\w*)\s*\([^)]*\)\s*\{", re.MULTILINE)
         for m_fptr in re_fn_ptr.finditer(codigo_sin_comentarios):
@@ -350,9 +384,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x300Ah: Utilizá cast explícito al convertir tipos de punteros
-    # -------------------------------------------------------------------------
+
+# 0x300Ah: Utilizá cast explícito al convertir tipos de punteros
+def _regla_300a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x300Ah"):
         re_impl_cast = re.compile(r"\bint\s*\*\s*([a-zA-Z_]\w*)\s*=\s*(?:mem|buffer|ptr_gen|datos_void)\s*;", re.IGNORECASE)
         for i, l in enumerate(lineas_sin_comentarios):
@@ -371,9 +408,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x300Ch: Límites de arreglos estáticos
-    # -------------------------------------------------------------------------
+
+# 0x300Ch: Límites de arreglos estáticos
+def _regla_300c(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x300Ch"):
         re_arr_decl = re.compile(r"\b(?:int|char|float|double)\s+([a-zA-Z_]\w*)\s*\[\s*(\d+)\s*\]\s*;")
         for m_arr in re_arr_decl.finditer(codigo_sin_comentarios):
@@ -397,6 +438,29 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
 
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_3003,
+    _regla_3008,
+    _regla_3005,
+    _regla_300b,
+    _regla_301d,
+    _regla_300d,
+    _regla_301e,
+    _regla_3001,
+    _regla_3002,
+    _regla_3006,
+    _regla_3007,
+    _regla_3009,
+    _regla_300a,
+    _regla_300c,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Memoria y recursos dinámicos sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

@@ -21,24 +21,12 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Comentarios y estructura documental sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x00XXh: Sintaxis Básica y Nomenclatura
+# 0x0004h: Espaciado en palabras clave (if, for, while, switch) y operadores binarios
+def _regla_0003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
-    codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
     lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # -------------------------------------------------------------------------
-    # 0x00XXh: Sintaxis Básica y Nomenclatura
-    # -------------------------------------------------------------------------
-
-    # 0x0004h: Espaciado en palabras clave (if, for, while, switch) y operadores binarios
     if ctx.esta_activa("0x0003h"):
         re_kw = re.compile(r"\b(if|for|while|switch)\(")
         re_asgn_bin = re.compile(r'\b([a-zA-Z0-9_]+)([ \t]*)(\+=|-=|\*=|/=|%=|==|!=|<=|>=|&&|\|\||<|>|=)([ \t]*)([a-zA-Z0-9_]+)')
@@ -98,7 +86,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=True,
                     ))
 
-    # 0x0006h: Asterisco junto al identificador (int* ptr -> int *ptr)
+
+# 0x0006h: Asterisco junto al identificador (int* ptr -> int *ptr)
+def _regla_0005(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x0005h"):
         re_ptr_junto_tipo = re.compile(rf"\b{TIPOS_BASICOS}\*\s+([a-zA-Z_]\w*)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
@@ -117,7 +110,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # 0x0009h: Longitud de línea (> 80 chars)
+
+# 0x0009h: Longitud de línea (> 80 chars)
+def _regla_0006(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x0006h"):
         for idx, linea in enumerate(lineas, 1):
             if len(linea) > 80:
@@ -134,7 +131,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x0005h: Indentación de cuatro espacios, sin tabuladores ni espacios finales
+
+# 0x0005h: Indentación de cuatro espacios, sin tabuladores ni espacios finales
+def _regla_0004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x0004h"):
         for idx, linea in enumerate(lineas, 1):
             if linea.endswith(" ") or linea.endswith("\t"):
@@ -180,7 +182,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=True,
                     ))
 
-    # 0x0002h: Múltiples declaraciones de variables o sentencias por línea
+
+# 0x0002h: Múltiples declaraciones de variables o sentencias por línea
+def _regla_0002(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0002h"):
         re_mult_decl = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\*?[a-zA-Z_]\w*(?:\s*=\s*[^,;]+)?\s*,\s*\*?[a-zA-Z_]\w*", re.MULTILINE)
         for m in re_mult_decl.finditer(codigo_sin_comentarios):
@@ -223,7 +231,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # 0x000Bh: Llaves en la misma línea (estilo K&R en vez de Allman)
+
+# 0x000Bh: Llaves en la misma línea (estilo K&R en vez de Allman)
+def _regla_0007(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x0007h"):
         re_knr = re.compile(r"(?:if|for|while|switch|\))\s*\{$")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
@@ -241,7 +254,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # 0x000Dh: Código comentado (dead code)
+
+# 0x000Dh: Código comentado (dead code)
+def _regla_0202(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x0202h"):
         re_codigo_comentado = re.compile(
             r"^\s*(?:"
@@ -285,9 +303,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # -------------------------------------------------------------------------
-    # 0x000Fh: Evitá comentarios obvios, redundantes, vacíos o TODO/FIXME pendientes
-    # -------------------------------------------------------------------------
+
+# 0x000Fh: Evitá comentarios obvios, redundantes, vacíos o TODO/FIXME pendientes
+def _regla_0203(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x0203h"):
         for i, l in enumerate(lineas):
             if "//" in l:
@@ -335,9 +355,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x0010h: Longitud máxima de archivos (máx 500 líneas)
-    # -------------------------------------------------------------------------
+
+# 0x0010h: Longitud máxima de archivos (máx 500 líneas)
+def _regla_0204(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x0204h") and len(lineas) > 500:
         rcode, tit = ctx.regla_info("0x0204h")
         violaciones.append(ViolacionRegla(
@@ -352,9 +374,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
             es_autofixable=False,
         ))
 
-    # -------------------------------------------------------------------------
-    # 0x0011h: Inclusión de cabecera propia en primer lugar en .c
-    # -------------------------------------------------------------------------
+
+# 0x0011h: Inclusión de cabecera propia en primer lugar en .c
+def _regla_0205(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x0205h") and ruta.suffix.lower() == ".c":
         header_propio = f'"{ruta.stem}.h"'
         headers_encontrados = []
@@ -378,9 +402,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x0000h: La claridad y prolijidad son de máxima importancia
-    # -------------------------------------------------------------------------
+
+# 0x0000h: La claridad y prolijidad son de máxima importancia
+def _regla_0001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x0001h"):
         blanks = 0
         for i, l in enumerate(lineas):
@@ -417,9 +444,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=True,
             ))
 
-    # -------------------------------------------------------------------------
-    # 0x000Ah: Comentarios que expliquen el "porqué", no el "qué"
-    # -------------------------------------------------------------------------
+
+# 0x000Ah: Comentarios que expliquen el "porqué", no el "qué"
+def _regla_0201(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
     if ctx.esta_activa("0x0201h"):
         re_comentario_obvio = re.compile(r"//\s*(?:incrementa\s+\w+\s+en\s+1|aumenta\s+\w+\s+en\s+1|suma\s+1\s+a\s+\w+|asigna\s+\w+\s+a\s+\w+|retorna\s+0\b)", re.IGNORECASE)
         for i, l in enumerate(lineas):
@@ -439,4 +468,26 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 ))
 
 
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_0003,
+    _regla_0005,
+    _regla_0006,
+    _regla_0004,
+    _regla_0002,
+    _regla_0007,
+    _regla_0202,
+    _regla_0203,
+    _regla_0204,
+    _regla_0205,
+    _regla_0001,
+    _regla_0201,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Comentarios y estructura documental sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

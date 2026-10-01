@@ -15,7 +15,7 @@ def test_detectar_goto(tmp_path):
     fin:
         return 0;
     }
-    """)
+    """, encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x1006h" for v in viols)
 
@@ -23,7 +23,7 @@ def test_detectar_goto(tmp_path):
 def test_detectar_guardas_faltantes(tmp_path):
     """Verifica detección de guardas de inclusión en .h (0x5003h)."""
     header = tmp_path / "lista.h"
-    header.write_text("typedef struct nodo t_nodo;\n")
+    header.write_text("typedef struct nodo t_nodo;\n", encoding="utf-8")
     viols = analizar_archivo(header)
     assert any(v.codigo == "0x5003h" for v in viols)
 
@@ -31,7 +31,7 @@ def test_detectar_guardas_faltantes(tmp_path):
 def test_autofix_keyword_spacing_y_guardas(tmp_path):
     """Verifica la aplicación de correcciones automáticas (0x5003h, 0x0004h, 0x0005h)."""
     header = tmp_path / "vector.h"
-    header.write_text("void f(void){\n    if(1){\n        int x = 2;   \n    }\n}\n")
+    header.write_text("void f(void){\n    if(1){\n        int x = 2;   \n    }\n}\n", encoding="utf-8")
 
     arreglos = aplicar_autofix_archivo(header)
     assert arreglos > 0
@@ -45,7 +45,7 @@ def test_autofix_keyword_spacing_y_guardas(tmp_path):
 def test_detectar_camel_case_en_funciones(tmp_path):
     """Verifica detección de camelCase en nombres de funciones (0x0007h)."""
     fuente = tmp_path / "camel.c"
-    fuente.write_text("int calcularPromedio(int a, int b) { return a + b; }\n")
+    fuente.write_text("int calcularPromedio(int a, int b) { return a + b; }\n", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x0007h" for v in viols)
 
@@ -70,7 +70,7 @@ int calcular_suma(int a, int b)
     }
     return resultado;
 }
-""")
+""", encoding="utf-8")
     rep = ejecutar_linter([fuente])
     assert rep.ok is True
     assert rep.total_violaciones == 0

@@ -29,7 +29,7 @@ def test_cli_explain():
 
 def test_cli_check_limpio(tmp_path):
     fuente = tmp_path / "ok.c"
-    fuente.write_text("int main(void) { return 0; }\n")
+    fuente.write_text("int main(void) { return 0; }\n", encoding="utf-8")
 
     res = runner.invoke(app, ["check", str(fuente)])
     assert res.exit_code == 0
@@ -38,7 +38,7 @@ def test_cli_check_limpio(tmp_path):
 
 def test_cli_check_con_violaciones_y_json(tmp_path):
     fuente = tmp_path / "goto.c"
-    fuente.write_text("int main(void) { goto end; end: return 0; }\n")
+    fuente.write_text("int main(void) { goto end; end: return 0; }\n", encoding="utf-8")
 
     res = runner.invoke(app, ["check", str(fuente), "--json"])
     assert res.exit_code == 1
@@ -50,7 +50,7 @@ def test_cli_check_con_violaciones_y_json(tmp_path):
 
 def test_cli_fix(tmp_path):
     fuente = tmp_path / "fixme.c"
-    fuente.write_text("void f(void){\n    if(1){ return; }\n}\n")
+    fuente.write_text("void f(void){\n    if(1){ return; }\n}\n", encoding="utf-8")
 
     res = runner.invoke(app, ["fix", str(fuente)])
     assert "correcciones" in res.stdout
@@ -64,10 +64,10 @@ def test_cli_check_recursivo(tmp_path):
     dir_sub.mkdir(parents=True)
 
     f_raiz = tmp_path / "raiz.c"
-    f_raiz.write_text("int main(void) { return 0; }\n")
+    f_raiz.write_text("int main(void) { return 0; }\n", encoding="utf-8")
 
     f_anidado = dir_sub / "anidado.c"
-    f_anidado.write_text("int f(void) { goto salir; salir: return 0; }\n")
+    f_anidado.write_text("int f(void) { goto salir; salir: return 0; }\n", encoding="utf-8")
 
     # Sin recursión sobre tmp_path (solo raiz.c en primer nivel)
     res_no_rec = runner.invoke(app, ["check", str(tmp_path)])
@@ -93,7 +93,7 @@ def test_cli_fix_recursivo(tmp_path):
     sub_dir = tmp_path / "sub"
     sub_dir.mkdir(parents=True)
     f_sub = sub_dir / "fix_sub.c"
-    f_sub.write_text("void f(void){\n    if(1){ return; }\n}\n")
+    f_sub.write_text("void f(void){\n    if(1){ return; }\n}\n", encoding="utf-8")
 
     res = runner.invoke(app, ["fix", str(tmp_path), "-r"])
     assert res.exit_code == 0

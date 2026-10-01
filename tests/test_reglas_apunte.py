@@ -12,7 +12,7 @@ void test(void)
 {
     int a, b = 10;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x0002h" for v in viols)
 
@@ -24,7 +24,7 @@ void test(void)
 {
     int* ptr = NULL;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x0006h" for v in viols)
 
@@ -33,7 +33,7 @@ def test_regla_0x0008h_constante_minusculas(tmp_path):
     fuente = tmp_path / "const_min.c"
     fuente.write_text("""
 #define buffer_size 1024
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x0008h" for v in viols)
 
@@ -46,7 +46,7 @@ void test(void) {
         return;
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x000Bh" for v in viols)
 
@@ -59,7 +59,7 @@ void test(int x)
     if (x > 0)
         x++;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x1001h" for v in viols)
 
@@ -77,7 +77,7 @@ void test(void)
         }
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x1002h" for v in viols)
 
@@ -92,7 +92,7 @@ void test(void)
         break;
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x1003h" for v in viols)
 
@@ -104,7 +104,7 @@ void test(int a, int b)
 {
     int max = (a > b) ? a : b;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x1007h" for v in viols)
 
@@ -120,7 +120,7 @@ void test(int x)
             break;
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x1008h" for v in viols)
 
@@ -133,7 +133,7 @@ int calcular_raiz(int n)
     printf("Calculando...\n");
     return n;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x2002h" for v in viols)
 
@@ -147,7 +147,7 @@ int main(void)
 {
     return 0;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x2004h" for v in viols)
 
@@ -163,7 +163,7 @@ void test(void)
         return;
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x3003h" for v in viols)
 
@@ -174,7 +174,7 @@ def test_regla_0x3005h_puntero_triple(tmp_path):
 void test(int ***ptr_datos)
 {
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x3005h" for v in viols)
 
@@ -186,7 +186,7 @@ void test(void)
 {
     int *p = malloc(100);
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x300Bh" for v in viols)
 
@@ -201,7 +201,7 @@ void test(int *mi_ptr)
         return;
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x3008h" for v in viols)
 
@@ -218,7 +218,7 @@ struct nodo
 };
 
 #endif
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(header)
     assert any(v.codigo == "0x0035h" for v in viols)
 
@@ -230,7 +230,7 @@ void test(int n)
 {
     int vector[n];
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x5001h" for v in viols)
 
@@ -242,7 +242,7 @@ void test(char *dest, const char *src)
 {
     strcpy(dest, src);
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x5004h" for v in viols)
 
@@ -255,7 +255,7 @@ void test(char *buf)
     gets(buf);
     scanf("%s", buf);
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente)
     assert any(v.codigo == "0x5006h" for v in viols)
 
@@ -268,7 +268,7 @@ void test(void)
     int* ptr = NULL;
     char* str = NULL;
 }
-""")
+""", encoding="utf-8")
     n = aplicar_autofix_archivo(fuente)
     assert n >= 2
     res = fuente.read_text(encoding="utf-8")
@@ -278,12 +278,12 @@ void test(void)
 
 def test_regla_0x000Ch_nombre_archivo_con_espacios_y_mayusculas(tmp_path):
     fuente_espacios = tmp_path / "mi archivo fuente.c"
-    fuente_espacios.write_text("int main(void)\n{\n    return 0;\n}\n")
+    fuente_espacios.write_text("int main(void)\n{\n    return 0;\n}\n", encoding="utf-8")
     viols = analizar_archivo(fuente_espacios)
     assert any(v.codigo == "0x000Ch" for v in viols)
 
     fuente_camel = tmp_path / "CalculadoraAvanzada.c"
-    fuente_camel.write_text("int main(void)\n{\n    return 0;\n}\n")
+    fuente_camel.write_text("int main(void)\n{\n    return 0;\n}\n", encoding="utf-8")
     viols_camel = analizar_archivo(fuente_camel)
     assert any(v.codigo == "0x000Ch" for v in viols_camel)
 
@@ -306,7 +306,7 @@ void test(void)
         int x = i * 3;
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x300Dh"})
     magicos = [v for v in viols if v.codigo == "0x300Dh"]
     assert len(magicos) == 2
@@ -325,7 +325,7 @@ int main(void)
     printf("Error 404 en registro\\n");
     return 0;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x300Dh"})
     assert viols == []
 
@@ -337,7 +337,7 @@ int maximo(int a, int b)
 {
     return (a > b) ? a : b;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x1007h"})
     assert any(v.codigo == "0x1007h" for v in viols)
 
@@ -351,14 +351,14 @@ def test_regla_gaff063_alias_typedef(tmp_path):
 typedef struct nodo Nodo;
 
 #endif
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(header, reglas_habilitadas={"0x3004h"})
     assert any(v.codigo == "0x3004h" for v in viols)
 
 
 def test_regla_gaff064_alias_guardas(tmp_path):
     header = tmp_path / "sin_guarda.h"
-    header.write_text("void funcion(void);\n")
+    header.write_text("void funcion(void);\n", encoding="utf-8")
     viols = analizar_archivo(header, reglas_habilitadas={"0x5003h"})
     assert any(v.codigo == "0x5003h" for v in viols)
 
@@ -382,7 +382,7 @@ void proceso(int a, int b, int c, int d)
         }
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x2001h"})
     assert any(v.codigo == "0x2001h" for v in viols)
 
@@ -403,7 +403,7 @@ void proceso(int a, int b, int c)
         }
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x2001h"})
     assert viols == []
 
@@ -423,7 +423,7 @@ int main(void)
     */
     return resultado;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x000Dh"})
     assert sum(1 for v in viols if v.codigo == "0x000Dh") == 2
 
@@ -440,7 +440,7 @@ int sumar(int a, int b)
 {
     return a + b;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x000Dh"})
     assert viols == []
 
@@ -455,7 +455,7 @@ int sumar(int a, int b) {
         return 0;
     }
 }
-""")
+""", encoding="utf-8")
     # Antes del fix tiene violaciones de Allman
     viols_antes = analizar_archivo(fuente)
     assert any(v.codigo == "0x000Bh" for v in viols_antes)

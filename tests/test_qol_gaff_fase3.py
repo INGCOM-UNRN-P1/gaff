@@ -26,7 +26,8 @@ def test_qol_01_dead_store_0x2012h(tmp_path: Path):
         "    int x = 10;\n"
         "    x = 20;\n"
         "    return x;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols = analizar_archivo(src_bad, reglas_habilitadas={"0x2012h"})
     assert any(v.codigo == "0x2012h" and "dead store" in v.mensaje.lower() for v in viols)
@@ -40,7 +41,8 @@ def test_qol_01_dead_store_0x2012h(tmp_path: Path):
         "    int y = x + 5;\n"
         "    x = 20;\n"
         "    return x + y;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols_ok = analizar_archivo(src_ok, reglas_habilitadas={"0x2012h"})
     assert not any(v.codigo == "0x2012h" for v in viols_ok)
@@ -52,7 +54,8 @@ def test_qol_02_macro_parenthesis_0x5015h(tmp_path: Path):
     src.write_text(
         "#define TAM 10 + 5\n"
         "#define BUFFER_MAX (1024 * 2)\n"
-        "int main(void) { return TAM; }\n"
+        "int main(void) { return TAM; }\n",
+        encoding="utf-8",
     )
     viols = analizar_archivo(src, reglas_habilitadas={"0x5015h"})
     assert any(v.codigo == "0x5015h" and "TAM" in v.mensaje for v in viols)
@@ -61,7 +64,7 @@ def test_qol_02_macro_parenthesis_0x5015h(tmp_path: Path):
     # Verificar autofix
     arreglos = aplicar_autofix_archivo(src)
     assert arreglos > 0
-    assert "#define TAM (10 + 5)" in src.read_text()
+    assert "#define TAM (10 + 5)" in src.read_text(encoding="utf-8")
 
 
 def test_qol_03_scalar_braces_0x001Fh(tmp_path: Path):
@@ -75,7 +78,8 @@ def test_qol_03_scalar_braces_0x001Fh(tmp_path: Path):
         "    float tasa = {0.0};\n"
         "    struct punto_t p = {0};\n"
         "    return contador;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols = analizar_archivo(src, reglas_habilitadas={"0x001Fh"})
     codigos = [v.codigo for v in viols]
@@ -88,7 +92,7 @@ def test_qol_03_scalar_braces_0x001Fh(tmp_path: Path):
     # Verificar autofix
     arreglos = aplicar_autofix_archivo(src)
     assert arreglos >= 2
-    txt = src.read_text()
+    txt = src.read_text(encoding="utf-8")
     assert "int contador = 0;" in txt
     assert "float tasa = 0.0;" in txt
     assert "struct punto_t p = {0};" in txt
@@ -106,14 +110,15 @@ def test_qol_04_chained_comparisons_0x1012h(tmp_path: Path):
         "        return 1;\n"
         "    }\n"
         "    return 0;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols = analizar_archivo(src, reglas_habilitadas={"0x1012h"})
     assert any(v.codigo == "0x1012h" and "a < b < c" in v.mensaje for v in viols)
 
     # Verificar autofix
     aplicar_autofix_archivo(src)
-    assert "a < b && b < c" in src.read_text()
+    assert "a < b && b < c" in src.read_text(encoding="utf-8")
 
 
 def test_qol_05_unstructured_goto_0x1013h(tmp_path: Path):
@@ -126,7 +131,8 @@ def test_qol_05_unstructured_goto_0x1013h(tmp_path: Path):
         "    // bucle espagueti hacia atras\n"
         "    goto bucle;\n"
         "    return 0;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols = analizar_archivo(src_bad, reglas_habilitadas={"0x1013h"})
     assert any(v.codigo == "0x1013h" and "Salto hacia atrás" in v.mensaje for v in viols)
@@ -143,7 +149,8 @@ def test_qol_05_unstructured_goto_0x1013h(tmp_path: Path):
         "    return 1;\n"
         "cleanup:\n"
         "    return -1;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols_clean = analizar_archivo(src_clean, reglas_habilitadas={"0x1013h"})
     assert not any(v.codigo == "0x1013h" for v in viols_clean)
@@ -152,19 +159,19 @@ def test_qol_05_unstructured_goto_0x1013h(tmp_path: Path):
 def test_qol_06_void_main_0x2013h(tmp_path: Path):
     """Mejora 7 (Fase 3): Auditor de tipo de retorno en función main() (int main obligatorio) (0x2013h)."""
     src = tmp_path / "void_main.c"
-    src.write_text("void main(void)\n{\n}\n")
+    src.write_text("void main(void)\n{\n}\n", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x2013h"})
     assert any(v.codigo == "0x2013h" and "void main" in v.mensaje for v in viols)
 
     # Verificar autofix
     aplicar_autofix_archivo(src)
-    assert "int main(void)" in src.read_text()
+    assert "int main(void)" in src.read_text(encoding="utf-8")
 
 
 def test_qol_07_github_summary(tmp_path: Path, monkeypatch):
     """Mejora 14 (Fase 3): Exportador de resumen de cumplimiento a formato Markdown para GitHub Actions ($GITHUB_STEP_SUMMARY)."""
     src = tmp_path / "demo_gh.c"
-    src.write_text("void main(void) { int x = {0}; }\n")
+    src.write_text("void main(void) { int x = {0}; }\n", encoding="utf-8")
     reporte = ejecutar_linter([src], recursive=False)
     summary_md = generar_github_summary(reporte)
     assert "🛡️ Gaff Linter — Resumen de Cumplimiento de Estilo" in summary_md
@@ -177,7 +184,7 @@ def test_qol_07_github_summary(tmp_path: Path, monkeypatch):
     res = runner.invoke(app, ["check", str(src), "--github-summary"])
     assert res.exit_code in (0, 1)
     assert summary_file.is_file()
-    assert "Gaff Linter" in summary_file.read_text()
+    assert "Gaff Linter" in summary_file.read_text(encoding="utf-8")
 
 
 def test_qol_08_init_config_gaffrc_json(tmp_path: Path):
@@ -200,7 +207,7 @@ def test_qol_08_init_config_gaffrc_json(tmp_path: Path):
     cfg_file = tmp_path / ".gaffrc.json"
     assert cfg_file.is_file()
 
-    data = json.loads(cfg_file.read_text())
+    data = json.loads(cfg_file.read_text(encoding="utf-8"))
     assert data["tp"] == "TP1 Lista Enlazada"
     assert "0x0001h" in data["excluded_rules"]
     assert "0x1006h" in data["excluded_rules"]

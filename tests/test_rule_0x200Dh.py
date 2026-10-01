@@ -33,7 +33,7 @@ int modulo(int x)
     }
     return x;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x200Ch"})
     assert len(viols) == 1
     v = viols[0]
@@ -60,7 +60,7 @@ int clasificar(int x)
     }
     return 0;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x200Ch"})
     assert len(viols) == 1
     assert viols[0].codigo == "0x200Ch"
@@ -81,7 +81,7 @@ int modulo_con_variable(int x)
     }
     return resultado;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x200Ch"})
     assert len(viols) == 0
 
@@ -94,7 +94,7 @@ void imprimir_mensaje(const char *msg)
 {
     // Función sin ningún return
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x200Ch"})
     assert len(viols) == 0
 
@@ -110,7 +110,7 @@ int test_falso_positivo(void)
     const char *mensaje = "return from function";
     return 0;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x200Ch"})
     assert len(viols) == 0
 
@@ -138,7 +138,7 @@ void otra_ok(void)
 {
     // void
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x200Ch"})
     assert len(viols) == 1
     assert viols[0].codigo == "0x200Ch"
@@ -155,7 +155,7 @@ int test(int x)
     if (x) return 1;
     return 0;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_excluidas={"0x200Ch"})
     assert not any(v.codigo == "0x200Ch" for v in viols)
 
@@ -172,7 +172,7 @@ int evaluar(int val)
     }
     return 0;
 }
-""")
+""", encoding="utf-8")
     res = runner.invoke(app, ["check", str(src), "--json", "-R", "0x200Ch"])
     assert res.exit_code == 1
     data = json.loads(res.stdout)

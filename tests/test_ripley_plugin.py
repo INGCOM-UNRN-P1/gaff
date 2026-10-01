@@ -21,7 +21,8 @@ int main(void) {
     int x = 10;
     return 0;
 }
-"""
+""",
+            encoding="utf-8",
         )
         res = plugin.execute(Path(td), {})
         assert "ok" in res

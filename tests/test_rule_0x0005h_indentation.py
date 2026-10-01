@@ -27,7 +27,7 @@ void funcion(void)
         }
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x0004h"})
     assert len(viols) == 0
 
@@ -38,7 +38,7 @@ def test_detectar_indentacion_dos_espacios(tmp_path: Path):
 {
   int x = 10;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x0004h"})
     indent_viols = [v for v in viols if "no es múltiplo de 4" in v.mensaje]
     assert len(indent_viols) == 1
@@ -56,7 +56,7 @@ def test_detectar_indentacion_seis_espacios(tmp_path: Path):
       int y = 20;
     }
 }
-""")
+""", encoding="utf-8")
     # Línea 5 tiene 6 espacios (debería tener 8)
     viols = analizar_archivo(src, reglas_habilitadas={"0x0004h"})
     indent_viols = [v for v in viols if "no es múltiplo de 4" in v.mensaje]
@@ -79,7 +79,7 @@ int test(int a)
      */
     return a;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x0004h"})
     assert len(viols) == 0
 
@@ -94,7 +94,7 @@ def test_autofix_indentacion_multiplo_de_cuatro(tmp_path: Path):
       int y = 20;
   }
 }
-""")
+""", encoding="utf-8")
     arreglos = aplicar_autofix_archivo(src)
     assert arreglos > 0
 
@@ -113,6 +113,6 @@ def test_exclusion_por_regla(tmp_path: Path):
 {
   int x = 10;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_excluidas={"0x0004h"})
     assert not any(v.codigo == "0x0004h" for v in viols)

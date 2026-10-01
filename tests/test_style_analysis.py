@@ -24,7 +24,7 @@ int procesar(int d)
     }
     return p;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x0001h"})
     mensajes = [v.mensaje for v in viols if v.codigo == "0x0001h"]
     assert any("'p'" in m for m in mensajes)
@@ -49,7 +49,7 @@ int recorrido(int n)
     }
     return total_acumulado;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x0001h"})
     assert len(viols) == 0
 
@@ -65,7 +65,7 @@ int swap(int primer_valor, int segundo_valor)
     int res = aux + tmp;
     return res;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x0001h"})
     mensajes = [v.mensaje for v in viols if v.codigo == "0x0001h"]
     assert any("'aux'" in m for m in mensajes)
@@ -81,7 +81,7 @@ void funcion_con_un_nombre_demasiado_largo_que_supera_treinta_y_un_caracteres(vo
 {
     int variable_con_un_nombre_extremadamente_largo_que_supera_el_limite_de_longitud = 1;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x0001h"})
     mensajes = [v.mensaje for v in viols if v.codigo == "0x0001h"]
     assert len(mensajes) == 2
@@ -102,7 +102,7 @@ int calcular(int precioBase, float tasaIva)
     }
     return montoTotal;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x0007h"})
     mensajes = [v.mensaje for v in viols if v.codigo == "0x0007h"]
     assert any("'precioBase'" in m for m in mensajes)
@@ -121,7 +121,7 @@ int calcular(void)
     int acumulador = 0;
     return acumulador;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x0003h"})
     assert any(v.codigo == "0x0003h" and "'contador'" in v.mensaje for v in viols)
     assert not any("'acumulador'" in v.mensaje for v in viols)
@@ -145,7 +145,7 @@ int evaluar(int valor_entrada)
     int mascara = 0xFF;
     return (int)factor + mascara;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x300Dh"})
     mensajes = [v.mensaje for v in viols if v.codigo == "0x300Dh"]
     # 42, 2.5, 0xFF deben ser detectados
@@ -174,7 +174,7 @@ envio_t *crear(int fd, int id)
     envio_t *env = (envio_t *)0;
     return env;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(fuente, reglas_habilitadas={"0x0001h"})
     mensajes = [v.mensaje for v in viols if v.codigo == "0x0001h"]
     assert any("'id'" in m for m in mensajes)

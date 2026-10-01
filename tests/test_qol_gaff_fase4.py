@@ -12,7 +12,8 @@ def test_qol_proportionality_0x0020h(tmp_path: Path):
         "int f(void)\n"
         "{\n"
         "    return x;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols = analizar_archivo(src_bad, reglas_habilitadas={"0x0020h"})
     assert any(v.codigo == "0x0020h" and "f" in v.mensaje for v in viols)
@@ -25,7 +26,8 @@ def test_qol_proportionality_0x0020h(tmp_path: Path):
         "{\n"
         "    int i = 0;\n"
         "    return contador_global + i;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols_ok = analizar_archivo(src_ok, reglas_habilitadas={"0x0020h"})
     assert not any(v.codigo == "0x0020h" for v in viols_ok)
@@ -40,7 +42,8 @@ def test_qol_std_headers_0x5016h(tmp_path: Path):
         "    char *p = malloc(10);\n"
         "    printf(\"hola\");\n"
         "    return 0;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols = analizar_archivo(src_bad, reglas_habilitadas={"0x5016h"})
     assert any(v.codigo == "0x5016h" and "malloc" in v.mensaje and "stdlib.h" in v.mensaje for v in viols)
@@ -56,7 +59,8 @@ def test_qol_std_headers_0x5016h(tmp_path: Path):
         "    printf(\"hola\");\n"
         "    free(p);\n"
         "    return 0;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols_ok = analizar_archivo(src_ok, reglas_habilitadas={"0x5016h"})
     assert not any(v.codigo == "0x5016h" for v in viols_ok)
@@ -74,7 +78,8 @@ def test_qol_ctrl_assign_0x1014h(tmp_path: Path):
         "        break;\n"
         "    }\n"
         "    return 0;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols = analizar_archivo(src_bad, reglas_habilitadas={"0x1014h"})
     assert any(v.codigo == "0x1014h" and "c" in v.mensaje and "while" in v.mensaje for v in viols)
@@ -89,7 +94,8 @@ def test_qol_ctrl_assign_0x1014h(tmp_path: Path):
         "        c = 0;\n"
         "    }\n"
         "    return 0;\n"
-        "}\n"
+        "}\n",
+        encoding="utf-8",
     )
     viols_ok = analizar_archivo(src_ok, reglas_habilitadas={"0x1014h"})
     assert not any(v.codigo == "0x1014h" for v in viols_ok)

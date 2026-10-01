@@ -19,7 +19,7 @@ void test_fn(int *ptr, char *buffer) {
         return;
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x3008h"})
     assert len(viols) == 0, f"Falso positivo en 0x3008h: {[v.mensaje for v in viols]}"
 
@@ -32,7 +32,7 @@ void test_fn(int *ptr) {
         return;
     }
 }
-""")
+""", encoding="utf-8")
     viols_bad = analizar_archivo(src_bad, reglas_habilitadas={"0x3008h"})
     assert any(v.codigo == "0x3008h" for v in viols_bad)
 
@@ -53,7 +53,7 @@ void test_fn(int *ptr) {
         return;
     }
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x3019h"})
     assert len(viols) == 0, f"Falso positivo en 0x3019h: {[v.mensaje for v in viols]}"
 
@@ -66,7 +66,7 @@ void test_fn(int *ptr) {
         return;
     }
 }
-""")
+""", encoding="utf-8")
     viols_bad = analizar_archivo(src_bad, reglas_habilitadas={"0x3019h"})
     assert any(v.codigo == "0x3019h" for v in viols_bad)
 
@@ -85,7 +85,7 @@ void test_fn(void) {
     Persona *ptr_persona = &persona_local;
     struct Persona *ptr_struct = &persona_local;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x0003h"})
     mensajes_mul = [v.mensaje for v in viols if "operador binario '*'" in v.mensaje]
     assert len(mensajes_mul) == 0, f"Falso positivo en 0x0003h: {mensajes_mul}"
@@ -102,7 +102,7 @@ void test_fn(int *p, int mask, int x) {
     int *cast_ptr = (int *) &x;
     *p = &x ? *p : 0;
 }
-""")
+""", encoding="utf-8")
     viols = analizar_archivo(src, reglas_habilitadas={"0x0016h"})
     assert len(viols) == 0, f"Falso positivo en 0x0016h: {[v.mensaje for v in viols]}"
 
@@ -113,6 +113,6 @@ void test_fn(int *p, int mask, int x) {
 void test_fn(int *p, int x) {
     int *dest = & x;
 }
-""")
+""", encoding="utf-8")
     viols_bad = analizar_archivo(src_bad, reglas_habilitadas={"0x0016h"})
     assert any(v.codigo == "0x0016h" for v in viols_bad)

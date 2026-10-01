@@ -17,6 +17,7 @@ GAFF es un linter pedagógico de código C y cabeceras H diseñado para hacer cu
 - Gestión de archivos y errores (`0x40XXh`): validación de `fopen`, erradicación del antipatrón `while (!feof(f))` (`0x4006h`), rutas absolutas (`0x4007h`), chequeo de retorno de `fclose` en escritura (`0x4008h`), `fopen` anidado en E/S (`0x4009h`), prevención de use-after-close tras `fclose()` (`0x400Ah`), verificación de retornos de `fread`/`fwrite`, uso de `perror`/`strerror`/`errno`, simetría y offsets de `fseek`.
 - Buenas prácticas de compilación (`0x50XXh`): guardas en cabeceras, deduplicación de inclusiones con autofix (`0x5007h`), prohibición de funciones obsoletas (`gets`, `atoi`) (`0x5008h`), advertencia de división entera a flotante (`0x5009h`), paréntesis en macros (`0x500Ah`), cabeceras estándar requeridas (`0x500Bh`), prohibición de incluir archivos `.c` (`0x500Ch`), prohibición de redefinir keywords con `#define` (`0x500Dh`), erradicación de `<conio.h>` (`0x500Eh`), cadenas seguras y orden canónico.
 - Formateo automático de código C mediante archivo de configuración `.clang-format` institucional.
+- Equivalencias sintácticas, el «desazucarado» (`gaff explain-syntax`): cada sentencia con su equivalente sin azúcar (`a[i]` ≡ `*(a + i)`, `p->x` ≡ `(*p).x`, `x += y`, `for` ≡ `while`, parámetros `int v[]` ≡ `int *v`, cadenas como arreglos con `'\0'`), con las diferencias que importan (el `continue` de un `for`, `x++` dentro de una expresión).
 - Árbol de ejemplos canónicos (`examples/`) con suites de prueba para las familias de reglas verificadas.
 
 ### Qué no cubre (Límites y Delegación)
@@ -92,6 +93,7 @@ gaff doctor
 | `gaff report` | Genera directamente la sección de reporte Markdown de GAFF para Dredd. |
 | `gaff rules` | Lista todas las reglas de estilo y arquitectura del catálogo de cátedra. |
 | `gaff explain` | Explica en detalle una regla de cátedra con ejemplos de código correctos e incorrectos. |
+| `gaff explain-syntax` | Muestra cada sentencia sin azúcar sintáctico: a ≡ *(a + i), p->x ≡ (*p).x, x += y, for ≡ while… |
 | `gaff init-config` | Exporta la configuración de estilo de la cátedra (.clang-format o .gaffrc.json). |
 | `gaff fix` | Aplica correcciones automáticas de estilo con opción de vista previa interactiva. |
 | `gaff format` | Formatea código C/H aplicando las convenciones canónicas de la cátedra. |

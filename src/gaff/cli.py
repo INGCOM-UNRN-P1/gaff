@@ -266,6 +266,52 @@ def explain_cmd(
     console.print(Panel(cuerpo, title=f"📘 Regla {cod}", border_style="cyan"))
 
 
+@app.command("explain-syntax")
+def explain_syntax_cmd(
+    archivo: Optional[Path] = typer.Argument(None, help="Archivo C a explicar.", exists=True, dir_okay=False),
+    codigo: Optional[str] = typer.Option(None, "--code", "-c", help="Fragmento de C en lugar de un archivo, por ejemplo 'p->x = a[i];'."),
+    linea: Optional[int] = typer.Option(None, "--line", "-l", min=1, help="Solo la sentencia de esa línea."),
+    json_output: bool = typer.Option(False, "--json", help="Emitir la salida en JSON."),
+) -> None:
+    """Muestra cada sentencia sin azúcar sintáctico: a[i] ≡ *(a + i), p->x ≡ (*p).x, x += y, for ≡ while…"""
+    from rich.markup import escape
+
+    from gaff.core.desazucarado import EXPLICACIONES, explicar, tipos_usados
+
+    if (archivo is None) == (codigo is None):
+        err_console.print("[red]Error:[/red] indicá un archivo o un fragmento con --code (uno de los dos).")
+        raise typer.Exit(code=2)
+    texto = codigo if codigo is not None else archivo.read_text(encoding="utf-8", errors="replace")
+    sentencias = explicar(texto, linea)
+    usados = tipos_usados(sentencias)
+
+    if json_output:
+        print(json.dumps({
+            "schema_version": "1.0.0", "herramienta": "gaff", "comando": "explain-syntax",
+            "archivo": str(archivo) if archivo else None,
+            "sentencias": [s.a_dict() for s in sentencias],
+            "explicaciones": {t: {"forma": EXPLICACIONES[t][0], "explicacion": EXPLICACIONES[t][1]} for t in usados},
+        }, indent=2, ensure_ascii=False))
+        return
+    if not sentencias:
+        donde = f"la línea {linea}" if linea else ("el fragmento" if codigo is not None else archivo.name)
+        console.print(f"[green]No hay azúcar sintáctico para explicar en {donde}.[/green]")
+        return
+
+    for s in sentencias:
+        console.print(f"[dim]{s.linea:>5} │[/dim] {escape(s.original)}")
+        console.print(f"[dim]      ≡[/dim] [green]{escape(s.equivalente).replace(chr(10), chr(10) + '        ')}[/green]")
+        for e in s.equivalencias:
+            # El for ya se ve entero en el equivalente; su forma general está en el panel.
+            if e.original != e.equivalente and e.tipo != "for":
+                console.print(f"[dim]        · {escape(e.original)} ≡ {escape(e.equivalente)}[/dim]")
+            if e.advertencia:
+                console.print(f"[yellow]        ⚠ {escape(e.advertencia)}[/yellow]")
+        console.print()
+    cuerpo = "\n\n".join(f"[bold]{escape(EXPLICACIONES[t][0])}[/bold]\n{escape(EXPLICACIONES[t][1])}" for t in usados)
+    console.print(Panel(cuerpo, title="📘 Equivalencias usadas", border_style="cyan"))
+
+
 CLANG_FORMAT_CATEDRA = """# Configuración canónica de formato para Cátedra de Programación 1 / Algoritmos
 BasedOnStyle: LLVM
 IndentWidth: 4

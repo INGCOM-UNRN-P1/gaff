@@ -18,6 +18,7 @@
 - Gestión de archivos y errores (`0x40XXh`): validación de `fopen`, erradicación del antipatrón `while (!feof(f))` (`0x4006h`), rutas absolutas (`0x4007h`), chequeo de retorno de `fclose` en escritura (`0x4008h`), `fopen` anidado en E/S (`0x4009h`), prevención de use-after-close tras `fclose()` (`0x400Ah`), verificación de retornos de `fread`/`fwrite`, uso de `perror`/`strerror`/`errno`, simetría y offsets de `fseek`.
 - Buenas prácticas de compilación (`0x50XXh`): guardas en cabeceras, deduplicación de inclusiones con autofix (`0x5007h`), prohibición de funciones obsoletas (`gets`, `atoi`) (`0x5008h`), advertencia de división entera a flotante (`0x5009h`), paréntesis en macros (`0x500Ah`), cabeceras estándar requeridas (`0x500Bh`), prohibición de incluir archivos `.c` (`0x500Ch`), prohibición de redefinir keywords con `#define` (`0x500Dh`), erradicación de `<conio.h>` (`0x500Eh`), cadenas seguras y orden canónico.
 - Formateo automático de código C mediante archivo de configuración `.clang-format` institucional.
+- Equivalencias sintácticas, el «desazucarado» (`gaff explain-syntax`): cada sentencia con su equivalente sin azúcar (`a[i]` ≡ `*(a + i)`, `p->x` ≡ `(*p).x`, `x += y`, `for` ≡ `while`, parámetros `int v[]` ≡ `int *v`, cadenas como arreglos con `'\0'`), con las diferencias que importan (el `continue` de un `for`, `x++` dentro de una expresión).
 - Árbol de ejemplos canónicos (`examples/`) con suites de prueba para las familias de reglas verificadas.
 
 ### Límites de Responsabilidad y Delegación (Qué no cubre)
@@ -62,6 +63,7 @@ gaff doctor
 | [`gaff report`](#report) | Genera directamente la sección de reporte Markdown de GAFF para Dredd. |
 | [`gaff rules`](#rules) | Lista todas las reglas de estilo y arquitectura del catálogo de cátedra. |
 | [`gaff explain`](#explain) | Explica en detalle una regla de cátedra con ejemplos de código correctos e incorrectos. |
+| [`gaff explain-syntax`](#explainsyntax) | Muestra cada sentencia sin azúcar sintáctico: a[i] ≡ *(a + i), p->x ≡ (*p).x, x += y, for ≡ while… |
 | [`gaff init-config`](#initconfig) | Exporta la configuración de estilo de la cátedra (.clang-format o .gaffrc.json). |
 | [`gaff fix`](#fix) | Aplica correcciones automáticas de estilo con opción de vista previa interactiva. |
 | [`gaff format`](#format) | Formatea código C/H aplicando las convenciones canónicas de la cátedra. |
@@ -149,6 +151,46 @@ Explica en detalle una regla de cátedra con ejemplos de código correctos e inc
 #### Ejemplo de Invocación
 ```bash
 gaff explain <codigo>
+```
+
+### `gaff explain-syntax`
+
+Muestra, para cada sentencia que usa azúcar sintáctico, la sentencia equivalente escrita con las
+operaciones de base, y qué equivalencia se aplicó. Es análisis sintáctico (tree-sitter): no compila ni
+ejecuta el código. Al final, un panel explica cada equivalencia usada.
+
+| Equivalencia | Qué muestra |
+| :--- | :--- |
+| `a[i]` ≡ `*(a + i)` | El subíndice es aritmética de punteros (también `m[i][j]` ≡ `*(*(m + i) + j)`). |
+| `&a[i]` ≡ `(a + i)` | La dirección de un elemento. |
+| `p->x` ≡ `(*p).x` | La flecha desreferencia y toma el campo. |
+| `x += y` ≡ `x = x + (y)` | Con la diferencia de que `x` se evalúa una vez. |
+| `x++;` ≡ `x = x + 1;` | Como sentencia; dentro de una expresión, avisa qué valor tiene. |
+| `for` ≡ `while` | El bucle completo, y un aviso si tiene `continue` (que en el `while` saltearía el incremento). |
+| `x = c ? a : b;` ≡ `if/else` | También `return c ? a : b;`. |
+| `if (p)` ≡ `if (p != 0)`, `!p` ≡ `p == 0` | La verdad en C es «distinto de 0». |
+| `char s[] = "ok";` ≡ `{'o', 'k', '\0'}` | El `'\0'` que agrega la cadena. |
+| `int v[]` ≡ `int *v` (parámetro) | También `int m[][3]` ≡ `int (*m)[3]` y `char *argv[]` ≡ `char **argv`. |
+
+#### Argumentos
+| Argumento | Descripción |
+| :--- | :--- |
+| `archivo` | Archivo C a explicar (o `--code`). |
+
+#### Opciones y Banderas
+| Opción | Descripción |
+| :--- | :--- |
+| `--code`, `-c` | Fragmento de C en lugar de un archivo; las sentencias sueltas se analizan como el cuerpo de una función. |
+| `--line`, `-l` | Solo la sentencia de esa línea. |
+| `--json` | Salida JSON (`schema_version`, `sentencias` con sus `equivalencias`, `explicaciones`). |
+
+Sale con 0 (es informativo) y con 2 si no se indica ni archivo ni `--code`, o se indican los dos.
+
+#### Ejemplo de Invocación
+```bash
+gaff explain-syntax lista.c
+gaff explain-syntax lista.c --line 42
+gaff explain-syntax --code 'p->sig->v[i] -= 1;'
 ```
 
 ### `gaff init-config`

@@ -28,7 +28,7 @@ def violaciones(ruta: Path) -> list[list]:
 
 
 def main() -> None:
-    golden = {str(r.relative_to(RAIZ)): violaciones(r) for r in ejemplos()}
+    golden = {r.relative_to(RAIZ).as_posix(): violaciones(r) for r in ejemplos()}
     (AQUI / "golden.json").write_text(json.dumps(golden, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"{len(golden)} ejemplos, {sum(len(v) for v in golden.values())} violaciones")
 

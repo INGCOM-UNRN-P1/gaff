@@ -19,7 +19,8 @@ GOLDEN = json.loads((DIRECTORIO / "golden.json").read_text(encoding="utf-8"))
 
 
 def test_el_golden_cubre_todos_los_ejemplos():
-    assert set(GOLDEN) == {str(r.relative_to(_generador.RAIZ)) for r in _generador.ejemplos()}
+    # as_posix: en Windows relative_to usa la barra invertida y el golden se generó con «/».
+    assert set(GOLDEN) == {r.relative_to(_generador.RAIZ).as_posix() for r in _generador.ejemplos()}
 
 
 @pytest.mark.parametrize("ejemplo", sorted(GOLDEN))

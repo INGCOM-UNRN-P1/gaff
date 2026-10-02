@@ -189,4 +189,11 @@ class ReporteLinting:
             "total_violaciones": self.total_violaciones,
             "total_arreglos": self.total_arreglos,
             "archivos": [a.to_dict() for a in self.archivos],
+            # La forma común del ecosistema (yutani.hallazgos), para dredd y el apunte.
+            "hallazgos": [_a_hallazgo(v) for a in self.archivos for v in a.violaciones],
         }
+
+
+def _a_hallazgo(v: "ViolacionRegla") -> Dict[str, Any]:
+    from gaff.core.taxonomia import a_hallazgo  # import diferido: taxonomia importa este módulo
+    return a_hallazgo(v)

@@ -21,22 +21,11 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Entrada/salida y llamadas a sistema sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x4001h: Manejá correctamente la apertura y cierre de archivos (validar fopen)
+def _regla_4001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
-    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # -------------------------------------------------------------------------
-    # 0x4001h: Manejá correctamente la apertura y cierre de archivos (validar fopen)
-    # -------------------------------------------------------------------------
     if ctx.esta_activa("0x4001h"):
         re_fopen_call = re.compile(r"\b([a-zA-Z_]\w*)\s*=\s*fopen\s*\([^;]+\)\s*;")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -59,9 +48,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x4002h: Validar retornos de operaciones de lectura y escritura de archivos
-    # -------------------------------------------------------------------------
+
+# 0x4002h: Validar retornos de operaciones de lectura y escritura de archivos
+def _regla_4002(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x4002h"):
         re_io_ignored = re.compile(r"^\s*(?:(?:void\s*)?\b(fread|fwrite|fscanf)\s*\([^;]+\)\s*;)")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -81,9 +73,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x4003h: Utilizá errno, perror y strerror para reportar fallos del SO
-    # -------------------------------------------------------------------------
+
+# 0x4003h: Utilizá errno, perror y strerror para reportar fallos del SO
+def _regla_4003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x4003h"):
         re_fopen_err = re.compile(r"\bif\s*\(\s*([a-zA-Z_]\w*)\s*==\s*NULL\s*\)\s*\{([^}]+)\}")
         for m_err in re_fopen_err.finditer(codigo_sin_comentarios):
@@ -103,9 +99,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x4004h: Asegurar simetría de recursos al abrir y cerrar archivos
-    # -------------------------------------------------------------------------
+
+# 0x4004h: Asegurar simetría de recursos al abrir y cerrar archivos
+def _regla_4004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x4004h"):
         re_fn_fopen = re.compile(r"^(?:[a-zA-Z_]\w*\*?|\w+\s*\*?)\s*([a-zA-Z_]\w*)\s*\([^)]*\)\s*\{", re.MULTILINE)
         for m_fn in re_fn_fopen.finditer(codigo_sin_comentarios):
@@ -135,9 +135,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x4005h: Evitar offsets y posiciones fijas codificadas a mano en fseek
-    # -------------------------------------------------------------------------
+
+# 0x4005h: Evitar offsets y posiciones fijas codificadas a mano en fseek
+def _regla_4005(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x4005h"):
         re_fseek_magic = re.compile(r"\bfseek\s*\(\s*[^,]+\s*,\s*([1-9]\d*)\s*,\s*SEEK_SET\s*\)")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -157,9 +160,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x4007h: Prohibición de rutas absolutas hardcodeadas en llamadas de archivo
-    # -------------------------------------------------------------------------
+
+# 0x4007h: Prohibición de rutas absolutas hardcodeadas en llamadas de archivo
+def _regla_4007(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x4007h"):
         re_abs_path = re.compile(r'\bfopen\s*\(\s*"(?:/(?:home|etc|var|tmp|usr|opt)|[a-zA-Z]:\\\\)')
         for i, l in enumerate(lineas_sin_comentarios):
@@ -178,9 +184,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x4006h: Prohibición del antipatrón while (!feof(f))
-    # -------------------------------------------------------------------------
+
+# 0x4006h: Prohibición del antipatrón while (!feof(f))
+def _regla_4006(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x4006h"):
         re_while_feof = re.compile(r"\bwhile\s*\(\s*!feof\s*\(")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -199,9 +208,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x4008h: Validación obligatoria del valor de retorno de fclose() en modo escritura
-    # -------------------------------------------------------------------------
+
+# 0x4008h: Validación obligatoria del valor de retorno de fclose() en modo escritura
+def _regla_4008(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x4008h"):
         re_write_file = re.compile(r'\b([a-zA-Z_]\w*)\s*=\s*fopen\s*\([^)]*"(?:w|a|wb|w\+|a\+)"[^)]*\)\s*;')
         for m_wf in re_write_file.finditer(codigo_sin_comentarios):
@@ -222,9 +235,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x4009h: Prohibición de anidar llamadas a fopen() directamente dentro de funciones de E/S
-    # -------------------------------------------------------------------------
+
+# 0x4009h: Prohibición de anidar llamadas a fopen() directamente dentro de funciones de E/S
+def _regla_4009(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x4009h"):
         re_nested_fopen = re.compile(r"\b(?:fscanf|fread|fwrite|fgets|fgetc|fputc)\s*\([^)]*\bfopen\s*\(")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -243,9 +259,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x400Ah: Prohibición de operar sobre flujos de archivo tras haber invocado fclose() (use-after-close)
-    # -------------------------------------------------------------------------
+
+# 0x400Ah: Prohibición de operar sobre flujos de archivo tras haber invocado fclose() (use-after-close)
+def _regla_400a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x400Ah"):
         re_fclose_var = re.compile(r"\bfclose\s*\(\s*([a-zA-Z_]\w*)\s*\)\s*;")
         for m_fc in re_fclose_var.finditer(codigo_sin_comentarios):
@@ -268,4 +288,25 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
+
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_4001,
+    _regla_4002,
+    _regla_4003,
+    _regla_4004,
+    _regla_4005,
+    _regla_4007,
+    _regla_4006,
+    _regla_4008,
+    _regla_4009,
+    _regla_400a,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Entrada/salida y llamadas a sistema sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

@@ -24,20 +24,11 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Tipos y estructuras sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x1001h: Estructuras de control sin llaves
+def _regla_1001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # 0x1001h: Estructuras de control sin llaves
     if ctx.esta_activa("0x1001h"):
         re_if_sin_llaves = re.compile(r"^\s*(?:if\s*\([^)]+\)|for\s*\([^)]+\)|while\s*\([^)]+\)|else)\s*([^{};\s][^;]*;)", re.MULTILINE)
         for m in re_if_sin_llaves.finditer(codigo_sin_comentarios):
@@ -56,7 +47,14 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # 0x2003h: Documentación completa de funciones y prototipos
+
+# 0x2003h: Documentación completa de funciones y prototipos
+def _regla_2003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    es_header = ctx.es_header
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x2003h"):
         def _obtener_prototipos_documentados_header(ruta_h: Path) -> Set[str]:
             if not ruta_h.is_file():
@@ -201,11 +199,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x30XXh: Punteros y Gestión de Memoria
-    # -------------------------------------------------------------------------
 
-    # 0x3004h: Nomenclatura de typedef con _t o t_
+# 0x30XXh: Punteros y Gestión de Memoria
+# 0x3004h: Nomenclatura de typedef con _t o t_
+def _regla_3004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x3004h"):
         re_typedef = re.compile(r"\btypedef\s+(?:struct|enum|union)\s*(?:\w*\s*\{[^}]*\}|\w+)\s+(\w+)\s*;", re.DOTALL)
         for m in re_typedef.finditer(codigo_sin_comentarios):
@@ -224,9 +223,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x5005h: Organizar la estructura de los archivos .c de forma estándar
-    # -------------------------------------------------------------------------
+
+# 0x5005h: Organizar la estructura de los archivos .c de forma estándar
+def _regla_5005(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x5005h") and ruta.suffix.lower() == ".c":
         primera_funcion_linea = None
         for i, l in enumerate(lineas_sin_comentarios):
@@ -284,9 +286,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     ))
                     break
 
-    # -------------------------------------------------------------------------
-    # 0x100Bh: Prohibición de estructuras de control con cuerpo vacío (if (...);) o llaves vacías
-    # -------------------------------------------------------------------------
+
+# 0x100Bh: Prohibición de estructuras de control con cuerpo vacío (if (...);) o llaves vacías
+def _regla_100a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x100Ah"):
         re_empty_body = re.compile(r"^[ \t]*(?:if|while|for)\s*\([^)]*\)\s*;\s*$", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
@@ -321,9 +326,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x1013h: Prohibición de saltos no estructurados goto hacia atrás o fuera de liberación de recursos
-    # -------------------------------------------------------------------------
+
+# 0x1013h: Prohibición de saltos no estructurados goto hacia atrás o fuera de liberación de recursos
+def _regla_1011(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x1011h"):
         etiquetas_linea: Dict[str, int] = {}
         re_label = re.compile(r"^[ \t]*([a-zA-Z_]\w*)\s*:(?!\s*case\b|\s*default\b)")
@@ -363,9 +371,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x1014h: Prohibición de expresiones de asignación dentro de estructuras de control
-    # -------------------------------------------------------------------------
+
+# 0x1014h: Prohibición de expresiones de asignación dentro de estructuras de control
+def _regla_1012(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x1012h"):
         re_ctrl_assign = re.compile(r"\b(if|while|switch)\s*\([^;]*?\(\s*([a-zA-Z_]\w*)\s*=(?!=)\s*[^;]*?\)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -386,9 +397,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x301Ah: Validador de uso idiomático de tipos booleanos estándar
-    # -------------------------------------------------------------------------
+
+# 0x301Ah: Validador de uso idiomático de tipos booleanos estándar
+def _regla_301a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x301Ah"):
         re_bad_bool = re.compile(r"\btypedef\s+(?:int|char|short)\s+([A-Z_]*BOOL[A-Z_]*)\b|#define\s+(TRUE|FALSE)\s+[01]")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -410,4 +424,23 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
+
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_1001,
+    _regla_2003,
+    _regla_3004,
+    _regla_5005,
+    _regla_100a,
+    _regla_1011,
+    _regla_1012,
+    _regla_301a,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Tipos y estructuras sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

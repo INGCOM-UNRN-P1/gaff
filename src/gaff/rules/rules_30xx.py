@@ -21,24 +21,13 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Variables globales y locales sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x20XXh: Funciones y Modularización
+# 0x2004h: Variables globales mutables
+def _regla_2004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
-    lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # -------------------------------------------------------------------------
-    # 0x20XXh: Funciones y Modularización
-    # -------------------------------------------------------------------------
-
-    # 0x2004h: Variables globales mutables
     if ctx.esta_activa("0x2004h") and not es_header:
         re_global = re.compile(rf"^({TIPOS_BASICOS})\s+(\*?[a-zA-Z_]\w*)\s*(?:=\s*[^;]+)?\s*;", re.MULTILINE)
         for m in re_global.finditer(codigo_sin_comentarios):
@@ -58,9 +47,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x2007h: Mantené el alcance de las variables al mínimo posible
-    # -------------------------------------------------------------------------
+
+# 0x2007h: Mantené el alcance de las variables al mínimo posible
+def _regla_2006(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x2006h"):
         re_for_outer = re.compile(r"^\s*(?:int|size_t)\s+([a-zA-Z_]\w*)\s*;", re.MULTILINE)
         for m_var in re_for_outer.finditer(codigo_sin_comentarios):
@@ -80,9 +73,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x3010h: Variables de tamaño o índice deben ser de tipo size_t
-    # -------------------------------------------------------------------------
+
+# 0x3010h: Variables de tamaño o índice deben ser de tipo size_t
+def _regla_3010(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x3010h"):
         re_int_size = re.compile(r"\bint\s+((?:tamano|tamanio|longitud|cantidad|len|tam|sz)\w*)\s*(?:=|;)", re.IGNORECASE)
         re_int_sizeof_assign = re.compile(r"\bint\s+([a-zA-Z_]\w*)\s*=\s*(?:sizeof|strlen)\s*\(")
@@ -119,9 +115,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x100Ch: Exigencia de break explícito o comentario de fallthrough en bloques switch case
-    # -------------------------------------------------------------------------
+
+# 0x100Ch: Exigencia de break explícito o comentario de fallthrough en bloques switch case
+def _regla_100b(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x100Bh"):
         re_case_block = re.compile(r"\bcase\s+[^:]+:\s*\n((?:[^\n]+\n)*?)(?=\s*(?:case\s+[^:]+|default)\s*:)", re.MULTILINE)
         for m_cb in re_case_block.finditer(codigo_sin_comentarios):
@@ -142,9 +142,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x200Ch: Prohibición de retornar la dirección de una variable local de stack
-    # -------------------------------------------------------------------------
+
+# 0x200Ch: Prohibición de retornar la dirección de una variable local de stack
+def _regla_200b(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x200Bh"):
         re_ret_addr = re.compile(r"^\s*return\s+&\s*([a-zA-Z_]\w*)\s*;", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
@@ -164,9 +167,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x100Ch: Detección de comparaciones en estilo Yoda (CONST == var)
-    # -------------------------------------------------------------------------
+
+# 0x100Ch: Detección de comparaciones en estilo Yoda (CONST == var)
+def _regla_100b_2(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x100Bh"):
         re_yoda = re.compile(r"\b(NULL|0|[1-9]\d*|true|false)\s*(==|!=)\s*([a-zA-Z_]\w*(?:->\w+|\.\w+|\[[^\]]+\])?)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -189,9 +195,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x2012h: Prohibición de asignaciones múltiples consecutivas sin lectura intermedia (dead store)
-    # -------------------------------------------------------------------------
+
+# 0x2012h: Prohibición de asignaciones múltiples consecutivas sin lectura intermedia (dead store)
+def _regla_2011(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x2011h"):
         re_decl_assign = re.compile(rf"\b(?:{TIPOS_BASICOS}|\w+_t)\s+(?:\*\s*)?([a-zA-Z_]\w*)\s*=\s*([^;]+);")
         re_assign_only = re.compile(r"^[ \t]*([a-zA-Z_]\w*)\s*=\s*([^;]+);")
@@ -261,9 +270,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     ))
                 pendientes_escritura[nueva_var_asignada] = (i + 1, col_asignacion, rhs_expr)
 
-    # -------------------------------------------------------------------------
-    # 0x0023h: Detector de variables locales no inicializadas con modificador const
-    # -------------------------------------------------------------------------
+
+# 0x0023h: Detector de variables locales no inicializadas con modificador const
+def _regla_301c(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x301Ch"):
         re_const_uninit = re.compile(r"\bconst\s+(?:struct\s+\w+|\w+)\s*(\*+)?\s*([a-zA-Z_]\w*)\s*;")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -285,4 +297,23 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
+
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_2004,
+    _regla_2006,
+    _regla_3010,
+    _regla_100b,
+    _regla_200b,
+    _regla_100b_2,
+    _regla_2011,
+    _regla_301c,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Variables globales y locales sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

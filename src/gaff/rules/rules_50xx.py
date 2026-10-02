@@ -21,24 +21,12 @@ from gaff.core.rules import (
 )
 
 
-def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
-    """Evalúa las reglas de Estructuras de control y flujo sobre el contexto del archivo."""
-    violaciones: List[ViolacionRegla] = []
+# 0x10XXh: Estructuras de Control y Lazos
+# 0x1006h: Prohibición de goto
+def _regla_1006(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     lineas = ctx.lineas
-    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     lineas_sin_comentarios = ctx.lineas_sin_comentarios
-    codigo_sin_cadenas = ctx.codigo_sin_cadenas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    es_header = ctx.es_header
-    contenido_original = ctx.contenido_original
-
-
-    # -------------------------------------------------------------------------
-    # 0x10XXh: Estructuras de Control y Lazos
-    # -------------------------------------------------------------------------
-
-    # 0x1006h: Prohibición de goto
     if ctx.esta_activa("0x1006h"):
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_goto = re.search(r"\bgoto\s+\w+", linea)
@@ -56,7 +44,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x1002h: Prohibición de continue
+
+# 0x1002h: Prohibición de continue
+def _regla_1002(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x1002h"):
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             m_cont = re.search(r"\bcontinue\s*;", linea)
@@ -74,7 +67,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x1007h: Prohibición de operador ternario ?:
+
+# 0x1007h: Prohibición de operador ternario ?:
+def _regla_1007(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x1007h"):
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
             if not linea.strip().startswith("#"):
@@ -93,7 +91,11 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=False,
                     ))
 
-    # 0x1008h: Switch sin default
+
+# 0x1008h: Switch sin default
+def _regla_1008(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x1008h"):
         re_switch = re.compile(r"\bswitch\s*\([^)]+\)\s*\{", re.MULTILINE)
         for m in re_switch.finditer(codigo_sin_comentarios):
@@ -123,7 +125,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # 0x1003h: for(;;) o for(; cond;)
+
+# 0x1003h: for(;;) o for(; cond;)
+def _regla_1003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x1003h"):
         re_for_empty = re.compile(r"\bfor\s*\(\s*;\s*;\s*\)|\bfor\s*\(\s*;\s*[^;]+;\s*\)")
         for idx, linea in enumerate(lineas_sin_comentarios, 1):
@@ -142,9 +149,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x1004h: Condiciones complejas deben simplificarse o comentarse
-    # -------------------------------------------------------------------------
+
+# 0x1004h: Condiciones complejas deben simplificarse o comentarse
+def _regla_1004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x1004h"):
         re_control_cond = re.compile(r"\b(?:if|while)\s*\((.*?)\)\s*\{?", re.DOTALL)
         for m in re_control_cond.finditer(codigo_sin_comentarios):
@@ -165,9 +176,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x1005h: Evitar condiciones ambiguas por truthiness (strcmp, punteros, chars)
-    # -------------------------------------------------------------------------
+
+# 0x1005h: Evitar condiciones ambiguas por truthiness (strcmp, punteros, chars)
+def _regla_1005(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x1005h"):
         re_not_strcmp = re.compile(r"\b(?:if|while)\s*\(\s*!\s*str(?:n)?(?:case)?cmp\s*\(")
         re_not_ptr = re.compile(r"\b(?:if|while)\s*\(\s*!\s*([a-zA-Z_]\w*(?:_ptr|ptr|p))\s*\)")
@@ -219,9 +233,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x100Ah: Prohibición de asignaciones simples dentro de condiciones lógicas
-    # -------------------------------------------------------------------------
+
+# 0x100Ah: Prohibición de asignaciones simples dentro de condiciones lógicas
+def _regla_1009(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x1009h"):
         re_assign_in_cond = re.compile(r"\b(?:if|while)\s*\(\s*([a-zA-Z_]\w*)\s*=\s*([^=;()]+)\s*\)")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -242,9 +259,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x100Eh: Prohibición de condiciones constantes o tautológicas en sentencias if
-    # -------------------------------------------------------------------------
+
+# 0x100Eh: Prohibición de condiciones constantes o tautológicas en sentencias if
+def _regla_100c(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x100Ch"):
         re_const_if = re.compile(r"\bif\s*\(\s*(1|0|true|false)\s*\)")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -264,9 +284,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x100Fh: Prohibición de condiciones de parada compuestas complejas en lazos for
-    # -------------------------------------------------------------------------
+
+# 0x100Fh: Prohibición de condiciones de parada compuestas complejas en lazos for
+def _regla_100d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x100Dh"):
         re_for_complex = re.compile(r"\bfor\s*\([^;]*;([^;]*(?:&&|\|\|)[^;]*);[^)]*\)")
         for i, l in enumerate(lineas_sin_comentarios):
@@ -285,9 +308,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x1010h: Delimitación obligatoria con bloque de llaves en lazos do-while
-    # -------------------------------------------------------------------------
+
+# 0x1010h: Delimitación obligatoria con bloque de llaves en lazos do-while
+def _regla_100e(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x100Eh"):
         re_do_nok = re.compile(r"^[ \t]*do[ \t]+(?!\{)[a-zA-Z_]\w*", re.MULTILINE)
         for i, l in enumerate(lineas_sin_comentarios):
@@ -306,9 +332,13 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x1011h: Prohibición de cláusula else redundante tras sentencia de retorno anticipado
-    # -------------------------------------------------------------------------
+
+# 0x1011h: Prohibición de cláusula else redundante tras sentencia de retorno anticipado
+def _regla_100f(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    codigo_sin_comentarios = ctx.codigo_sin_comentarios
+    contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x100Fh"):
         re_else_ret = re.compile(r"\breturn\s*[^;]*;\s*\}\s*else\b", re.MULTILINE)
         for m_er in re_else_ret.finditer(codigo_sin_comentarios):
@@ -326,9 +356,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                 es_autofixable=False,
             ))
 
-    # -------------------------------------------------------------------------
-    # 0x100Eh: Espaciado obligatorio alrededor de operadores ternarios (? :)
-    # -------------------------------------------------------------------------
+
+# 0x100Eh: Espaciado obligatorio alrededor de operadores ternarios (? :)
+def _regla_100c_2(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x100Ch"):
         for i, l in enumerate(lineas_sin_cadenas):
             if l.strip().startswith("#") or "case " in l or "default:" in l:
@@ -352,9 +385,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                         es_autofixable=True,
                     ))
 
-    # -------------------------------------------------------------------------
-    # 0x1012h: Prohibición de comparaciones encadenadas no idiomáticas en C (a < b < c)
-    # -------------------------------------------------------------------------
+
+# 0x1012h: Prohibición de comparaciones encadenadas no idiomáticas en C (a < b < c)
+def _regla_1010(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x1010h"):
         re_chained_cmp = re.compile(
             r"(?<![<>=!])\b([a-zA-Z0-9_]+)\s*(<=|<|>=|>|==)\s*([a-zA-Z0-9_]+)\s*(<=|<|>=|>|==)\s*([a-zA-Z0-9_]+)\b(?![<>=])"
@@ -383,9 +419,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=True,
                 ))
 
-    # -------------------------------------------------------------------------
-    # 0x1016h: Detector de expresiones booleanas complejas sin paréntesis aclaratorios
-    # -------------------------------------------------------------------------
+
+# 0x1016h: Detector de expresiones booleanas complejas sin paréntesis aclaratorios
+def _regla_1013(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x1013h"):
         re_if_cond = re.compile(r"\b(if|while)\s*\((.+)\)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -409,9 +448,12 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                             es_autofixable=False,
                         ))
 
-    # -------------------------------------------------------------------------
-    # 0x1017h: Detector de operadores de incremento o decremento múltiples en una misma expresión
-    # -------------------------------------------------------------------------
+
+# 0x1017h: Detector de operadores de incremento o decremento múltiples en una misma expresión
+def _regla_1014(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    ruta = ctx.ruta
+    lineas = ctx.lineas
+    lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x1014h"):
         re_multi_inc = re.compile(r"(\+\+|--)\s*([a-zA-Z_]\w*)|([a-zA-Z_]\w*)\s*(\+\+|--)")
         for i, l in enumerate(lineas_sin_cadenas):
@@ -436,4 +478,31 @@ def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
                     es_autofixable=False,
                 ))
 
+
+# Las reglas de la familia, en el orden en que se evalúan (y se informan).
+REGLAS = (
+    _regla_1006,
+    _regla_1002,
+    _regla_1007,
+    _regla_1008,
+    _regla_1003,
+    _regla_1004,
+    _regla_1005,
+    _regla_1009,
+    _regla_100c,
+    _regla_100d,
+    _regla_100e,
+    _regla_100f,
+    _regla_100c_2,
+    _regla_1010,
+    _regla_1013,
+    _regla_1014,
+)
+
+
+def verificar(ctx: ContextoAnalisis) -> List[ViolacionRegla]:
+    """Evalúa las reglas de Estructuras de control y flujo sobre el contexto del archivo."""
+    violaciones: List[ViolacionRegla] = []
+    for regla in REGLAS:
+        regla(ctx, violaciones)
     return violaciones

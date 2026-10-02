@@ -281,7 +281,11 @@ def explain_syntax_cmd(
     if (archivo is None) == (codigo is None):
         err_console.print("[red]Error:[/red] indicá un archivo o un fragmento con --code (uno de los dos).")
         raise typer.Exit(code=2)
-    texto = codigo if codigo is not None else archivo.read_text(encoding="utf-8", errors="replace")
+    if codigo is not None:
+        texto = codigo
+    else:
+        assert archivo is not None  # garantizado por el chequeo de arriba
+        texto = archivo.read_text(encoding="utf-8", errors="replace")
     sentencias = explicar(texto, linea)
     usados = tipos_usados(sentencias)
 
@@ -294,7 +298,7 @@ def explain_syntax_cmd(
         }, indent=2, ensure_ascii=False))
         return
     if not sentencias:
-        donde = f"la línea {linea}" if linea else ("el fragmento" if codigo is not None else archivo.name)
+        donde = f"la línea {linea}" if linea else ("el fragmento" if archivo is None else archivo.name)
         console.print(f"[green]No hay azúcar sintáctico para explicar en {donde}.[/green]")
         return
 

@@ -122,7 +122,8 @@ class _Desazucarador:
     # Texto ----------------------------------------------------------------------------------------
     @staticmethod
     def texto(nodo) -> str:
-        return nodo.text.decode("utf-8", errors="replace")
+        texto: str = nodo.text.decode("utf-8", errors="replace")
+        return texto
 
     def _anotar(self, tipo: str, original: str, equivalente: str, advertencia: str = "") -> None:
         self._equivalencias.append(Equivalencia(tipo, original, equivalente, advertencia))
@@ -134,7 +135,7 @@ class _Desazucarador:
         """El texto de `nodo` sin azúcar, anotando cada equivalencia aplicada."""
         metodo = getattr(self, f"_r_{nodo.type}", None)
         if metodo is not None:
-            resultado = metodo(nodo)
+            resultado: Optional[str] = metodo(nodo)
             if resultado is not None:
                 return resultado
         return self._generico(nodo)
@@ -243,7 +244,7 @@ class _Desazucarador:
         declarador, valor = nodo.child_by_field_name("declarator"), nodo.child_by_field_name("value")
         if declarador is None or valor is None or declarador.type != "array_declarator" or valor.type != "string_literal":
             return None
-        caracteres = []
+        caracteres: List[str] = []
         for hijo in valor.children:
             if hijo.type == "string_content":
                 caracteres.extend("'\\''" if c == "'" else f"'{c}'" for c in self.texto(hijo))
@@ -319,8 +320,8 @@ class _Desazucarador:
         condicion = nodo.child_by_field_name("condition")
         actualizacion = nodo.child_by_field_name("update")
         cuerpo = nodo.child_by_field_name("body")
-        cabecera = self.fuente[nodo.start_byte:(cuerpo.start_byte if cuerpo else nodo.end_byte)]
-        cabecera = cabecera.decode("utf-8", errors="replace").strip()
+        crudo = self.fuente[nodo.start_byte:(cuerpo.start_byte if cuerpo else nodo.end_byte)]
+        cabecera = crudo.decode("utf-8", errors="replace").strip()
 
         def reescrito() -> str:
             lineas = []
@@ -389,7 +390,7 @@ def _tiene_continue(nodo) -> bool:
 
 
 def _tiene_errores(nodo) -> bool:
-    return nodo.has_error
+    return bool(nodo.has_error)
 
 
 ENVOLTORIO = "void gaff_fragmento(void)\n{\n"

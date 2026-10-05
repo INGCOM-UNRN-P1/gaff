@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Callable, Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from gaff.core.contexto import (
     ContextoAnalisis,
@@ -294,93 +294,149 @@ def ordenar_includes(lineas: List[str]) -> Tuple[List[str], int]:
     return resultado, cambios
 
 
-def aplicar_autofix_archivo(
-    ruta: Path,
-    reglas_excluidas: Optional[Set[str]] = None,
-    reglas_habilitadas: Optional[Set[str]] = None,
-    config: Optional[Dict[str, Any]] = None,
-    idkfa: bool = False,
-) -> int:
-    """Aplica correcciones automáticas sobre reglas autofixables respetando exclusiones y protegiendo literales."""
-    if not ruta.is_file():
-        return 0
-
-    if config is None and reglas_excluidas is None:
-        try:
-            from gaff.core.config import cargar_configuracion_gaff
-            cfg = cargar_configuracion_gaff(ruta.parent)
-            excl_cfg = cfg.get("excluded_rules", []) or cfg.get("disabled_rules", [])
-            if excl_cfg:
-                reglas_excluidas = set(str(x) for x in excl_cfg)
-        except Exception:
-            pass
-
-    excluidas_norm = normalizar_exclusiones(reglas_excluidas)
-    reglas_norm = normalizar_activas(reglas_habilitadas, excluidas_norm)
-
-    def _activa(cod: str) -> bool:
-        cod_low = cod.lower()
-        cod_nuevo = MAPA_RENUMERACION.get(cod, MAPA_RENUMERACION.get(cod_low, "")).lower()
-        cod_ant = MAPA_INVERSO.get(cod, MAPA_INVERSO.get(cod_low, "")).lower()
-        for c in (cod_low, cod_nuevo, cod_ant):
-            if not c:
-                continue
-            if c in excluidas_norm or (c.endswith("h") and c[:-1] in excluidas_norm) or (not c.endswith("h") and (c + "h") in excluidas_norm):
-                return False
-        if reglas_habilitadas is not None:
-            for c in (cod_low, cod_nuevo, cod_ant):
-                if not c:
-                    continue
-                if c in reglas_norm or (c.endswith("h") and c[:-1] in reglas_norm) or (not c.endswith("h") and (c + "h") in reglas_norm):
-                    return True
-            return False
-        return True
-
-    encoding_detectado = "utf-8"
-    try:
-        contenido = ruta.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        contenido = ruta.read_text(encoding="latin-1")
-        encoding_detectado = "latin-1"
-
+def _fix_parametros_void(lineas: List[str]) -> Tuple[List[str], int]:
+    """GAFF020 / 0x200Eh: `int f()` → `int f(void)`."""
     arreglos = 0
-    lineas = contenido.splitlines()
+    re_empty_paren_fix = re.compile(rf"\b({TIPOS_BASICOS})\s+([a-zA-Z_]\w*)\s*\(\s*\)")
+    lineas_paren_fix = []
+    for l in lineas:
+        if not l.strip().startswith("#"):
+            l_fix, n_rep = re_empty_paren_fix.subn(r"\1 \2(void)", l)
+            if n_rep > 0:
+                arreglos += n_rep
+                l = l_fix
+        lineas_paren_fix.append(l)
+    lineas = lineas_paren_fix
+    return lineas, arreglos
 
-    # GAFF020 / 0x200Eh: Autofix de fn() a fn(void)
-    if _activa("0x200Eh") or _activa("0x200Dh"):
-        re_empty_paren_fix = re.compile(rf"\b({TIPOS_BASICOS})\s+([a-zA-Z_]\w*)\s*\(\s*\)")
-        lineas_paren_fix = []
-        for l in lineas:
-            if not l.strip().startswith("#"):
-                l_fix, n_rep = re_empty_paren_fix.subn(r"\1 \2(void)", l)
-                if n_rep > 0:
-                    arreglos += n_rep
-                    l = l_fix
-            lineas_paren_fix.append(l)
-        lineas = lineas_paren_fix
 
-    # GAFF019 / 0x5007h: Deduplicación de #include redundantes
-    if _activa("0x5007h") or _activa("0x5008h"):
-        headers_vistos_fix = set()
-        lineas_dedup = []
-        for l in lineas:
-            m_inc = re.match(r"^[ \t]*#include[ \t]+([<\"].+[>\"])", l)
-            if m_inc:
-                h_nom = m_inc.group(1)
-                if h_nom in headers_vistos_fix:
-                    arreglos += 1
-                    continue
-                headers_vistos_fix.add(h_nom)
-            lineas_dedup.append(l)
-        lineas = lineas_dedup
+def _fix_includes_repetidos(lineas: List[str]) -> Tuple[List[str], int]:
+    """GAFF019 / 0x5007h: un #include repetido se quita."""
+    arreglos = 0
+    headers_vistos_fix = set()
+    lineas_dedup = []
+    for l in lineas:
+        m_inc = re.match(r"^[ \t]*#include[ \t]+([<\"].+[>\"])", l)
+        if m_inc:
+            h_nom = m_inc.group(1)
+            if h_nom in headers_vistos_fix:
+                arreglos += 1
+                continue
+            headers_vistos_fix.add(h_nom)
+        lineas_dedup.append(l)
+    lineas = lineas_dedup
+    return lineas, arreglos
 
-    # 0x5005h (QoL #404): en cada bloque contiguo de #include, primero las cabeceras estándar
-    # (<...>, en orden alfabético) y después las del proyecto ("...", en el orden en que estaban:
-    # entre ellas el orden puede importar).
-    if _activa("0x5005h"):
-        lineas, n_orden = ordenar_includes(lineas)
-        arreglos += n_orden
 
+def _fix_guardas_de_inclusion(contenido_mod: str, ruta: Path) -> Tuple[str, int]:
+    """GAFF005 / 0x5003h: guardas de inclusión en un .h que no las tiene."""
+    arreglos = 0
+    tiene_pragma = "#pragma once" in contenido_mod
+    tiene_ifndef = bool(re.search(r"#ifndef\s+\w+", contenido_mod) and re.search(r"#define\s+\w+", contenido_mod))
+    if not (tiene_pragma or tiene_ifndef):
+        guard_name = f"{ruta.stem.upper()}_H"
+        contenido_mod = f"#ifndef {guard_name}\n#define {guard_name}\n\n{contenido_mod.strip()}\n\n#endif // {guard_name}\n"
+        arreglos += 1
+    return contenido_mod, arreglos
+
+
+def _fix_esqueletos_doxygen(contenido_mod: str, ruta: Path) -> Tuple[str, int]:
+    """GAFF018 / 0x2003h: esqueleto de documentación Doxygen para las funciones sin documentar."""
+    arreglos = 0
+    lineas_actuales = contenido_mod.splitlines()
+    codigo_sin_coments = eliminar_comentarios(contenido_mod)
+
+    pattern_fn = (
+        r"^([ \t]*)(?!(?:typedef|return)\b)((?:(?:static|inline|extern|const)[ \t]+)*(?:struct[ \t]+\w+|enum[ \t]+\w+|union[ \t]+\w+|"
+        + TIPOS_BASICOS
+        + r"|[a-zA-Z_]\w*)[ \t]*(\*+[ \t]*|[ \t]+\*?))([a-zA-Z_]\w*)[ \t]*\(([\s\S]*?)\)[ \t]*([;{])?"
+    )
+    re_fn_fix = re.compile(pattern_fn, re.MULTILINE)
+
+    inserciones: List[Tuple[int, str]] = []
+    prototipos_doc: Set[str] = set()
+    if not ruta.suffix.lower() in (".h", ".hpp"):
+        comp_h = ruta.with_suffix(".h")
+        if comp_h.is_file():
+            try:
+                txt_h = comp_h.read_text(encoding="utf-8", errors="replace")
+                lines_h = txt_h.splitlines()
+                code_h = eliminar_comentarios(txt_h)
+                for m_ph in re_fn_fix.finditer(code_h):
+                    nom = m_ph.group(4)
+                    l_i = code_h[:m_ph.start()].count("\n")
+                    if _tiene_comentario_documentacion(lines_h, l_i):
+                        prototipos_doc.add(nom)
+            except Exception:
+                pass
+
+    for m_fn in re_fn_fix.finditer(codigo_sin_coments):
+        sangria = m_fn.group(1)
+        ret_type = m_fn.group(2)
+        fn_name = m_fn.group(4)
+        params_str = m_fn.group(5)
+        char_cierre = m_fn.group(6)
+
+        if fn_name in ("if", "for", "while", "switch", "return", "sizeof", "main"):
+            continue
+
+        pos_despues = m_fn.end()
+        if char_cierre == ";":
+            es_proto = True
+        elif char_cierre == "{":
+            es_proto = False
+        else:
+            resto = codigo_sin_coments[pos_despues:pos_despues + 100].lstrip()
+            if resto.startswith(";"):
+                es_proto = True
+            elif resto.startswith("{") or "{" in resto[:60]:
+                es_proto = False
+            else:
+                continue
+
+        line_idx_start = codigo_sin_coments[:m_fn.start()].count("\n")
+        if _tiene_comentario_documentacion(lineas_actuales, line_idx_start):
+            prototipos_doc.add(fn_name)
+            continue
+
+        if not es_proto and fn_name in prototipos_doc:
+            continue
+
+        # Esqueleto con marcas [completar: …]: 0x2003h sigue avisando hasta
+        # que el estudiante escriba la documentación real (N-GAFF-02).
+        lineas_doc = [f"{sangria}/**", f"{sangria} * @brief [completar: qué hace {fn_name}]"]
+
+        raw_params = [p.strip() for p in params_str.split(",") if p.strip()]
+        if raw_params and not (len(raw_params) == 1 and raw_params[0] == "void"):
+            lineas_doc.append(f"{sangria} *")
+            for p in raw_params:
+                m_arg = re.search(r"([a-zA-Z_]\w*)\s*(?:\[[^\]]*\])?$", p)
+                arg_name = m_arg.group(1) if m_arg else "param"
+                lineas_doc.append(f"{sangria} * @param {arg_name} [completar: qué representa {arg_name}]")
+
+        ret_clean = ret_type.strip()
+        es_void = ret_clean == "void" or ret_clean.endswith(" void") or ret_clean.endswith("\tvoid")
+        if not es_void:
+            lineas_doc.append(f"{sangria} * @return [completar: qué devuelve]")
+
+        lineas_doc.append(f"{sangria} */")
+        texto_doc = "\n".join(lineas_doc)
+
+        inserciones.append((line_idx_start, texto_doc))
+        prototipos_doc.add(fn_name)
+
+    if inserciones:
+        for l_idx, doc_block in sorted(inserciones, key=lambda x: x[0], reverse=True):
+            lineas_actuales.insert(l_idx, doc_block)
+            arreglos += 1
+        contenido_mod = "\n".join(lineas_actuales) + "\n"
+    return contenido_mod, arreglos
+
+
+def _corregir_lineas(lineas: List[str], _activa: Callable[[str], bool]) -> Tuple[str, int]:
+    """Las correcciones de una línea a la vez (espaciado, punteros, operadores, paréntesis…), con
+    los literales y comentarios protegidos."""
+    arreglos = 0
     nuevas_lineas = []
 
     re_kw = re.compile(r"\b(if|for|while|switch)\(")
@@ -532,107 +588,132 @@ def aplicar_autofix_archivo(
             arreglos += 1
         nuevas_lineas.append(linea)
 
-    contenido_mod = "\n".join(nuevas_lineas) + "\n"
+    return "\n".join(nuevas_lineas) + "\n", arreglos
+
+
+def _formatear_con_clang(ruta: Path, encoding_detectado: str, idkfa: bool) -> int:
+    """GAFF017 / 0x000Bh: estilo Allman con clang-format, si está instalado (1 si cambió algo)."""
+    arreglos = 0
+    allman_style = (
+        "{BasedOnStyle: LLVM, BreakBeforeBraces: Allman, "
+        "AllowShortIfStatementsOnASingleLine: false, AllowShortBlocksOnASingleLine: false, "
+        "AllowShortLoopsOnASingleLine: false, AllowShortFunctionsOnASingleLine: None, "
+        "IndentWidth: 4, TabWidth: 4, UseTab: Never, IndentCaseLabels: true, "
+        "ColumnLimit: 80, SpaceBeforeParens: ControlStatements, PointerAlignment: Right, "
+        # El orden de los #include lo fija gaff (0x5005h): el de LLVM pone primero los locales.
+        "SortIncludes: Never}"
+    )
+    try:
+        contenido_pre = ruta.read_text(encoding=encoding_detectado, errors="replace") if ruta.exists() else ""
+        placeholders_idkfa: Dict[str, str] = {}
+        if idkfa and contenido_pre:
+            contenido_enmascarado, placeholders_idkfa = enmascarar_comentarios_idkfa(contenido_pre)
+            ruta.write_text(contenido_enmascarado, encoding=encoding_detectado)
+
+        res = subprocess.run(
+            ["clang-format", "-i", f"-style={allman_style}", str(ruta)],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+        )
+
+        if idkfa and placeholders_idkfa:
+            contenido_fmt = ruta.read_text(encoding=encoding_detectado, errors="replace")
+            contenido_restaurado = desenmascarar_comentarios_idkfa(contenido_fmt, placeholders_idkfa)
+            ruta.write_text(contenido_restaurado, encoding=encoding_detectado)
+
+        if res.returncode == 0:
+            contenido_post = ruta.read_text(encoding=encoding_detectado, errors="replace")
+            if contenido_post != contenido_pre:
+                arreglos += 1
+    except Exception:
+        # Fallback a reemplazo simple de llaves Allman
+        pass
+    return arreglos
+
+
+def aplicar_autofix_archivo(
+    ruta: Path,
+    reglas_excluidas: Optional[Set[str]] = None,
+    reglas_habilitadas: Optional[Set[str]] = None,
+    config: Optional[Dict[str, Any]] = None,
+    idkfa: bool = False,
+) -> int:
+    """Aplica correcciones automáticas sobre reglas autofixables respetando exclusiones y protegiendo literales."""
+    if not ruta.is_file():
+        return 0
+
+    if config is None and reglas_excluidas is None:
+        try:
+            from gaff.core.config import cargar_configuracion_gaff
+            cfg = cargar_configuracion_gaff(ruta.parent)
+            excl_cfg = cfg.get("excluded_rules", []) or cfg.get("disabled_rules", [])
+            if excl_cfg:
+                reglas_excluidas = set(str(x) for x in excl_cfg)
+        except Exception:
+            pass
+
+    excluidas_norm = normalizar_exclusiones(reglas_excluidas)
+    reglas_norm = normalizar_activas(reglas_habilitadas, excluidas_norm)
+
+    def _activa(cod: str) -> bool:
+        cod_low = cod.lower()
+        cod_nuevo = MAPA_RENUMERACION.get(cod, MAPA_RENUMERACION.get(cod_low, "")).lower()
+        cod_ant = MAPA_INVERSO.get(cod, MAPA_INVERSO.get(cod_low, "")).lower()
+        for c in (cod_low, cod_nuevo, cod_ant):
+            if not c:
+                continue
+            if c in excluidas_norm or (c.endswith("h") and c[:-1] in excluidas_norm) or (not c.endswith("h") and (c + "h") in excluidas_norm):
+                return False
+        if reglas_habilitadas is not None:
+            for c in (cod_low, cod_nuevo, cod_ant):
+                if not c:
+                    continue
+                if c in reglas_norm or (c.endswith("h") and c[:-1] in reglas_norm) or (not c.endswith("h") and (c + "h") in reglas_norm):
+                    return True
+            return False
+        return True
+
+    encoding_detectado = "utf-8"
+    try:
+        contenido = ruta.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        contenido = ruta.read_text(encoding="latin-1")
+        encoding_detectado = "latin-1"
+
+    arreglos = 0
+    lineas = contenido.splitlines()
+
+    # GAFF020 / 0x200Eh: Autofix de fn() a fn(void)
+    if _activa("0x200Eh") or _activa("0x200Dh"):
+        lineas, n = _fix_parametros_void(lineas)
+        arreglos += n
+
+    # GAFF019 / 0x5007h: Deduplicación de #include redundantes
+    if _activa("0x5007h") or _activa("0x5008h"):
+        lineas, n = _fix_includes_repetidos(lineas)
+        arreglos += n
+
+    # 0x5005h (QoL #404): en cada bloque contiguo de #include, primero las cabeceras estándar
+    # (<...>, en orden alfabético) y después las del proyecto ("...", en el orden en que estaban:
+    # entre ellas el orden puede importar).
+    if _activa("0x5005h"):
+        lineas, n_orden = ordenar_includes(lineas)
+        arreglos += n_orden
+
+    contenido_mod, n = _corregir_lineas(lineas, _activa)
+    arreglos += n
 
     # GAFF005 / 0x5003h: Guardas de inclusión en .h
     if (_activa("0x5002h") or _activa("0x5003h")) and ruta.suffix.lower() in (".h", ".hpp"):
-        tiene_pragma = "#pragma once" in contenido_mod
-        tiene_ifndef = bool(re.search(r"#ifndef\s+\w+", contenido_mod) and re.search(r"#define\s+\w+", contenido_mod))
-        if not (tiene_pragma or tiene_ifndef):
-            guard_name = f"{ruta.stem.upper()}_H"
-            contenido_mod = f"#ifndef {guard_name}\n#define {guard_name}\n\n{contenido_mod.strip()}\n\n#endif // {guard_name}\n"
-            arreglos += 1
-
+        contenido_mod, n = _fix_guardas_de_inclusion(contenido_mod, ruta)
+        arreglos += n
 
     # GAFF018 / 0x2003h: Autofix de esqueleto de documentación Doxygen para funciones no documentadas
     if _activa("0x2003h") and not idkfa:
-        lineas_actuales = contenido_mod.splitlines()
-        codigo_sin_coments = eliminar_comentarios(contenido_mod)
-
-        pattern_fn = (
-            r"^([ \t]*)(?!(?:typedef|return)\b)((?:(?:static|inline|extern|const)[ \t]+)*(?:struct[ \t]+\w+|enum[ \t]+\w+|union[ \t]+\w+|"
-            + TIPOS_BASICOS
-            + r"|[a-zA-Z_]\w*)[ \t]*(\*+[ \t]*|[ \t]+\*?))([a-zA-Z_]\w*)[ \t]*\(([\s\S]*?)\)[ \t]*([;{])?"
-        )
-        re_fn_fix = re.compile(pattern_fn, re.MULTILINE)
-
-        inserciones: List[Tuple[int, str]] = []
-        prototipos_doc: Set[str] = set()
-        if not ruta.suffix.lower() in (".h", ".hpp"):
-            comp_h = ruta.with_suffix(".h")
-            if comp_h.is_file():
-                try:
-                    txt_h = comp_h.read_text(encoding="utf-8", errors="replace")
-                    lines_h = txt_h.splitlines()
-                    code_h = eliminar_comentarios(txt_h)
-                    for m_ph in re_fn_fix.finditer(code_h):
-                        nom = m_ph.group(4)
-                        l_i = code_h[:m_ph.start()].count("\n")
-                        if _tiene_comentario_documentacion(lines_h, l_i):
-                            prototipos_doc.add(nom)
-                except Exception:
-                    pass
-
-        for m_fn in re_fn_fix.finditer(codigo_sin_coments):
-            sangria = m_fn.group(1)
-            ret_type = m_fn.group(2)
-            fn_name = m_fn.group(4)
-            params_str = m_fn.group(5)
-            char_cierre = m_fn.group(6)
-
-            if fn_name in ("if", "for", "while", "switch", "return", "sizeof", "main"):
-                continue
-
-            pos_despues = m_fn.end()
-            if char_cierre == ";":
-                es_proto = True
-            elif char_cierre == "{":
-                es_proto = False
-            else:
-                resto = codigo_sin_coments[pos_despues:pos_despues + 100].lstrip()
-                if resto.startswith(";"):
-                    es_proto = True
-                elif resto.startswith("{") or "{" in resto[:60]:
-                    es_proto = False
-                else:
-                    continue
-
-            line_idx_start = codigo_sin_coments[:m_fn.start()].count("\n")
-            if _tiene_comentario_documentacion(lineas_actuales, line_idx_start):
-                prototipos_doc.add(fn_name)
-                continue
-
-            if not es_proto and fn_name in prototipos_doc:
-                continue
-
-            # Esqueleto con marcas [completar: …]: 0x2003h sigue avisando hasta
-            # que el estudiante escriba la documentación real (N-GAFF-02).
-            lineas_doc = [f"{sangria}/**", f"{sangria} * @brief [completar: qué hace {fn_name}]"]
-
-            raw_params = [p.strip() for p in params_str.split(",") if p.strip()]
-            if raw_params and not (len(raw_params) == 1 and raw_params[0] == "void"):
-                lineas_doc.append(f"{sangria} *")
-                for p in raw_params:
-                    m_arg = re.search(r"([a-zA-Z_]\w*)\s*(?:\[[^\]]*\])?$", p)
-                    arg_name = m_arg.group(1) if m_arg else "param"
-                    lineas_doc.append(f"{sangria} * @param {arg_name} [completar: qué representa {arg_name}]")
-
-            ret_clean = ret_type.strip()
-            es_void = ret_clean == "void" or ret_clean.endswith(" void") or ret_clean.endswith("\tvoid")
-            if not es_void:
-                lineas_doc.append(f"{sangria} * @return [completar: qué devuelve]")
-
-            lineas_doc.append(f"{sangria} */")
-            texto_doc = "\n".join(lineas_doc)
-
-            inserciones.append((line_idx_start, texto_doc))
-            prototipos_doc.add(fn_name)
-
-        if inserciones:
-            for l_idx, doc_block in sorted(inserciones, key=lambda x: x[0], reverse=True):
-                lineas_actuales.insert(l_idx, doc_block)
-                arreglos += 1
-            contenido_mod = "\n".join(lineas_actuales) + "\n"
+        contenido_mod, n = _fix_esqueletos_doxygen(contenido_mod, ruta)
+        arreglos += n
 
     if not contenido.endswith("\n"):
         arreglos += 1
@@ -644,42 +725,7 @@ def aplicar_autofix_archivo(
 
     # GAFF017 / 0x000Bh: Autoformato con estilo Allman mediante clang-format si está disponible
     if _activa("0x0007h") or _activa("0x000Bh"):
-        allman_style = (
-            "{BasedOnStyle: LLVM, BreakBeforeBraces: Allman, "
-            "AllowShortIfStatementsOnASingleLine: false, AllowShortBlocksOnASingleLine: false, "
-            "AllowShortLoopsOnASingleLine: false, AllowShortFunctionsOnASingleLine: None, "
-            "IndentWidth: 4, TabWidth: 4, UseTab: Never, IndentCaseLabels: true, "
-            "ColumnLimit: 80, SpaceBeforeParens: ControlStatements, PointerAlignment: Right, "
-            # El orden de los #include lo fija gaff (0x5005h): el de LLVM pone primero los locales.
-            "SortIncludes: Never}"
-        )
-        try:
-            contenido_pre = ruta.read_text(encoding=encoding_detectado, errors="replace") if ruta.exists() else ""
-            placeholders_idkfa: Dict[str, str] = {}
-            if idkfa and contenido_pre:
-                contenido_enmascarado, placeholders_idkfa = enmascarar_comentarios_idkfa(contenido_pre)
-                ruta.write_text(contenido_enmascarado, encoding=encoding_detectado)
-
-            res = subprocess.run(
-                ["clang-format", "-i", f"-style={allman_style}", str(ruta)],
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=5,
-            )
-
-            if idkfa and placeholders_idkfa:
-                contenido_fmt = ruta.read_text(encoding=encoding_detectado, errors="replace")
-                contenido_restaurado = desenmascarar_comentarios_idkfa(contenido_fmt, placeholders_idkfa)
-                ruta.write_text(contenido_restaurado, encoding=encoding_detectado)
-
-            if res.returncode == 0:
-                contenido_post = ruta.read_text(encoding=encoding_detectado, errors="replace")
-                if contenido_post != contenido_pre:
-                    arreglos += 1
-        except Exception:
-            # Fallback a reemplazo simple de llaves Allman
-            pass
+        arreglos += _formatear_con_clang(ruta, encoding_detectado, idkfa)
 
     return arreglos
 

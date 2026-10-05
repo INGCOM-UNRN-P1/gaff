@@ -1,7 +1,7 @@
 """Test de integración que verifica la validez del árbol de ejemplos de GAFF."""
 
 from pathlib import Path
-from gaff.core.rules import CATALOGO_REGLAS, MAPA_RENUMERACION
+from gaff.core.rules import MAPA_RENUMERACION
 from gaff.core.linter import analizar_archivo
 
 CATEGORIAS = {

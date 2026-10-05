@@ -1,7 +1,6 @@
 """Tests unitarios para las reglas de espaciado intra-línea en GAFF."""
 
 from pathlib import Path
-import pytest
 from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo
 
 

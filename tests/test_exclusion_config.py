@@ -4,7 +4,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from gaff.cli import app
-from gaff.core.config import cargar_configuracion_gaff, obtener_reglas_excluidas
+from gaff.core.config import obtener_reglas_excluidas
 from gaff.core.linter import analizar_archivo, ejecutar_linter
 
 runner = CliRunner()

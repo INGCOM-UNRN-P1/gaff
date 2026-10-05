@@ -3,24 +3,14 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import List
 
 from gaff.core.contexto import (
     ContextoAnalisis,
     TIPOS_BASICOS,
-    _tiene_comentario_documentacion,
     eliminar_comentarios,
-    enmascarar_literales,
 )
-from gaff.core.models import RuleCode, ViolacionRegla
-from gaff.core.rules import (
-    CATALOGO_REGLAS,
-    MAPA_INVERSO,
-    MAPA_RENUMERACION,
-    normalizar_codigo,
-    obtener_regla,
-)
+from gaff.core.models import ViolacionRegla
 
 
 def _regla_200d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:

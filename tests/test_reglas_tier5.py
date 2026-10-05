@@ -1,7 +1,6 @@
 """Tests unitarios para las 10 reglas del Tier 5 en GAFF (total 110 reglas)."""
 
 from pathlib import Path
-import pytest
 from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo
 
 

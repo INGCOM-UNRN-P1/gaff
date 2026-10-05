@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
-import pytest
 
 from gaff.core.linter import analizar_archivo
 from gaff.core.rules import CATALOGO_REGLAS

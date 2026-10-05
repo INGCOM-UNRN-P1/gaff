@@ -3,7 +3,6 @@
 from pathlib import Path
 from typer.testing import CliRunner
 
-from gaff.cli import app
 from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo
 
 runner = CliRunner()

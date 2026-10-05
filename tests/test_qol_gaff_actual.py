@@ -4,7 +4,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from gaff.cli import app
-from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo, ejecutar_linter
+from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo
 from gaff.core.badge import generar_badge_svg, guardar_badge_svg
 from gaff.core.interactive_fix import ejecutar_autofix_interactivo
 from gaff.ripley_plugin import GaffPlugin

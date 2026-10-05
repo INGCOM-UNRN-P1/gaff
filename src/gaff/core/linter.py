@@ -15,8 +15,8 @@ from gaff.core.contexto import (
     normalizar_activas,
     normalizar_exclusiones,
 )
-from gaff.core.models import ReporteArchivo, ReporteLinting, RuleCode, ViolacionRegla
-from gaff.core.rules import CATALOGO_REGLAS, MAPA_INVERSO, MAPA_RENUMERACION, normalizar_codigo
+from gaff.core.models import ReporteArchivo, ReporteLinting, ViolacionRegla
+from gaff.core.rules import MAPA_INVERSO, MAPA_RENUMERACION, normalizar_codigo
 from gaff.rules import ejecutar_todas_las_familias
 
 

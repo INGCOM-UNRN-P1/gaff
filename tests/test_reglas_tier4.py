@@ -1,7 +1,6 @@
 """Tests unitarios para las 12 reglas de completitud (Tier 4) incorporadas a GAFF (total 100 reglas)."""
 
 from pathlib import Path
-import pytest
 from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo
 
 

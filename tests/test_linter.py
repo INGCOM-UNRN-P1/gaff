@@ -1,7 +1,5 @@
 """Tests unitarios para el motor de linting y autofix de GAFF."""
 
-from pathlib import Path
-import pytest
 from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo, ejecutar_linter
 
 

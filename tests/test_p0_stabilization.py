@@ -5,8 +5,7 @@ import time
 from typer.testing import CliRunner
 
 from gaff.cli import app
-from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo, ejecutar_linter
-from gaff.core.models import ViolacionRegla
+from gaff.core.linter import aplicar_autofix_archivo
 
 
 runner = CliRunner()

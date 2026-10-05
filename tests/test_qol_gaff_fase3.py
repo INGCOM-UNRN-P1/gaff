@@ -1,7 +1,6 @@
 """Tests para las 8 nuevas mejoras QoL de GAFF documentadas en actual.md."""
 
 import json
-import os
 from pathlib import Path
 from typer.testing import CliRunner
 
@@ -12,7 +11,7 @@ from gaff.core.linter import (
     ejecutar_linter,
 )
 from gaff.core.exporter import generar_github_summary
-from gaff.core.config import cargar_configuracion_gaff, generar_plantilla_gaffrc_json
+from gaff.core.config import cargar_configuracion_gaff
 
 runner = CliRunner()
 

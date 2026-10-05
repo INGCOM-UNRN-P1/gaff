@@ -1,7 +1,6 @@
 """Tests unitarios para las reglas del tier 3 incorporadas a GAFF."""
 
 from pathlib import Path
-import pytest
 from gaff.core.linter import analizar_archivo
 
 

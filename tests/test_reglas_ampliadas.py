@@ -1,7 +1,6 @@
 """Tests unitarios para las 10 reglas ampliadas de arquitectura y calidad de código en GAFF."""
 
 from pathlib import Path
-import pytest
 from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo
 
 

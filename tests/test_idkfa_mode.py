@@ -1,10 +1,9 @@
 """Tests unitarios para el modo --idkfa en GAFF (preservación intacta de comentarios)."""
 
-import pytest
 from pathlib import Path
 from typer.testing import CliRunner
 from gaff.cli import app
-from gaff.core.linter import enmascarar_comentarios_idkfa, desenmascarar_comentarios_idkfa, aplicar_autofix_archivo
+from gaff.core.linter import enmascarar_comentarios_idkfa, desenmascarar_comentarios_idkfa
 
 runner = CliRunner()
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import re
 from typing import Any, Dict, Optional, Set
 
 SCHEMA_VERSION: str = "1.0.0"

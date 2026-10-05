@@ -1,7 +1,5 @@
 """Pruebas exhaustivas para las nuevas reglas de cátedra agregadas a GAFF."""
 
-import pytest
-from pathlib import Path
 from gaff.core.linter import analizar_archivo
 
 

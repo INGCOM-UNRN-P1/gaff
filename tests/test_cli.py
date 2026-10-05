@@ -1,7 +1,6 @@
 """Tests de integración de la CLI de GAFF."""
 
 import json
-from pathlib import Path
 from typer.testing import CliRunner
 from gaff.cli import app
 

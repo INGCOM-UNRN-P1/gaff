@@ -1,12 +1,9 @@
 """Tests adicionales para maximizar la cobertura en GAFF."""
 
-import json
-from pathlib import Path
 from typer.testing import CliRunner
 import gaff.cli
 from gaff.cli import app
 from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo, ejecutar_linter
-from gaff.core.models import ReporteLinting, ReporteArchivo, ViolacionRegla
 
 runner = CliRunner()
 

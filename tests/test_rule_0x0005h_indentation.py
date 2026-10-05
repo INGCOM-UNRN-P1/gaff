@@ -1,7 +1,7 @@
 """Tests unitarios para la verificación de indentación en múltiplos de 4 espacios (0x0004h)."""
 
 from pathlib import Path
-from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo, ejecutar_linter
+from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo
 from gaff.core.rules import CATALOGO_REGLAS
 
 

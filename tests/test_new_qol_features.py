@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from typer.testing import CliRunner
-from gaff.cli import app
 from gaff.core.linter import analizar_archivo
 from gaff.core.config import cargar_configuracion_gaff
 from gaff.core.interactive_fix import ejecutar_autofix_interactivo

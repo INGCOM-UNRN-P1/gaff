@@ -1,8 +1,6 @@
 """Suite exhaustiva de pruebas para todas las verificaciones de reglas de cátedra en GAFF."""
 
-import pytest
-from pathlib import Path
-from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo, ejecutar_linter
+from gaff.core.linter import analizar_archivo, aplicar_autofix_archivo
 
 
 def test_regla_0x0002h_multiples_declaraciones(tmp_path):

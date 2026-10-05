@@ -3,12 +3,6 @@
 from pathlib import Path
 from gaff.core.models import RuleCode, ViolacionRegla, ReglaInfo
 from gaff.core.contexto import ContextoAnalisis
-from gaff.core.rules import (
-    obtener_severidad,
-    REGLAS_SEVERIDAD_ERROR,
-    REGLAS_SEVERIDAD_ADVERTENCIA,
-    CATALOGO_REGLAS,
-)
 from gaff.core.exporter import generar_sarif_210, generar_github_summary
 from gaff.core.models import ReporteLinting, ReporteArchivo
 

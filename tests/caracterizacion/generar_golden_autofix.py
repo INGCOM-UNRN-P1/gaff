@@ -4,7 +4,6 @@ test_caracterizacion_autofix.py falla, el refactor cambió alguna corrección.""
 
 import hashlib
 import json
-import shutil
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -22,14 +21,15 @@ def corregir(fuente: Path):
 
     with tempfile.TemporaryDirectory() as tmp:
         copia = Path(tmp) / fuente.name
-        shutil.copy(fuente, copia)
+        # Fin de línea LF en la entrada y en el hash: en Windows el checkout trae CRLF.
+        copia.write_bytes(fuente.read_bytes().replace(b"\r\n", b"\n"))
         with mock.patch.object(linter.subprocess, "run", side_effect=FileNotFoundError("sin clang-format")):
             arreglos = linter.aplicar_autofix_archivo(copia, reglas_excluidas=set())
-        return arreglos, hashlib.sha256(copia.read_bytes()).hexdigest()
+        return arreglos, hashlib.sha256(copia.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def golden():
-    return {str(p.relative_to(EJEMPLOS)): list(corregir(p)) for p in ejemplos()}
+    return {p.relative_to(EJEMPLOS).as_posix(): list(corregir(p)) for p in ejemplos()}
 
 
 if __name__ == "__main__":

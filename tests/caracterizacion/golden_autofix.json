@@ -1,0 +1,590 @@
+{
+ "0x00xx_sintaxis/otro.h": [
+  1,
+  "f0770c53ae208bdf4ed2b0d9bb23fae8f161722489fbbae6be275fb172c85630"
+ ],
+ "0x00xx_sintaxis/regla_0x0000h.c": [
+  1,
+  "27a10de0315738722ec1770da049b3b9f0b05c01fcd72b3a152bc3f8efeaa064"
+ ],
+ "0x00xx_sintaxis/regla_0x0001h.c": [
+  1,
+  "1cd18083d744f55c59454a72a32b63074c23f00e3521a9febc944cd9afeb39dc"
+ ],
+ "0x00xx_sintaxis/regla_0x0002h.c": [
+  0,
+  "9186ff329e3ac97489e2772601b486ae57cd29781dfcdc98cd2fb0fb2791506b"
+ ],
+ "0x00xx_sintaxis/regla_0x0003h.c": [
+  1,
+  "1c1d5a2a84e8b8360301a9413bb2d49dd69487c29148fdc0f47c6daf81e5ef41"
+ ],
+ "0x00xx_sintaxis/regla_0x0004h.c": [
+  1,
+  "1e18dc1143034807993535c688b8ec54f407e072a083c3b88a2fa75bb4503148"
+ ],
+ "0x00xx_sintaxis/regla_0x0005h.c": [
+  1,
+  "90e5926d777201013dd644e5cb3a810110113ba18f375a5ddaa2a98732d8dcf7"
+ ],
+ "0x00xx_sintaxis/regla_0x0006h.c": [
+  1,
+  "69b3ee13c540580fbea3fbf5e65960e76221b9b633ffa6fd847138d4794d7f87"
+ ],
+ "0x00xx_sintaxis/regla_0x0007h.c": [
+  0,
+  "0bcc5898fb33587f339039c5c917f6c0397aa2da18709ba389945cfb29d7c167"
+ ],
+ "0x00xx_sintaxis/regla_0x0008h.c": [
+  1,
+  "1f161eb11a247bcfa9fe1a1283ebed100fccb607508406a9e815c67ed439b1b6"
+ ],
+ "0x00xx_sintaxis/regla_0x0009h.c": [
+  1,
+  "d7bc6b2723ed2e59e17ea336e20f2a6248193143e228c8be8745fac886f26f82"
+ ],
+ "0x00xx_sintaxis/regla_0x000Ah.c": [
+  1,
+  "06a96e63925b013b943b5e64b60ffc886d9c75b9e7cf0db0ece15d3b24631d88"
+ ],
+ "0x00xx_sintaxis/regla_0x000Bh.c": [
+  0,
+  "bff886bd99604f0b177b5a43b4595d5f101f6cf27b0e6a449c8309a63c60d51f"
+ ],
+ "0x00xx_sintaxis/regla_0x000Ch.c": [
+  0,
+  "0c42cef140e699be00ca07583c823e05989e674b04297fe591b777ab91eb84aa"
+ ],
+ "0x00xx_sintaxis/regla_0x000Dh.c": [
+  1,
+  "ab430a21e07ae0c7cfd90c2bb69514ab01182dddcce0474e8f3b4a3210df8733"
+ ],
+ "0x00xx_sintaxis/regla_0x000Eh.c": [
+  0,
+  "e05dd17dadf987bfd72d79eac1a6324d57233714d6c40c4329614087c4d8fda5"
+ ],
+ "0x00xx_sintaxis/regla_0x000Fh.c": [
+  0,
+  "0db67e35d88f37a422020f0e7b416fbc09c01fec1f6a11d3282234144678e3bc"
+ ],
+ "0x00xx_sintaxis/regla_0x0010h.c": [
+  1,
+  "639b5f93a9f0315d355f3f03ed5f77ded3ac104a7d9301f5cec4add7312afe07"
+ ],
+ "0x00xx_sintaxis/regla_0x0011h.c": [
+  2,
+  "6863451f9306fcb16910e49e1a3e3623868a4330c522c1f7e64f096b60b09e4e"
+ ],
+ "0x00xx_sintaxis/regla_0x0011h.h": [
+  1,
+  "908580f7bcfa3615e01c0ae6b3b27aa44bd0f71f172e2bfb49e2ec5ac7ec878c"
+ ],
+ "0x00xx_sintaxis/regla_0x0012h.c": [
+  0,
+  "469f9fac3b510b2a0631408e93538339cd198ff5deb9354b6338f0650b46320b"
+ ],
+ "0x00xx_sintaxis/regla_0x0013h.c": [
+  0,
+  "95699283ffed0c3540a2b08becfc27573f465275c6065b0f9a7a595a0031ff2b"
+ ],
+ "0x00xx_sintaxis/regla_0x0014h.c": [
+  0,
+  "65471168a45e6dd35bc4921e8a4ceb85dbc7a4f9ab76a2c056033c3734b7faa7"
+ ],
+ "0x00xx_sintaxis/regla_0x0015h.c": [
+  0,
+  "11d205fd7b9c21f9023e0fa45d0b8a6ec6db461dfba3c198b3bf78919a563f47"
+ ],
+ "0x00xx_sintaxis/regla_0x0016h.c": [
+  0,
+  "f6ad2e0287a478a11aea0db7258bd1340cf77b98aaca33c2aa100b1f429a266e"
+ ],
+ "0x00xx_sintaxis/regla_0x0017h.c": [
+  1,
+  "3555bbcc873c723b51feb78ebcb9abd2ca42d6289fc4525c4c2c3e17cfa4a1d9"
+ ],
+ "0x00xx_sintaxis/regla_0x0018h.c": [
+  0,
+  "7539e6ba8be90f73eb684c296d633f4b293698600736be798a49d2ef99f0bb32"
+ ],
+ "0x00xx_sintaxis/regla_0x0019h.c": [
+  3,
+  "85f5aae1f3775dcf38bc71a5e3cf101f73aca0437b635c1fd211dbcf726182fe"
+ ],
+ "0x00xx_sintaxis/regla_0x001Ah.c": [
+  2,
+  "62ecee82a390207842ba87c76d77bd2deb12ff36ebb6fd49ead44a2ea91c8514"
+ ],
+ "0x00xx_sintaxis/regla_0x001Bh.c": [
+  1,
+  "15bf9901fd28ad8323bc757aad4f50a219f35793ba466db8a80390f702c56c30"
+ ],
+ "0x00xx_sintaxis/regla_0x001Ch.c": [
+  2,
+  "5249317e1162f22396d8df046b2e21fefcb975d38da3f31f68fc2db38f0130b0"
+ ],
+ "0x00xx_sintaxis/regla_0x001Dh.c": [
+  1,
+  "43f3245bc03a5f843e348d0e2513cc56610e9f8419f373bc6042f4488e9cc050"
+ ],
+ "0x00xx_sintaxis/regla_0x001Eh.c": [
+  1,
+  "2ee5c656e1d5a8b20a7ed262ee788c362e6df7fe7e45d1844d5401fd4f993cba"
+ ],
+ "0x00xx_sintaxis/regla_0x001Fh.c": [
+  1,
+  "904d055e4616b16fc50735aba7d1449bdc43d67a9ab71bc65b27b6d5764966f8"
+ ],
+ "0x00xx_sintaxis/regla_0x0020h.c": [
+  1,
+  "525604745e1472635b65582a5e1689ccd7cb7ff08f4162441fb0508c6dd0c677"
+ ],
+ "0x00xx_sintaxis/regla_0x0022h.c": [
+  1,
+  "df86250269dd89946199094474fa625e82ec808be1df475418b0475ee39c48f7"
+ ],
+ "0x00xx_sintaxis/regla_0x0023h.c": [
+  0,
+  "4f86a7a49539ad10ccc495f36b6d41e5df8217ead28255606957fa129e57f1cc"
+ ],
+ "0x00xx_sintaxis/regla_0x0025h.c": [
+  1,
+  "61b6ec9570fcb0063cdd8c28cb7a34e6975a8a8c2f5f5d91e52774788f9b89f6"
+ ],
+ "0x00xx_sintaxis/regla_0x0026h.c": [
+  0,
+  "5ab77e419f5bed19a8a4003204686f4b345ae62df43a87e049fd1183133137e0"
+ ],
+ "0x00xx_sintaxis/regla_0x0027h.c": [
+  0,
+  "57ab429a4da3802f2834156a4ea6c9a1e1207b2426f1849dcd761103091c5437"
+ ],
+ "0x00xx_sintaxis/regla_0x0028h.c": [
+  0,
+  "b86f642850951cdfa0702bbf7c9f7c0ba629fe9bb386ca4319a9897ee47706cd"
+ ],
+ "0x00xx_sintaxis/regla_0x0029h.c": [
+  0,
+  "26e8e225c5b054e7a50e2ac55c4b4fd7d96914f6aa3e77b55abbd2d6f47a3a02"
+ ],
+ "0x00xx_sintaxis/regla_0x002Bh.c": [
+  2,
+  "f47fdf66ce8ed7ca933c8f65440436dd6a473243eee21a7674c94864a1bea654"
+ ],
+ "0x00xx_sintaxis/regla_0x002Ch.c": [
+  0,
+  "8f1578e17dc65e61b81d6e1139e5f02205bf1c540d6a8ffc66da52577ad44e69"
+ ],
+ "0x00xx_sintaxis/regla_0x002Dh.c": [
+  1,
+  "c83c58adb324d99ecd3b946aa0c25edc773a2a52a4d14a2ad3190f4fee3615ca"
+ ],
+ "0x00xx_sintaxis/regla_0x0035h.h": [
+  2,
+  "53a5c171eebe12179574a21f69ae87549ea34d481278f65e85fc3ffc33d3aa58"
+ ],
+ "0x00xx_sintaxis/regla_0x0036h.c": [
+  0,
+  "993c8d516cfa51f0dcf4d71a1395c798bec09999f4b5d8a87170eb6d63114a9b"
+ ],
+ "0x00xx_sintaxis/regla_0x0037h.c": [
+  1,
+  "2d0133d8a84ee4797ff2ab3cb324b19a4b0d23f84b882fef0588e130eac1931a"
+ ],
+ "0x00xx_sintaxis/regla_0x0038h.c": [
+  1,
+  "93a26cb3a1e1e9543a8cba075d08e3948b23847a2ca5107367090bdcbff7ac98"
+ ],
+ "0x10xx_control/regla_0x1001h.c": [
+  0,
+  "41b214fd336eff01f5ae5be6adbc8950d6489ce2b5fc48db63fe9580fc65e99e"
+ ],
+ "0x10xx_control/regla_0x1002h.c": [
+  1,
+  "d8cb099a0d28196986ea472972ce980d22c7813be4e55e9d723ab622ff20d99f"
+ ],
+ "0x10xx_control/regla_0x1003h.c": [
+  1,
+  "cba132f7e252542d990e25a9f91e6deb45382779b29b4323241c1f417d299b5e"
+ ],
+ "0x10xx_control/regla_0x1004h.c": [
+  0,
+  "2f42f12285d6ed8ff9d29e8a4fc00c4cfa49a562d7b5cce2f1424b624c932083"
+ ],
+ "0x10xx_control/regla_0x1005h.c": [
+  1,
+  "32e0ea4022fb376944331e6c95a180167a3aadfcc1c676fee298dbfea80b1047"
+ ],
+ "0x10xx_control/regla_0x1006h.c": [
+  1,
+  "8266d3c900cd24697c98d6b7c81d1caa22682f71566c205b521a5c79179b7de6"
+ ],
+ "0x10xx_control/regla_0x1007h.c": [
+  1,
+  "e615585a907081cfc46a15b8b3736aa09714656e5b5edee56258da0061408426"
+ ],
+ "0x10xx_control/regla_0x1008h.c": [
+  1,
+  "74c784a5a1f7b2a6124b4de1fe24a4a23b655cff89985d2f8128cbbb80af4d01"
+ ],
+ "0x10xx_control/regla_0x100Ah.c": [
+  1,
+  "878c41a3544f1cbfac0bd0b78d69d71a0b73cfc7bb85afabf97bc5d563753bef"
+ ],
+ "0x10xx_control/regla_0x100Bh.c": [
+  0,
+  "a3d73e72b28b0a0c430b6ac7bddb3d07a655a788f99b0e0331cc8f30d215b9af"
+ ],
+ "0x10xx_control/regla_0x100Ch.c": [
+  1,
+  "9db0cf7a99ca81eb6647e66f028de2219c03ab814dd1e83bcbb5b162a6f5b46d"
+ ],
+ "0x10xx_control/regla_0x100Dh.c": [
+  1,
+  "e344cb531291777fad8a01fedaa60650f20a3a19090c026f6dcd6f5473c2e86f"
+ ],
+ "0x10xx_control/regla_0x100Eh.c": [
+  0,
+  "3197e24be3ae4940983d1dc3f998fe4c90edc8162295d03371afe75bc52094a7"
+ ],
+ "0x10xx_control/regla_0x100Fh.c": [
+  0,
+  "902bf429df4935b4bc9eae4daad76a7b0106006617ee09fee3e47a6e32233446"
+ ],
+ "0x10xx_control/regla_0x1010h.c": [
+  0,
+  "6a14876a30e83e8f59c678761ae13b293905465c326b46cdc2b5a3f911fb7c4c"
+ ],
+ "0x10xx_control/regla_0x1011h.c": [
+  1,
+  "a98685da18c0c875e3f00878fdbb4ada58dc9526fb4d40b910980fed07c36a6b"
+ ],
+ "0x10xx_control/regla_0x1012h.c": [
+  2,
+  "f3ffdb2caa59f054534218a78a51e144dad37877e28613de7dfb42b6d365e2f4"
+ ],
+ "0x10xx_control/regla_0x1013h.c": [
+  1,
+  "c1fd19f151e510205d258ddb292ac5f6121467296af7d531b2ce52f574296329"
+ ],
+ "0x10xx_control/regla_0x1014h.c": [
+  1,
+  "9393f2e2a177da61ae217f85ecfbe3c855ce620d06eda16c6967ef0e41cc43e7"
+ ],
+ "0x10xx_control/regla_0x1016h.c": [
+  0,
+  "9b12ccd49caaec4800dc298a422dd00b352e6ab99cea497917f47e1b55a1aa7b"
+ ],
+ "0x10xx_control/regla_0x1017h.c": [
+  0,
+  "95361a6361d8567315bc440231568bdfbc91cadbec543bdef0f2bdc8349a5e34"
+ ],
+ "0x20xx_funciones/regla_0x2001h.c": [
+  1,
+  "73cb4d5ae4c030365815ba22ddde0b2b69ebcb454fe92c0675c13f4c1f0a5547"
+ ],
+ "0x20xx_funciones/regla_0x2002h.c": [
+  1,
+  "b2151659a2d44f4d0e96ef2634b09da5019ba02d4c09c811b88b7ef56c3ab67a"
+ ],
+ "0x20xx_funciones/regla_0x2003h.c": [
+  1,
+  "3051b320fa15d3a2e9005da39daf9248d92b0edbe5130252a0dfccf55c2cf831"
+ ],
+ "0x20xx_funciones/regla_0x2004h.c": [
+  0,
+  "27fbb7f465eee36a0f52cddd64da84052fdcd577130c1164b2ea950b1dfd00f1"
+ ],
+ "0x20xx_funciones/regla_0x2005h.c": [
+  1,
+  "346c50faba6b97ebd463d1b716395e739611a8ab5c313eac2420d6e302537160"
+ ],
+ "0x20xx_funciones/regla_0x2006h.c": [
+  3,
+  "e009cb9097e7e7cf417178c8fb6f433ddff3b936d38013b4b35f1135e4b38e75"
+ ],
+ "0x20xx_funciones/regla_0x2007h.c": [
+  0,
+  "3a4c6732c8fb3aa655c806a8c7b3c03c724c4ebfb37d549cfb0c87eb27dcc2e7"
+ ],
+ "0x20xx_funciones/regla_0x2008h.c": [
+  0,
+  "a4c796d51e3991a6399befaea834ddfb18803f8e86959d7476a1a1818a941e4e"
+ ],
+ "0x20xx_funciones/regla_0x2009h.c": [
+  0,
+  "e442b8be152475bf718646c9a6067ddde94530510249960ef5274ae84b924fae"
+ ],
+ "0x20xx_funciones/regla_0x200Ah.c": [
+  0,
+  "43cdd6a2668627f8c5481501ed8327894f517813706081052b3b52c2dcb4d362"
+ ],
+ "0x20xx_funciones/regla_0x200Bh.c": [
+  0,
+  "963f732cf7100f2a3ca321be08e31b47942c0c5f14ea2c6f3bb5affd0f24643d"
+ ],
+ "0x20xx_funciones/regla_0x200Ch.c": [
+  1,
+  "73b80014fe96e37310d0699f5008bb648bad3470cefd7247dee07622328e55d4"
+ ],
+ "0x20xx_funciones/regla_0x200Dh.c": [
+  0,
+  "dfe4a021dcfff893e3f2e6858f8d2c29e798360c5195a6917e345d1e1a8d7f6f"
+ ],
+ "0x20xx_funciones/regla_0x200Eh.c": [
+  2,
+  "df133597dd7db159ebebb8a82533b1b0c166db5c7f874187cdc068847c156cc2"
+ ],
+ "0x20xx_funciones/regla_0x200Fh.c": [
+  1,
+  "0ffdb16f83a1efd8c7601b9ac10f42c6a9547aae068fe99642071c2f5bb81465"
+ ],
+ "0x20xx_funciones/regla_0x200Fh.h": [
+  2,
+  "1f8ceb7489ba7bddfe164c897dbcfcea738f97d8925a35e2277953de2a4e6f4e"
+ ],
+ "0x20xx_funciones/regla_0x2010h.c": [
+  0,
+  "97aab8cdd851f29b11ec3fae44093e9a6acbe98ba57d50b25c90230e75fd3e35"
+ ],
+ "0x20xx_funciones/regla_0x2011h.c": [
+  1,
+  "39a7b4850013df1b1dcb30e95f5bc5abd0c8d925de743f7ea59dc38dea5a1655"
+ ],
+ "0x20xx_funciones/regla_0x2012h.c": [
+  1,
+  "c8ab32776cd267151c79c1a833c01a945b9f075f69c125d584adc3e4f2983876"
+ ],
+ "0x20xx_funciones/regla_0x2013h.c": [
+  1,
+  "c51027a38871262888ed6f7adc71e03b61cd0a1201a99c9e58f5a9b0f85d0c6c"
+ ],
+ "0x20xx_funciones/regla_0x2016h.c": [
+  0,
+  "52e222ffca273ed0ada7a2781e4ca78aa539e01fe73d41400be5fdeec402a741"
+ ],
+ "0x30xx_punteros/regla_0x3001h.c": [
+  0,
+  "25f8de6baa438508e1a918e0e71c0c3dacca32c61fd830af5a71340828151641"
+ ],
+ "0x30xx_punteros/regla_0x3002h.c": [
+  0,
+  "72774fa2e9570e5305ce09bfbf79693cd9a51bd8d40d1fec525b60a619469cc0"
+ ],
+ "0x30xx_punteros/regla_0x3003h.c": [
+  0,
+  "a6737688d10f930acf9d68e672ae3898b0bfcff6a80ea8e0e8199254b9f95aa3"
+ ],
+ "0x30xx_punteros/regla_0x3004h.h": [
+  2,
+  "0bff46eefa04caf96a108b2e12c9fc0954e789549ee5f2a7a376eae3c48d101a"
+ ],
+ "0x30xx_punteros/regla_0x3005h.c": [
+  1,
+  "45ed974b39a061dca3058fd88cd65e191b5716ade5a058de15b5a21e681c46e3"
+ ],
+ "0x30xx_punteros/regla_0x3006h.c": [
+  0,
+  "baff35433f6c15b5b38e72561ce7f2f92829dac45617b4b0f6942a80fcf1eed6"
+ ],
+ "0x30xx_punteros/regla_0x3007h.c": [
+  0,
+  "b7f43d01dd102d20b83e9a89f6e3ab58e0d87e7ddf2a12ed4fa8718a64fa6b10"
+ ],
+ "0x30xx_punteros/regla_0x3008h.c": [
+  0,
+  "4c8dbf97bfa28ecae09815987bb8ddff109d3de0ddbb49ffd68eb0c1e28341c5"
+ ],
+ "0x30xx_punteros/regla_0x3009h.c": [
+  0,
+  "fb5827575aa8419c831c8036aad3d294e4166e86e85440380f63806efa0e9744"
+ ],
+ "0x30xx_punteros/regla_0x300Ah.c": [
+  0,
+  "43219d6db0a6640de1247052ad2a25624fe8ecab2ebf0670f8812758367101d1"
+ ],
+ "0x30xx_punteros/regla_0x300Bh.c": [
+  0,
+  "18e25b20a82a93a2aeec059f81f9ceed503733c68112c76ca4ffaecc658d7ef8"
+ ],
+ "0x30xx_punteros/regla_0x300Ch.c": [
+  1,
+  "5909dcdf264c4e4c88050eae7956be0043bd9fee95c6c750c13056e43d0e5d6e"
+ ],
+ "0x30xx_punteros/regla_0x300Dh.c": [
+  0,
+  "4e41d1d1378ed0cdda64073c9002e942d4cf91b922f18a695ebbd5fbe4bb8bd7"
+ ],
+ "0x30xx_punteros/regla_0x300Eh.c": [
+  1,
+  "325e1f49b619314a07fcdf8415656122c5782088d99ddbbb7b3f1495b0b9a068"
+ ],
+ "0x30xx_punteros/regla_0x300Fh.c": [
+  0,
+  "27c61dc6605948e83ab6f4c7072a8341e0f41c9e04da49b677ec15b4feb3c9b1"
+ ],
+ "0x30xx_punteros/regla_0x3010h.c": [
+  0,
+  "48ec7ab8c1a7f7d37c31ec487ae326707e48001b2311d71f0a5c41bfcde80d9d"
+ ],
+ "0x30xx_punteros/regla_0x3011h.c": [
+  0,
+  "e64e4ef50cbfec3d9a3978508dd68a5b07149c79ed1fcd083fe5add19536991a"
+ ],
+ "0x30xx_punteros/regla_0x3012h.c": [
+  1,
+  "b4d472006f40323a14a439bb44af5ed0864430017c43ffc02bb89c4f25dd03ae"
+ ],
+ "0x30xx_punteros/regla_0x3013h.c": [
+  1,
+  "8ac14173c0452816cc5ae84302fbe38824dec9ed1fb256ace42e472fc672ac9b"
+ ],
+ "0x30xx_punteros/regla_0x3014h.c": [
+  0,
+  "f7af7fa59b1c5b35e5b2db8f90bd1c306cd15a15a788e3514c55884dadcd313e"
+ ],
+ "0x30xx_punteros/regla_0x3015h.c": [
+  1,
+  "ec7325ec74f29616d9eb4c7862b54982facefee0d81ab57dd341d90aa32b8200"
+ ],
+ "0x30xx_punteros/regla_0x3016h.c": [
+  0,
+  "06e5179a5d22a05e0bfecbc58c4176ca542c216c2b6c65e830afd83a17b3440e"
+ ],
+ "0x30xx_punteros/regla_0x3017h.c": [
+  1,
+  "206aa284e84919ecdad4d9b7c79c013b978d131b252398497495b938ecbb7933"
+ ],
+ "0x30xx_punteros/regla_0x3018h.c": [
+  0,
+  "c7500df975b22cdde7b53d14935bf8a3ab1e08392b443193c84d8535f2f1f1b7"
+ ],
+ "0x30xx_punteros/regla_0x3019h.c": [
+  0,
+  "2db776b371124a811553467a835383b0219de9ce98d77cd1f77500676eff6082"
+ ],
+ "0x30xx_punteros/regla_0x301Ah.c": [
+  0,
+  "745148ae7a985e680ced39f6d7f5f99cdbd8e62ca4af37ab444b384e120cdbe7"
+ ],
+ "0x40xx_archivos/regla_0x4001h.c": [
+  0,
+  "3cec263d99171ca41e29c6e06867adbeae2be5452e9c3c422d056e6c7eab633a"
+ ],
+ "0x40xx_archivos/regla_0x4002h.c": [
+  1,
+  "23cb6c994f1329e44793b489839263f89e7830108e4fdac3f4d0843c60a66873"
+ ],
+ "0x40xx_archivos/regla_0x4003h.c": [
+  0,
+  "3c5016ab72926da10a0c49cba5900f5f585bf43aa5f19d0721e878819c051c1f"
+ ],
+ "0x40xx_archivos/regla_0x4004h.c": [
+  2,
+  "73992deaf2f9ec1d32c8a0f6a9f9b44bd7b1fd29fe841a46cd4b76fde1f31291"
+ ],
+ "0x40xx_archivos/regla_0x4005h.c": [
+  1,
+  "2eedb0766ad6daa23640ffe9fef91e5437a443f5885d84b84f782fd8c9d77059"
+ ],
+ "0x40xx_archivos/regla_0x4006h.c": [
+  1,
+  "c6eee2788e990d3e62d5575e34131fe1d9b218eadea3d55977a900b4ed86ef62"
+ ],
+ "0x40xx_archivos/regla_0x4007h.c": [
+  0,
+  "bc087d468cad2a3f4fa16b5f60620e610bc87072e562272f99300d4275ad1352"
+ ],
+ "0x40xx_archivos/regla_0x4008h.c": [
+  1,
+  "84f449571043ce4d0bb9c4914eb7fd2bea44f64d3b5caebac902639a336ab54a"
+ ],
+ "0x40xx_archivos/regla_0x4009h.c": [
+  0,
+  "05e2e33c80759ca4de4fb7b05f647839db8d3bba3b797bf675aa795d911cb77d"
+ ],
+ "0x40xx_archivos/regla_0x400Ah.c": [
+  1,
+  "29fe2940941941fae692e6f011d57705fc12896f2907a783a05d77b3b34f6c1e"
+ ],
+ "0x50xx_compilacion/regla_0x5001h.c": [
+  1,
+  "b150402d2d850b58d8db945c41a8193aefe3bb24b16ee8e840ba424917bfc5da"
+ ],
+ "0x50xx_compilacion/regla_0x5002h.c": [
+  1,
+  "7f7e03f784ba7421872770cadee9224fed2df402e53130db959ddac27ce46018"
+ ],
+ "0x50xx_compilacion/regla_0x5003h.h": [
+  0,
+  "efbcb0f97426071c8098ed0d2c3bf417f9b21a064b8411f177030edd649e9a81"
+ ],
+ "0x50xx_compilacion/regla_0x5004h.c": [
+  0,
+  "887904fbf379ea4f528ec8d291d3d8e81b1e400f9222c6988c44f9960aa41d9f"
+ ],
+ "0x50xx_compilacion/regla_0x5005h.c": [
+  1,
+  "e33a7e0ca44988e5c7e048f0322e624e4e7020116b86fc1f62e37bdd06057b78"
+ ],
+ "0x50xx_compilacion/regla_0x5006h.c": [
+  0,
+  "761442bb01bf2a18ed6b8053747634dadf02bdcf0a09b9207ca708d5f281b369"
+ ],
+ "0x50xx_compilacion/regla_0x5007h.c": [
+  1,
+  "16f9a098db6df4e7a53fb4866fc493bf62ef2ef4eb5b9d989034699d90bf7d25"
+ ],
+ "0x50xx_compilacion/regla_0x5008h.c": [
+  0,
+  "b8667c799552628ae59518cd074048ea1a0fa193684f6de3458897341809de49"
+ ],
+ "0x50xx_compilacion/regla_0x5009h.c": [
+  1,
+  "7a9e74b369318a5cef897197a69a4978ca6e631234a4781231df9eabae0b23c4"
+ ],
+ "0x50xx_compilacion/regla_0x500Ah.c": [
+  1,
+  "90e53c1cc34967881580bd4df31839de6ba09b4edc18b7aa27f73d8c3408ce09"
+ ],
+ "0x50xx_compilacion/regla_0x500Bh.c": [
+  0,
+  "5f2dad953541d4ee2a1612bad8e428abd5b7700996ebae4f315508616652dffe"
+ ],
+ "0x50xx_compilacion/regla_0x500Ch.c": [
+  1,
+  "985ce2966468c07126d3fe7a5fd7aa6d6dbd7d67aa2b427c9a1c1bf0274344de"
+ ],
+ "0x50xx_compilacion/regla_0x500Dh.c": [
+  0,
+  "403bfa0f81e7229d9980cb1f7abc5ce7121d270609c3187f4eceae769bc4d3bc"
+ ],
+ "0x50xx_compilacion/regla_0x500Eh.c": [
+  1,
+  "782b3ede712c5e30afaec48d5178f36c9f2d3376f4a7250c6422bc0506a55361"
+ ],
+ "0x50xx_compilacion/regla_0x5011h.c": [
+  1,
+  "50f6371c2fc101e58eedea79dae64e9c41dcdefbced9681d269ef2c446f12ed8"
+ ],
+ "0x50xx_compilacion/regla_0x5012h.c": [
+  1,
+  "987158f7dd6593d50d426dec711d704109fc250b5132f0056712ec66526b722b"
+ ],
+ "0x50xx_compilacion/regla_0x5013h.c": [
+  1,
+  "88076562d6a788618f0f67bfc14e73b04ac3145d6393b5a371b4ca75602a4028"
+ ],
+ "0x50xx_compilacion/regla_0x5014h.c": [
+  1,
+  "b6eaf94ee23dc94e612b4c361c8a15371bc875ff047230277c374ffaa5f11f2a"
+ ],
+ "0x50xx_compilacion/regla_0x5015h.c": [
+  2,
+  "4e44b005816abb1a596aa8cf658964bcd4e98bc786e83e62c6fd62c41cddedf2"
+ ],
+ "0x50xx_compilacion/regla_0x5016h.c": [
+  0,
+  "c3da7702c6e775c4f0f3d509a97850aa207067798ef59aa34bba646a9806421e"
+ ]
+}

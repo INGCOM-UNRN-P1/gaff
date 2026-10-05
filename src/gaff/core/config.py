@@ -152,3 +152,51 @@ def generar_plantilla_gaffrc_json(
         "disabled_rules": sorted(list(set(reglas_excluidas or []))),
     }
 
+
+
+_SEVERIDADES_VALIDAS = {"error": "ERROR", "advertencia": "ADVERTENCIA", "estilo": "ESTILO", "off": None}
+
+
+def _claves_de_regla(codigo: str) -> List[str]:
+    """Por qué nombres se puede referir una regla en la configuración: su código, su familia
+    (`00_formato` o `formato`) y su categoría común (`memoria`, `estilo`…)."""
+    from gaff.core.rules import CATALOGO_REGLAS, normalizar_codigo
+    from gaff.core.taxonomia import categoria
+
+    cod = normalizar_codigo(codigo)
+    familia = CATALOGO_REGLAS.get(cod, {}).get("directorio", "")
+    claves = [cod.lower()]
+    if familia:
+        claves += [familia.lower(), familia.split("_", 1)[-1].lower()]
+    claves.append(categoria(cod))
+    return claves
+
+
+def aplicar_severidades_por_actividad(violaciones: List[Any], config: Dict[str, Any]) -> List[Any]:
+    """Severidad por actividad (en el TP1 solo formato; en el final, todo).
+
+    - `familias: [formato, nomenclatura]` deja solo las reglas de esas familias;
+    - `severidades: {memoria: error, "0x0001h": off}` cambia la severidad de una regla, familia o
+      categoría (`error`, `advertencia`, `estilo` u `off` para no informarla). El código exacto
+      gana sobre la familia y la familia sobre la categoría.
+    """
+    familias = {str(f).lower() for f in (config.get("familias") or [])}
+    severidades = {str(k).lower(): str(v).lower() for k, v in (config.get("severidades") or {}).items()}
+    for valor in severidades.values():
+        if valor not in _SEVERIDADES_VALIDAS:
+            raise ValueError(f"severidad «{valor}» inválida en la configuración de gaff: usá "
+                             f"{', '.join(_SEVERIDADES_VALIDAS)}")
+    if not familias and not severidades:
+        return violaciones
+    resultado = []
+    for v in violaciones:
+        claves = _claves_de_regla(str(v.codigo))
+        if familias and not familias & set(claves[1:3]):
+            continue
+        cambio = next((severidades[c] for c in claves if c in severidades), None)
+        if cambio is not None:
+            if _SEVERIDADES_VALIDAS[cambio] is None:
+                continue
+            v.severidad = _SEVERIDADES_VALIDAS[cambio]
+        resultado.append(v)
+    return resultado

@@ -192,6 +192,26 @@ def _regla_5001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
                     es_autofixable=False,
                 ))
 
+        # QoL #388: también las matrices (`int m[3][4];`, con o sin inicialización).
+        re_matriz = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\w+\s*((?:\[\s*\w+\s*\]\s*){{2,}})[;=]", re.MULTILINE)
+        for m in re_matriz.finditer(codigo_sin_comentarios):
+            magicos = [n for n in re.findall(r"\[\s*(\d+)\s*\]", m.group(1)) if int(n) > 1]
+            if not magicos:
+                continue
+            line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
+            rcode, tit = ctx.regla_info("0x5001h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=line_no,
+                columna=1,
+                mensaje=f"Matriz con dimensiones fijadas con números mágicos ({', '.join(magicos)}) sin #define o enum.",
+                sugerencia="Definí constantes para las filas y las columnas (#define FILAS ..., #define COLUMNAS ...).",
+                codigo_linea=lineas[line_no - 1],
+                es_autofixable=False,
+            ))
+
 
 # 0x2006h: Una aserción por cada función de prueba
 def _regla_8001(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:

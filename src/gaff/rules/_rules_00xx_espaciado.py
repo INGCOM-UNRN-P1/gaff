@@ -491,6 +491,39 @@ def _regla_0014(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
                         es_autofixable=False,
                     ))
 
+        # QoL #390: una cadena literal ocupa sus caracteres más el '\0' final. `char t[4] = "Hola";`
+        # compila sin aviso en C, pero `t` queda sin terminador y strlen/printf leen de más.
+        re_cadena = re.compile(r'\bchar\s+([a-zA-Z_]\w*)\s*\[\s*(\d+)\s*\]\s*=\s*"((?:[^"\\]|\\.)*)"')
+        for i, l in enumerate(ctx.lineas_sin_comentarios):
+            m_cad = re_cadena.search(l)
+            if not m_cad:
+                continue
+            arr_nom, cap = m_cad.group(1), int(m_cad.group(2))
+            largo = _largo_literal(m_cad.group(3))
+            if largo >= cap:
+                rcode, tit = ctx.regla_info("0x0014h")
+                violaciones.append(ViolacionRegla(
+                    codigo=rcode,
+                    titulo=tit,
+                    archivo=ruta,
+                    linea=i + 1,
+                    columna=m_cad.start() + 1,
+                    mensaje=(f"La cadena inicial de '{arr_nom}' tiene {largo} caracteres y el arreglo {cap}: "
+                             + ("no queda lugar para el terminador '\\0'." if largo == cap
+                                else "no entra, y además falta lugar para el terminador '\\0'.")),
+                    sugerencia=f"Declaralo con lugar para el '\\0' (char {arr_nom}[{largo + 1}]) o dejá que lo calcule el compilador: char {arr_nom}[] = \"...\";",
+                    codigo_linea=lineas[i],
+                    es_autofixable=False,
+                ))
+
+
+_ESCAPE = re.compile(r"\\(?:x[0-9A-Fa-f]+|[0-7]{1,3}|.)")
+
+
+def _largo_literal(contenido: str) -> int:
+    """Caracteres de una cadena literal de C, contando cada secuencia de escape como uno."""
+    return len(_ESCAPE.sub("e", contenido))
+
 
 # 0x002Bh: Validador de espaciado en listas de argumentos y llamadas a funciones
 def _regla_0015(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:

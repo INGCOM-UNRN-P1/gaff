@@ -653,19 +653,19 @@ def ejecutar_linter(
     idkfa: bool = False,
 ) -> ReporteLinting:
     """Ejecuta el linter sobre un conjunto de archivos o directorios aplicando configuración por exclusión."""
-    from gaff.core.config import cargar_configuracion_gaff
+    from gaff.core.config import aplicar_severidades_por_actividad, cargar_configuracion_gaff
 
+    dir_base = None
+    for r in rutas:
+        p = Path(r)
+        if p.is_dir():
+            dir_base = p
+            break
+        elif p.is_file():
+            dir_base = p.parent
+            break
+    cfg = config or cargar_configuracion_gaff(dir_base)
     if reglas_excluidas is None:
-        dir_base = None
-        for r in rutas:
-            p = Path(r)
-            if p.is_dir():
-                dir_base = p
-                break
-            elif p.is_file():
-                dir_base = p.parent
-                break
-        cfg = config or cargar_configuracion_gaff(dir_base)
         excl_cfg = cfg.get("excluded_rules", []) or cfg.get("disabled_rules", [])
         if excl_cfg:
             reglas_excluidas = set(str(x) for x in excl_cfg)
@@ -697,6 +697,7 @@ def ejecutar_linter(
             reglas_excluidas=reglas_excluidas,
             reglas_habilitadas=reglas_habilitadas,
         )
+        viols = aplicar_severidades_por_actividad(viols, cfg)
         reportes.append(ReporteArchivo(
             archivo=arch,
             violaciones=viols,

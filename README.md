@@ -77,6 +77,25 @@ gaff explain 0x0001h
 gaff doctor
 ```
 
+### Configuración por actividad
+
+Un `.gaffrc.yaml` (o `gaff.toml`, o `[tool.gaff]` en `pyproject.toml`) en el directorio de la
+actividad ajusta qué se informa, para no abrumar en las primeras semanas:
+
+```yaml
+# TP1: solo formato y nombres
+familias: [formato, nomenclatura]
+
+# Final: todo, pero con otra severidad para algunas reglas, familias o categorías
+severidades:
+  memoria: error       # una categoría común (memoria, control, estilo…)
+  formato: advertencia # una familia del apunte (00_formato o formato)
+  "0x5001h": "off"     # una regla: off no la informa
+```
+
+El código exacto gana sobre la familia y la familia sobre la categoría. `excluded_rules` sigue
+desactivando reglas sueltas.
+
 <!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
 
 ## Referencia rápida

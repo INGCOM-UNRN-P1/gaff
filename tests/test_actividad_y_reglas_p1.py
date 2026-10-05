@@ -62,3 +62,18 @@ def test_severidad_por_codigo_familia_y_off(tmp_path):
 def test_severidad_invalida():
     with pytest.raises(ValueError, match="inválida"):
         aplicar_severidades_por_actividad([], {"severidades": {"formato": "grave"}})
+
+
+def test_fix_ordena_los_includes(tmp_path):
+    """QoL #404: estándar primero (alfabético), después los del proyecto en su orden."""
+    from gaff.core.linter import ordenar_includes
+
+    lineas = ['#include "pila.h"', "#include <string.h>", '#include "cola.h"', "#include <stdio.h>", "", "int x;"]
+    ordenadas, cambios = ordenar_includes(lineas)
+    assert ordenadas[:4] == ["#include <stdio.h>", "#include <string.h>", '#include "pila.h"', '#include "cola.h"']
+    assert cambios == 1 and ordenar_includes(ordenadas)[1] == 0
+
+    fuente = tmp_path / "m.c"
+    fuente.write_text('#include "m.h"\n#include <stdio.h>\n\nint main(void)\n{\n    return 0;\n}\n', encoding="utf-8")
+    ejecutar_linter([fuente], fix=True)
+    assert fuente.read_text(encoding="utf-8").startswith('#include <stdio.h>\n#include "m.h"\n')

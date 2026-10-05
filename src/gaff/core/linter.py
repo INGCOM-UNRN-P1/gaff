@@ -262,6 +262,38 @@ def desenmascarar_comentarios_idkfa(codigo: str, placeholders: Dict[str, str]) -
     return codigo
 
 
+_RE_INCLUDE = re.compile(r'^[ \t]*#include[ \t]+([<"])([^>"]+)[>"]')
+
+
+def ordenar_includes(lineas: List[str]) -> Tuple[List[str], int]:
+    """Ordena cada bloque contiguo de #include: estándar (alfabético) y después los del proyecto."""
+    resultado: List[str] = []
+    bloque: List[str] = []
+    cambios = 0
+
+    def _volcar() -> None:
+        nonlocal cambios
+        partes = [(l, _RE_INCLUDE.match(l)) for l in bloque]
+        sistema = sorted((p for p in partes if p[1] and p[1].group(1) == "<"), key=lambda p: p[1].group(2) if p[1] else "")
+        proyecto = [p for p in partes if p[1] and p[1].group(1) == '"']
+        ordenado = [l for l, _ in sistema + proyecto]
+        if ordenado != bloque:
+            cambios += 1
+        resultado.extend(ordenado)
+        bloque.clear()
+
+    for linea in lineas:
+        if _RE_INCLUDE.match(linea):
+            bloque.append(linea)
+            continue
+        if bloque:
+            _volcar()
+        resultado.append(linea)
+    if bloque:
+        _volcar()
+    return resultado, cambios
+
+
 def aplicar_autofix_archivo(
     ruta: Path,
     reglas_excluidas: Optional[Set[str]] = None,
@@ -341,6 +373,13 @@ def aplicar_autofix_archivo(
                 headers_vistos_fix.add(h_nom)
             lineas_dedup.append(l)
         lineas = lineas_dedup
+
+    # 0x5005h (QoL #404): en cada bloque contiguo de #include, primero las cabeceras estándar
+    # (<...>, en orden alfabético) y después las del proyecto ("...", en el orden en que estaban:
+    # entre ellas el orden puede importar).
+    if _activa("0x5005h"):
+        lineas, n_orden = ordenar_includes(lineas)
+        arreglos += n_orden
 
     nuevas_lineas = []
 
@@ -610,7 +649,9 @@ def aplicar_autofix_archivo(
             "AllowShortIfStatementsOnASingleLine: false, AllowShortBlocksOnASingleLine: false, "
             "AllowShortLoopsOnASingleLine: false, AllowShortFunctionsOnASingleLine: None, "
             "IndentWidth: 4, TabWidth: 4, UseTab: Never, IndentCaseLabels: true, "
-            "ColumnLimit: 80, SpaceBeforeParens: ControlStatements, PointerAlignment: Right}"
+            "ColumnLimit: 80, SpaceBeforeParens: ControlStatements, PointerAlignment: Right, "
+            # El orden de los #include lo fija gaff (0x5005h): el de LLVM pone primero los locales.
+            "SortIncludes: Never}"
         )
         try:
             contenido_pre = ruta.read_text(encoding=encoding_detectado, errors="replace") if ruta.exists() else ""

@@ -262,9 +262,9 @@ def _regla_5005(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
                         linea=i + 1,
                         columna=1,
                         mensaje=f"Inclusión de cabecera de sistema '<{h_s}>' posterior a cabecera de usuario '{user_header_name}'.",
-                        sugerencia="Incluí las cabeceras estándar de sistema (<...>) antes de las cabeceras locales de usuario (\"...\").",
+                        sugerencia="Incluí las cabeceras estándar de sistema (<...>) antes de las cabeceras locales de usuario (\"...\"); `gaff fix` las ordena.",
                         codigo_linea=lineas[i],
-                        es_autofixable=False,
+                        es_autofixable=True,
                     ))
                     break
 

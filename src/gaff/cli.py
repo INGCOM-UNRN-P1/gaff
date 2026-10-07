@@ -76,6 +76,12 @@ def check_cmd(
         "-R",
         help="[Legado/Filtro] Lista de códigos de regla a evaluar exclusivamente. Por defecto se evalúan todas salvo las excluidas.",
     ),
+    activar: Optional[str] = typer.Option(
+        None,
+        "--activar",
+        "--enable",
+        help="Reglas opcionales a evaluar, separadas por comas (ej: '0x3020h'); también `enabled_rules` en la configuración.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emitir reporte estructurado en JSON."),
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", "-o", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
     badge: Optional[Path] = typer.Option(None, "--badge", "-b", help="Ruta de salida para generar un badge SVG de cumplimiento de estilo."),
@@ -88,6 +94,7 @@ def check_cmd(
     """Audita archivos de código C comprobando las reglas de estilo y arquitectura de la cátedra."""
     excluidas_set = set(r.strip() for r in exclude.split(",") if r.strip()) if exclude else None
     reglas_set = set(r.strip().upper() for r in rules.split(",") if r.strip()) if rules else None
+    activadas_set = set(r.strip() for r in activar.split(",") if r.strip()) if activar else None
     reporte = ejecutar_linter(
         rutas,
         fix=fix,
@@ -95,6 +102,7 @@ def check_cmd(
         reglas_habilitadas=reglas_set,
         recursive=recursive,
         idkfa=idkfa,
+        reglas_activadas=activadas_set,
     )
 
     if badge:

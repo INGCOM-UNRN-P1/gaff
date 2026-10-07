@@ -18,6 +18,7 @@ from gaff.core.rules import (
     CATALOGO_REGLAS,
     MAPA_INVERSO,
     MAPA_RENUMERACION,
+    REGLAS_OPCIONALES,
     normalizar_codigo,
     obtener_regla,
     obtener_severidad,
@@ -96,12 +97,14 @@ def normalizar_exclusiones(reglas_excluidas: Optional[Set[str]]) -> Set[str]:
 def normalizar_activas(
     reglas_habilitadas: Optional[Set[str]],
     excluidas_norm: Set[str],
+    reglas_activadas: Optional[Set[str]] = None,
 ) -> Set[str]:
     """Determina el conjunto de reglas activas.
 
     Por defecto (modo canónico institucional) TODAS las reglas del catálogo
     quedan activas excepto las excluidas. Si se provee ``reglas_habilitadas``,
-    se interpreta como filtro de inclusión retrocompatible.
+    se interpreta como filtro de inclusión retrocompatible. Las reglas opcionales
+    (REGLAS_OPCIONALES) quedan afuera salvo que figuren en ``reglas_activadas``.
     """
     if reglas_habilitadas is not None:
         reglas_norm: Set[str] = set()
@@ -120,7 +123,9 @@ def normalizar_activas(
             if r in CATALOGO_REGLAS:
                 reglas_norm.add(CATALOGO_REGLAS[r].get("codigo", "").lower())
         return reglas_norm - excluidas_norm
-    return {k.lower() for k in CATALOGO_REGLAS.keys()} - excluidas_norm
+    activadas = {normalizar_codigo(r).lower() for r in (reglas_activadas or set())}
+    opcionales = {c.lower() for c in REGLAS_OPCIONALES} - activadas
+    return {k.lower() for k in CATALOGO_REGLAS.keys()} - opcionales - excluidas_norm
 
 
 # Tipos básicos de C

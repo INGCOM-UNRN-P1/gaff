@@ -29,6 +29,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "enforce_allman": True,
     "excluded_rules": [],
     "disabled_rules": [],
+    # Reglas opcionales que se activan (REGLAS_OPCIONALES, por ejemplo 0x3020h).
+    "enabled_rules": [],
 }
 
 
@@ -56,6 +58,18 @@ def obtener_reglas_excluidas(config: Dict[str, Any]) -> Set[str]:
                     excluidas.add(v.strip())
 
     return excluidas
+
+
+def obtener_reglas_activadas(config: Dict[str, Any]) -> Set[str]:
+    """Reglas opcionales que la configuración activa (enabled_rules, reglas_activadas o activar)."""
+    activadas: Set[str] = set()
+    for clave in ("enabled_rules", "reglas_activadas", "activar"):
+        valores = config.get(clave)
+        if isinstance(valores, str):
+            valores = valores.split(",")
+        if isinstance(valores, (list, set, tuple)):
+            activadas.update(v.strip() for v in valores if isinstance(v, str) and v.strip())
+    return activadas
 
 
 def cargar_configuracion_gaff(directorio: Optional[Path] = None) -> Dict[str, Any]:
@@ -124,6 +138,7 @@ def cargar_configuracion_gaff(directorio: Optional[Path] = None) -> Dict[str, An
     excluidas_set = obtener_reglas_excluidas(config)
     config["excluded_rules"] = sorted(list(excluidas_set))
     config["disabled_rules"] = config["excluded_rules"]
+    config["enabled_rules"] = sorted(obtener_reglas_activadas(config))
 
     return config
 

@@ -79,12 +79,14 @@ def analizar_archivo(
     ruta: Path,
     reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
+    reglas_activadas: Optional[Set[str]] = None,
 ) -> List[ViolacionRegla]:
     """Analiza un archivo fuente C y retorna las violaciones de estilo encontradas.
 
     Por diseño pedagógico institucional, la configuración es por EXCLUSIÓN: todas
     las reglas del catálogo se evalúan obligatoriamente salvo las especificadas en
-    `reglas_excluidas`.
+    `reglas_excluidas`. Las reglas opcionales se evalúan solo si figuran en
+    `reglas_activadas`.
     """
     ruta = Path(ruta)
     if not ruta.is_file():
@@ -112,7 +114,7 @@ def analizar_archivo(
 
     # 1-2. Normalizar reglas excluidas/activas y construir el contexto compartido
     excluidas_norm = normalizar_exclusiones(reglas_excluidas)
-    reglas_norm = normalizar_activas(reglas_habilitadas, excluidas_norm)
+    reglas_norm = normalizar_activas(reglas_habilitadas, excluidas_norm, reglas_activadas)
 
     ctx = ContextoAnalisis(
         ruta=ruta,
@@ -177,6 +179,7 @@ def analizar_codigo(
     nombre_archivo: str = "codigo.c",
     reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
+    reglas_activadas: Optional[Set[str]] = None,
 ) -> List[ViolacionRegla]:
     """Analiza una cadena de texto con código C en memoria sin requerir guardarlo en disco."""
     import tempfile
@@ -189,6 +192,7 @@ def analizar_codigo(
             tmp_path,
             reglas_excluidas=reglas_excluidas,
             reglas_habilitadas=reglas_habilitadas,
+            reglas_activadas=reglas_activadas,
         )
         for v in viols:
             v.archivo = Path(nombre_archivo)
@@ -738,6 +742,7 @@ def ejecutar_linter(
     recursive: bool = False,
     config: Optional[Dict[str, Any]] = None,
     idkfa: bool = False,
+    reglas_activadas: Optional[Set[str]] = None,
 ) -> ReporteLinting:
     """Ejecuta el linter sobre un conjunto de archivos o directorios aplicando configuración por exclusión."""
     from gaff.core.config import aplicar_severidades_por_actividad, cargar_configuracion_gaff
@@ -756,6 +761,8 @@ def ejecutar_linter(
         excl_cfg = cfg.get("excluded_rules", []) or cfg.get("disabled_rules", [])
         if excl_cfg:
             reglas_excluidas = set(str(x) for x in excl_cfg)
+    if reglas_activadas is None and cfg.get("enabled_rules"):
+        reglas_activadas = set(str(x) for x in cfg["enabled_rules"])
 
     archivos_objetivo: Set[Path] = set()
     for r in rutas:
@@ -783,6 +790,7 @@ def ejecutar_linter(
             arch,
             reglas_excluidas=reglas_excluidas,
             reglas_habilitadas=reglas_habilitadas,
+            reglas_activadas=reglas_activadas,
         )
         viols = aplicar_severidades_por_actividad(viols, cfg)
         reportes.append(ReporteArchivo(

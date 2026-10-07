@@ -36,6 +36,7 @@ def analizar_archivo(
     ruta: Union[Path, str],
     reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
+    reglas_activadas: Optional[Set[str]] = None,
 ) -> List[ViolacionRegla]:
     """Analiza un archivo fuente C y retorna la lista de violaciones de estilo encontradas.
 
@@ -43,6 +44,7 @@ def analizar_archivo(
         ruta: Ruta al archivo fuente (.c o .h).
         reglas_excluidas: Conjunto de códigos de regla a omitir (ej: {"0x0001h", "0x3001h"}).
         reglas_habilitadas: Conjunto restrictivo de reglas a ejecutar (si es None, ejecuta todas salvo excluidas).
+        reglas_activadas: Reglas opcionales a evaluar además (ej: {"0x3020h"}).
 
     Retorna:
         Lista de instancias de `ViolacionRegla` con severidad canónica ("ERROR", "ADVERTENCIA", "ESTILO").
@@ -51,6 +53,7 @@ def analizar_archivo(
         ruta=Path(ruta),
         reglas_excluidas=reglas_excluidas,
         reglas_habilitadas=reglas_habilitadas,
+        reglas_activadas=reglas_activadas,
     )
 
 
@@ -59,6 +62,7 @@ def analizar_codigo(
     nombre_archivo: str = "codigo.c",
     reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
+    reglas_activadas: Optional[Set[str]] = None,
 ) -> List[ViolacionRegla]:
     """Analiza una cadena de código fuente C en memoria."""
     return _analizar_codigo(
@@ -66,6 +70,7 @@ def analizar_codigo(
         nombre_archivo=nombre_archivo,
         reglas_excluidas=reglas_excluidas,
         reglas_habilitadas=reglas_habilitadas,
+        reglas_activadas=reglas_activadas,
     )
 
 

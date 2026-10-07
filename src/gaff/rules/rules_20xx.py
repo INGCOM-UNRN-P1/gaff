@@ -193,27 +193,71 @@ def _regla_2003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
 
 
 # 0x30XXh: Punteros y Gestión de Memoria
-# 0x3004h: Nomenclatura de typedef con _t o t_
+# 0x3004h: Nomenclatura de typedef con _t o t_ (_e en las enumeraciones)
 def _regla_3004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
     if ctx.esta_activa("0x3004h"):
-        re_typedef = re.compile(r"\btypedef\s+(?:struct|enum|union)\s*(?:\w*\s*\{[^}]*\}|\w+)\s+(\w+)\s*;", re.DOTALL)
+        re_typedef = re.compile(r"\btypedef\s+(struct|enum|union)\s*(?:\w*\s*\{[^}]*\}|\w+)\s+(\w+)\s*;", re.DOTALL)
         for m in re_typedef.finditer(codigo_sin_comentarios):
-            tipo_name = m.group(1)
-            if not (tipo_name.startswith("t_") or tipo_name.endswith("_t") or tipo_name.startswith("T_")):
-                line_no = codigo_sin_comentarios[:m.start(1)].count("\n") + 1
-                rcode, tit = ctx.regla_info("0x3004h")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=line_no,
-                    columna=1,
-                    mensaje=f"El tipo definido '{tipo_name}' no utiliza el prefijo 't_' ni el sufijo '_t'.",
-                    sugerencia=f"Renombralo como 't_{tipo_name.lower()}' o '{tipo_name.lower()}_t'.",
-                    es_autofixable=False,
-                ))
+            clase, tipo_name = m.group(1), m.group(2)
+            if clase == "enum":
+                if tipo_name.endswith("_e"):
+                    continue
+                base = re.sub(r"(^t_|_t$)", "", tipo_name, flags=re.IGNORECASE).lower()
+                mensaje = f"La enumeración '{tipo_name}' no utiliza el sufijo '_e'."
+                sugerencia = f"Renombrala como '{base}_e': el sufijo '_e' distingue las enumeraciones de los demás tipos ('_t')."
+            else:
+                if tipo_name.startswith("t_") or tipo_name.endswith("_t") or tipo_name.startswith("T_"):
+                    continue
+                mensaje = f"El tipo definido '{tipo_name}' no utiliza el prefijo 't_' ni el sufijo '_t'."
+                sugerencia = f"Renombralo como 't_{tipo_name.lower()}' o '{tipo_name.lower()}_t'."
+            line_no = codigo_sin_comentarios[:m.start(2)].count("\n") + 1
+            rcode, tit = ctx.regla_info("0x3004h")
+            violaciones.append(ViolacionRegla(
+                codigo=rcode,
+                titulo=tit,
+                archivo=ruta,
+                linea=line_no,
+                columna=1,
+                mensaje=mensaje,
+                sugerencia=sugerencia,
+                es_autofixable=False,
+            ))
+
+
+# 0x3020h (opcional): Separar la definición de un tipo de la declaración de sus variables
+_RE_DEFINICION_CON_VARIABLES = re.compile(
+    r"\b(struct|union|enum)\b\s*(\w*)\s*\{[^{}]*\}\s*(\**\s*[A-Za-z_]\w*(?:\s*\[[^\]]*\])*(?:\s*=[^,;]*)?"
+    r"(?:\s*,\s*\**\s*[A-Za-z_]\w*(?:\s*\[[^\]]*\])*(?:\s*=[^,;]*)?)*)\s*;",
+    re.DOTALL,
+)
+
+
+def _regla_3020(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
+    if not ctx.esta_activa("0x3020h"):
+        return
+    codigo = ctx.codigo_sin_comentarios
+    for m in _RE_DEFINICION_CON_VARIABLES.finditer(codigo):
+        # Lo que va desde el fin de la sentencia anterior: si empieza con typedef, el nombre es un alias.
+        previo = codigo[:m.start()]
+        corte = max(previo.rfind(";"), previo.rfind("}"), previo.rfind("{"), previo.rfind("\n#"))
+        if re.search(r"\btypedef\b", previo[corte + 1:]):
+            continue
+        clase, etiqueta = m.group(1), m.group(2)
+        variables = [re.sub(r"[\s*]|\[.*|=.*", "", v) for v in m.group(3).split(",")]
+        tipo = f"{clase} {etiqueta}".strip() if etiqueta else f"{clase} anónimo"
+        rcode, tit = ctx.regla_info("0x3020h")
+        violaciones.append(ViolacionRegla(
+            codigo=rcode,
+            titulo=tit,
+            archivo=ctx.ruta,
+            linea=codigo[:m.start(3)].count("\n") + 1,
+            columna=1,
+            mensaje=f"La definición de '{tipo}' declara también las variables {', '.join(repr(v) for v in variables)}.",
+            sugerencia="Definí el tipo con su typedef en una sentencia y declará las variables en otra.",
+            es_autofixable=False,
+        ))
 
 
 # 0x5005h: Organizar la estructura de los archivos .c de forma estándar
@@ -422,6 +466,7 @@ REGLAS = (
     _regla_1001,
     _regla_2003,
     _regla_3004,
+    _regla_3020,
     _regla_5005,
     _regla_100a,
     _regla_1011,

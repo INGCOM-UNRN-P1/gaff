@@ -44,7 +44,7 @@ GAFF es un linter pedagógico de código C y cabeceras H diseñado para hacer cu
 
 - **`0x0001h`**: Identificadores descriptivos (sin variables cortas no canónicas).
 - **`0x0007h`**: Nombres de variables y funciones en `snake_case`.
-- **`0x3004h`**: Nombres de `typedef` con prefijo `t_` o sufijo `_t`.
+- **`0x3004h`**: Nombres de `typedef` con prefijo `t_` o sufijo `_t`; las enumeraciones, con sufijo `_e`.
 - **`0x2004h`**: Prohibición de variables globales mutables fuera de funciones.
 - **`0x2005h`**: Longitud máxima de función $\le 40$ líneas.
 - **`0x5003h`**: Guardas de inclusión obligatorias en cabeceras `.h` *(Autofix)*.
@@ -95,6 +95,24 @@ severidades:
 
 El código exacto gana sobre la familia y la familia sobre la categoría. `excluded_rules` sigue
 desactivando reglas sueltas.
+
+### Reglas opcionales
+
+Algunas reglas no se evalúan salvo que se las active, con `--activar` en `gaff check` o con
+`enabled_rules` en la configuración:
+
+| Código    | Regla                                                                                     |
+| :-------- | :---------------------------------------------------------------------------------------- |
+| `0x3020h` | Separar la definición de un tipo de la declaración de sus variables (`struct p {…} a, b;`) |
+
+```bash
+gaff check src/ --activar 0x3020h
+```
+
+```yaml
+# .gaffrc.yaml
+enabled_rules: [0x3020h]
+```
 
 <!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
 

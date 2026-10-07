@@ -370,7 +370,7 @@ class _Desazucarador:
             for hijo in nodo.children:
                 if hijo == condicion:
                     palabra = tipo.split("_")[0]
-                    self.unidad(hijo, lambda h=hijo: f"{palabra} {self.condicion(h) if palabra != 'switch' else self.reescribir(h)}",
+                    self.unidad(hijo, lambda h=hijo, palabra=palabra: f"{palabra} {self.condicion(h) if palabra != 'switch' else self.reescribir(h)}",
                                 original=f"{palabra} {self.texto(hijo)}")
                 else:
                     self.recorrer(hijo)

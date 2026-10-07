@@ -566,7 +566,7 @@ def diff_cmd(
         diff_text = proc.stdout
     except Exception as ex:
         err_console.print(f"[red]Error ejecutando git diff:[/red] {ex}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from ex
 
     # Parsear archivos y líneas añadidas en el diff
     # Formato diff: +++ b/archivo.c

@@ -7,8 +7,9 @@ las reglas que explícitamente se desean desactivar/ignorar.
 
 from __future__ import annotations
 
+import fnmatch
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set
 import yaml
 
 try:
@@ -72,9 +73,86 @@ def obtener_reglas_activadas(config: Dict[str, Any]) -> Set[str]:
     return activadas
 
 
+_ARCHIVOS_GAFF = (
+    ".gaffrc.yaml", ".gaffrc.yml", "gaff.yaml", "gaff.yml", ".gaff.yaml",
+    ".gaffrc.json", "gaff.json", ".gaff.json", ".gaffrc", "gaff.toml", ".gaff.toml",
+)
+
+
+def _tiene_configuracion(d: Path) -> bool:
+    if any((d / n).is_file() for n in _ARCHIVOS_GAFF):
+        return True
+    pyproject = d / "pyproject.toml"
+    if pyproject.is_file() and tomllib is not None:
+        try:
+            return "gaff" in tomllib.loads(pyproject.read_text(encoding="utf-8")).get("tool", {})
+        except Exception:
+            return False
+    return False
+
+
+def _hacia_arriba(desde: Path) -> Iterable[Path]:
+    """`desde` y sus padres hasta la raíz del repositorio (el primero con .git) o del disco."""
+    for d in (desde, *desde.parents):
+        yield d
+        if (d / ".git").exists():
+            return
+
+
+def directorio_de_configuracion(desde: Optional[Path] = None) -> Path:
+    """El directorio cuya configuración de gaff vale para `desde`: el más cercano hacia arriba que
+    tenga una (la del TP activo, aunque se analice un archivo de una subcarpeta), sin salir del
+    repositorio. Si ninguno tiene, `desde`."""
+    inicio = Path(desde or ".").resolve()
+    return next((d for d in _hacia_arriba(inicio) if _tiene_configuracion(d)), inicio)
+
+
+def patrones_de_ripley(desde: Optional[Path] = None) -> List[str]:
+    """Las reglas que la actividad no evalúa según su ripley.toml (`[reglas] ignorar`) o su
+    .ripleyignore, el más cercano hacia arriba: así gaff solo (al guardar, o en vivo en jonesy)
+    filtra lo mismo que `ripley check` en el TP activo. Un patrón es un código, un comodín o
+    `gaff:código`; los de otras herramientas (`kaneda:…`) no se aplican."""
+    inicio = Path(desde or ".").resolve()
+    for d in _hacia_arriba(inicio):
+        patrones: List[str] = []
+        toml = d / "ripley.toml"
+        if toml.is_file() and tomllib is not None:
+            try:
+                reglas = tomllib.loads(toml.read_text(encoding="utf-8")).get("reglas", {})
+                patrones += [str(x) for x in reglas.get("ignorar", []) or []]
+            except Exception:  # noqa: BLE001 — un ripley.toml roto lo informa ripley, no este filtro
+                pass
+        ignore = d / ".ripleyignore"
+        if ignore.is_file():
+            for linea in ignore.read_text(encoding="utf-8", errors="replace").splitlines():
+                linea = linea.split("#", 1)[0].strip()
+                if linea:
+                    patrones.append(linea)
+        if patrones or toml.is_file():
+            return [x for x in patrones if ":" not in x or x.lower().startswith("gaff:")]
+    return []
+
+
+def ignorada_por_la_actividad(codigo: str, patrones: List[str]) -> bool:
+    """¿El código coincide con algún patrón de `patrones_de_ripley`? Como en ripley, sin el código
+    anterior a la renumeración: el viejo 0x0007h es hoy 0x0102h y otra regla se llama 0x0007h."""
+    if not patrones:
+        return False
+    from gaff.core.rules import normalizar_codigo
+
+    nombres = {codigo.lower(), normalizar_codigo(codigo).lower()}
+    for patron in patrones:
+        p = patron.lower().removeprefix("gaff:")
+        if any(fnmatch.fnmatch(n, p) for n in nombres):
+            return True
+    return False
+
+
 def cargar_configuracion_gaff(directorio: Optional[Path] = None) -> Dict[str, Any]:
-    """Busca y carga recursivamente la configuración de exclusiones desde .gaffrc.yaml, gaff.yaml o pyproject.toml."""
-    dir_actual = Path(directorio or ".").resolve()
+    """Carga la configuración de exclusiones desde .gaffrc.yaml, gaff.yaml, gaff.toml o
+    pyproject.toml del directorio más cercano hacia arriba que tenga una (sin salir del
+    repositorio, ver `directorio_de_configuracion`)."""
+    dir_actual = directorio_de_configuracion(directorio)
     config = dict(DEFAULT_CONFIG)
 
     candidatos_yaml = [

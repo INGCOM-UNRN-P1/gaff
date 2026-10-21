@@ -88,6 +88,9 @@ Audita archivos de código C comprobando las reglas de estilo y arquitectura de 
 | :--- | :--- | :--- | :--- |
 | `--recursive`, `-r` | `bool` | `False` | Procesa recursivamente todos los subdirectorios. |
 | `--fix`, `-f` | `bool` | `False` | Aplica automáticamente correcciones en reglas autofixables. |
+| `--stdin` | `bool` | `False` | Leer el código de la entrada estándar (el buffer de un editor, sin guardar): no toca el disco y no informa lo que está a medio escribir. |
+| `--stdin-filename` | `Optional[Path]` | `None` | Con --stdin, la ruta del archivo que se está editando: su nombre en el informe y de dónde se toma la configuración del TP (.gaffrc.yaml, ripley.toml). |
+| `--linea` | `Optional[int]` | `None` | Con --stdin, la línea que se está editando: no se informa nada en ella. |
 | `--exclude`, `-e`, `--ignore`, `-i` | `Optional[str]` | `None` | Lista de códigos de regla a excluir/desactivar separados por comas (ej: '0x0001h,0x0037h'). |
 | `--rules`, `-R` | `Optional[str]` | `None` | [Legado/Filtro] Lista de códigos de regla a evaluar exclusivamente. Por defecto se evalúan todas salvo las excluidas. |
 | `--json` | `bool` | `False` | Emitir reporte estructurado en JSON. |

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -59,9 +60,24 @@ def generar_seccion_markdown(reporte) -> str:
 
 @app.command("check")
 def check_cmd(
-    rutas: List[Path] = typer.Argument(..., exists=True, help="Archivos C/H o directorios a analizar."),
+    rutas: Optional[List[Path]] = typer.Argument(None, exists=True, help="Archivos C/H o directorios a analizar."),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Procesa recursivamente todos los subdirectorios."),
     fix: bool = typer.Option(False, "--fix", "-f", help="Aplica automáticamente correcciones en reglas autofixables."),
+    stdin: bool = typer.Option(
+        False,
+        "--stdin",
+        help="Leer el código de la entrada estándar (el buffer de un editor, sin guardar): no toca el disco y "
+        "no informa lo que está a medio escribir.",
+    ),
+    stdin_filename: Optional[Path] = typer.Option(
+        None,
+        "--stdin-filename",
+        help="Con --stdin, la ruta del archivo que se está editando: su nombre en el informe y de dónde se toma "
+        "la configuración del TP (.gaffrc.yaml, ripley.toml).",
+    ),
+    linea: Optional[int] = typer.Option(
+        None, "--linea", min=1, help="Con --stdin, la línea que se está editando: no se informa nada en ella."
+    ),
     exclude: Optional[str] = typer.Option(
         None,
         "--exclude",
@@ -95,15 +111,30 @@ def check_cmd(
     excluidas_set = set(r.strip() for r in exclude.split(",") if r.strip()) if exclude else None
     reglas_set = set(r.strip().upper() for r in rules.split(",") if r.strip()) if rules else None
     activadas_set = set(r.strip() for r in activar.split(",") if r.strip()) if activar else None
-    reporte = ejecutar_linter(
-        rutas,
-        fix=fix,
-        reglas_excluidas=excluidas_set,
-        reglas_habilitadas=reglas_set,
-        recursive=recursive,
-        idkfa=idkfa,
-        reglas_activadas=activadas_set,
-    )
+    if stdin:
+        if rutas or fix or convert_guards:
+            err_console.print("[bold red]Error:[/bold red] --stdin analiza el texto de la entrada estándar: no se "
+                              "combina con rutas, --fix ni --convert-guards (usá --stdin-filename para el nombre).")
+            raise typer.Exit(code=2)
+        from gaff.core.linter import analizar_en_vivo
+        reporte = analizar_en_vivo(sys.stdin.read(), stdin_filename or Path("codigo.c"), linea,
+                                   reglas_excluidas=excluidas_set, reglas_habilitadas=reglas_set,
+                                   reglas_activadas=activadas_set)
+        rutas = [reporte.archivos[0].archivo]
+    elif not rutas:
+        err_console.print("[bold red]Error:[/bold red] indicá los archivos o directorios a analizar "
+                          "(o --stdin para leer el código de la entrada estándar).")
+        raise typer.Exit(code=2)
+    else:
+        reporte = ejecutar_linter(
+            rutas,
+            fix=fix,
+            reglas_excluidas=excluidas_set,
+            reglas_habilitadas=reglas_set,
+            recursive=recursive,
+            idkfa=idkfa,
+            reglas_activadas=activadas_set,
+        )
 
     if badge:
         from gaff.core.badge import guardar_badge_svg

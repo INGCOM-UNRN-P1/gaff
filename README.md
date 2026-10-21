@@ -96,6 +96,24 @@ severidades:
 El código exacto gana sobre la familia y la familia sobre la categoría. `excluded_rules` sigue
 desactivando reglas sueltas.
 
+La configuración se busca desde la carpeta del archivo hacia arriba, sin salir del repositorio:
+la del TP vale también para los archivos de sus ejercicios. Las reglas que el `ripley.toml` de la
+actividad no evalúa (`[reglas] ignorar = ["0x40*h", "gaff:0x0101h"]`, o un `.ripleyignore`) tampoco
+se informan, así `gaff check` solo da lo mismo que `ripley check`.
+
+### En el editor, mientras se escribe
+
+`gaff check --stdin` analiza el texto de la entrada estándar (el buffer sin guardar) como si fuera
+el archivo de `--stdin-filename`, con la configuración de su TP, sin leer ni escribir el disco.
+No informa nada en la línea que se está editando (`--linea`) y, desde donde el código queda a
+medio escribir (una llave, un paréntesis, una cadena o un comentario sin cerrar), sólo las reglas
+de una línea (sangría, llaves, espacios y nombres): un `malloc` sin verificar contra `NULL` todavía
+puede verificarse en la línea siguiente. Es lo que usa jonesy en caliente.
+
+```bash
+gaff check --stdin --stdin-filename tp1/ej1/main.c --linea 12 --json < buffer.c
+```
+
 ### Reglas opcionales
 
 Algunas reglas no se evalúan salvo que se las active, con `--activar` en `gaff check` o con

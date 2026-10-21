@@ -80,6 +80,7 @@ def analizar_archivo(
     reglas_excluidas: Optional[Set[str]] = None,
     reglas_habilitadas: Optional[Set[str]] = None,
     reglas_activadas: Optional[Set[str]] = None,
+    contenido: Optional[str] = None,
 ) -> List[ViolacionRegla]:
     """Analiza un archivo fuente C y retorna las violaciones de estilo encontradas.
 
@@ -87,20 +88,25 @@ def analizar_archivo(
     las reglas del catálogo se evalúan obligatoriamente salvo las especificadas en
     `reglas_excluidas`. Las reglas opcionales se evalúan solo si figuran en
     `reglas_activadas`.
+
+    Con `contenido` se analiza ese texto como si fuera el de `ruta` (el buffer de un editor,
+    `gaff check --stdin`), sin leer ni escribir el disco.
     """
     ruta = Path(ruta)
-    if not ruta.is_file():
-        return []
-
     violaciones: List[ViolacionRegla] = []
 
-    try:
-        contenido_original = ruta.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    if contenido is not None:
+        contenido_original = contenido
+    elif not ruta.is_file():
+        return []
+    else:
         try:
-            contenido_original = ruta.read_text(encoding="latin-1")
-        except Exception:
-            return []
+            contenido_original = ruta.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            try:
+                contenido_original = ruta.read_text(encoding="latin-1")
+            except Exception:
+                return []
 
     lineas = contenido_original.splitlines()
     codigo_sin_comentarios = eliminar_comentarios(contenido_original)
@@ -745,7 +751,12 @@ def ejecutar_linter(
     reglas_activadas: Optional[Set[str]] = None,
 ) -> ReporteLinting:
     """Ejecuta el linter sobre un conjunto de archivos o directorios aplicando configuración por exclusión."""
-    from gaff.core.config import aplicar_severidades_por_actividad, cargar_configuracion_gaff
+    from gaff.core.config import (
+        aplicar_severidades_por_actividad,
+        cargar_configuracion_gaff,
+        ignorada_por_la_actividad,
+        patrones_de_ripley,
+    )
 
     dir_base = None
     for r in rutas:
@@ -793,6 +804,8 @@ def ejecutar_linter(
             reglas_activadas=reglas_activadas,
         )
         viols = aplicar_severidades_por_actividad(viols, cfg)
+        ignorar = patrones_de_ripley(arch.parent)
+        viols = [v for v in viols if not ignorada_por_la_actividad(str(v.codigo), ignorar)]
         reportes.append(ReporteArchivo(
             archivo=arch,
             violaciones=viols,
@@ -800,6 +813,128 @@ def ejecutar_linter(
         ))
 
     return ReporteLinting(archivos=reportes)
+
+
+def linea_inconclusa(codigo: str) -> Optional[int]:
+    """La primera línea (1-based) desde la que el código está a medio escribir, o None si está
+    completo: un comentario o una cadena sin cerrar, un paréntesis, corchete o llave que cierra
+    algo que no abrió, o el primero de los que quedan abiertos al final. Desde ahí, las reglas de
+    sangría, llaves o largo de funciones darían falsos positivos mientras se escribe."""
+    pila: List[Tuple[str, int]] = []
+    pares = {")": "(", "]": "[", "}": "{"}
+    linea = 1
+    inicio_de_linea = True  # sólo blancos desde el último salto: un # es del preprocesador
+    i, n = 0, len(codigo)
+    while i < n:
+        c = codigo[i]
+        if c == "\n":
+            linea += 1
+            inicio_de_linea = True
+            i += 1
+            continue
+        if c in " \t\r":
+            i += 1
+            continue
+        if c == "#" and inicio_de_linea:
+            # Directiva (con sus continuaciones \): los paréntesis de las macros no cuentan.
+            while i < n and codigo[i] != "\n":
+                if codigo[i] == "\\" and codigo.startswith("\n", i + 1):
+                    linea += 1
+                    i += 1
+                i += 1
+            continue
+        inicio_de_linea = False
+        if codigo.startswith("//", i):
+            fin = codigo.find("\n", i)
+            i = n if fin < 0 else fin
+            continue
+        if codigo.startswith("/*", i):
+            fin = codigo.find("*/", i + 2)
+            if fin < 0:
+                return linea
+            linea += codigo.count("\n", i, fin)
+            i = fin + 2
+            continue
+        if c == "'" and i > 0 and codigo[i - 1].isdigit() and codigo[i + 1:i + 2].isalnum():
+            i += 1  # separador de dígitos de C23 (1'000'000)
+            continue
+        if c in "\"'":
+            j = i + 1
+            while j < n and codigo[j] not in (c, "\n"):
+                j += 2 if codigo[j] == "\\" else 1
+            if j >= n or codigo[j] != c:
+                return linea
+            i = j + 1
+            continue
+        if c in "([{":
+            pila.append((c, linea))
+        elif c in ")]}":
+            if not pila or pila[-1][0] != pares[c]:
+                return linea
+            pila.pop()
+        i += 1
+    return pila[0][1] if pila else None
+
+
+# Familias cuyas reglas miran una línea sola (sangría, llaves, espacios, nombres): siguen valiendo
+# en un bloque sin cerrar. Las demás (largo y retorno de funciones, variables sin usar, flujo,
+# memoria) necesitan la construcción completa y darían falsos positivos mientras se escribe.
+FAMILIAS_DE_UNA_LINEA = ("00_formato", "01_nomenclatura")
+
+
+def filtrar_en_edicion(
+    violaciones: List[ViolacionRegla], codigo: str, linea_en_edicion: Optional[int] = None
+) -> List[ViolacionRegla]:
+    """Lo que tiene sentido mostrar mientras se escribe (`gaff check --stdin`): nada en la línea
+    que se está editando y, desde donde el código queda inconcluso (`linea_inconclusa`), sólo las
+    reglas de una línea (`FAMILIAS_DE_UNA_LINEA`)."""
+    from gaff.core.rules import CATALOGO_REGLAS
+
+    desde = linea_inconclusa(codigo)
+
+    def de_una_linea(v: ViolacionRegla) -> bool:
+        cod = normalizar_codigo(str(v.codigo))
+        return CATALOGO_REGLAS.get(cod, {}).get("directorio", "") in FAMILIAS_DE_UNA_LINEA
+
+    return [
+        v for v in violaciones
+        if v.linea != linea_en_edicion and (desde is None or v.linea < desde or de_una_linea(v))
+    ]
+
+
+def analizar_en_vivo(
+    codigo: str,
+    ruta: Path,
+    linea_en_edicion: Optional[int] = None,
+    reglas_excluidas: Optional[Set[str]] = None,
+    reglas_habilitadas: Optional[Set[str]] = None,
+    reglas_activadas: Optional[Set[str]] = None,
+) -> ReporteLinting:
+    """`gaff check --stdin`: el texto de un editor analizado como si fuera `ruta` (sin tocar el
+    disco), con la configuración y las reglas ignoradas del TP de `ruta` y sin lo que está a medio
+    escribir (`filtrar_en_edicion`)."""
+    from gaff.core.config import (
+        aplicar_severidades_por_actividad,
+        cargar_configuracion_gaff,
+        ignorada_por_la_actividad,
+        patrones_de_ripley,
+    )
+
+    ruta = Path(ruta)
+    cfg = cargar_configuracion_gaff(ruta.parent)
+    if reglas_excluidas is None:
+        excl_cfg = cfg.get("excluded_rules", []) or cfg.get("disabled_rules", [])
+        if excl_cfg:
+            reglas_excluidas = set(str(x) for x in excl_cfg)
+    if reglas_activadas is None and cfg.get("enabled_rules"):
+        reglas_activadas = set(str(x) for x in cfg["enabled_rules"])
+    viols = analizar_archivo(ruta, reglas_excluidas=reglas_excluidas, reglas_habilitadas=reglas_habilitadas,
+                             reglas_activadas=reglas_activadas, contenido=codigo)
+    viols = aplicar_severidades_por_actividad(viols, cfg)
+    ignorar = patrones_de_ripley(ruta.parent)
+    viols = [v for v in viols if not ignorada_por_la_actividad(str(v.codigo), ignorar)]
+    viols = filtrar_en_edicion(viols, codigo, linea_en_edicion)
+    return ReporteLinting(archivos=[ReporteArchivo(archivo=ruta, violaciones=viols, arreglos_aplicados=0)])
 
 
 def convertir_pragma_once_a_guardas(contenido: str, stem: str) -> Tuple[str, bool]:

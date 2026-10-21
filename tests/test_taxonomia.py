@@ -18,3 +18,21 @@ def test_reporte_json_con_hallazgos(tmp_path):
     h = datos["hallazgos"][0]
     assert h["id"].startswith("gaff:0x") and h["enlace"].startswith("https://ingcom-unrn-p1.github.io/x")
     assert categoria("0x1002h") in ("control", "estilo")
+
+
+def test_archivo_relativo_normalizado_y_explicacion(tmp_path, monkeypatch):
+    """Ola 7: el archivo de cada hallazgo es relativo al directorio de trabajo aunque se pase la
+    ruta absoluta o con ./ (jonesy compara rutas), y trae el porqué de la regla."""
+    (tmp_path / "tp").mkdir()
+    fuente = tmp_path / "tp" / "a.c"
+    fuente.write_text("int main(void){int i;for(i=0;i<3;i++){continue;}return 0;}\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    for ruta in (fuente, "./tp/a.c", "tp/../tp/a.c"):
+        datos = ejecutar_linter([ruta], config={}).to_dict()
+        assert datos["hallazgos"] and {h["archivo"] for h in datos["hallazgos"]} == {"tp/a.c"}, ruta
+    assert all(h.get("explicacion") for h in datos["hallazgos"])
+    try:
+        from yutani.hallazgos import validar_salida  # type: ignore[attr-defined]
+    except ImportError:  # yutani anterior a 3fb723d
+        return
+    assert validar_salida(datos, tmp_path) == []

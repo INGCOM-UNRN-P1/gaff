@@ -208,7 +208,14 @@ def _regla_0002(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
     lineas_sin_cadenas = ctx.lineas_sin_cadenas
     if ctx.esta_activa("0x0002h"):
-        re_mult_decl = re.compile(rf"^\s*{TIPOS_BASICOS}\s+\*?[a-zA-Z_]\w*(?:\s*=\s*[^,;]+)?\s*,\s*\*?[a-zA-Z_]\w*", re.MULTILINE)
+        # `[ \t]` y no `\s`: con `^\s*` la coincidencia empezaba en la línea en blanco anterior, se
+        # informaba esa línea y el resguardo de abajo (sin paréntesis) miraba la línea equivocada. El
+        # inicializador admite llamadas con paréntesis balanceados: `int d = mcd(a, b);` es una sola.
+        re_mult_decl = re.compile(
+            rf"^[ \t]*{TIPOS_BASICOS}[ \t]+\*?[a-zA-Z_]\w*(?:[ \t]*=[ \t]*(?:[^,;()\n]|\([^()\n]*\))+)?"
+            r"[ \t]*,[ \t]*\*?[a-zA-Z_]\w*",
+            re.MULTILINE,
+        )
         for m in re_mult_decl.finditer(codigo_sin_comentarios):
             line_no = codigo_sin_comentarios[:m.start()].count("\n") + 1
             line_txt = lineas[line_no - 1]

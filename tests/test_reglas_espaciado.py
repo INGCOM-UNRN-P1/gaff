@@ -125,3 +125,15 @@ def test_regla_0x0004h_no_exige_multiplo_de_4_en_lineas_de_continuacion(tmp_path
     )
     viols = [v for v in analizar_archivo(src, reglas_habilitadas={"0x0004h"}) if "múltiplo de 4" in v.mensaje]
     assert [v.linea for v in viols] == [12]
+
+
+def test_regla_0x0002h_llamadas_tras_linea_en_blanco_no_son_declaraciones_multiples(tmp_path: Path):
+    """La línea en blanco previa no debe ser la informada ni esconder el paréntesis (TP6 real)."""
+    src = tmp_path / "decl.c"
+    src.write_text(
+        "int f(int a, int b)\n{\n    int x = a;\n\n    int suma = sumar(a, b);\n"
+        "    int c = 1, d = 2;\n    return x + suma + c + d;\n}\n",
+        encoding="utf-8",
+    )
+    viols = analizar_archivo(src, reglas_habilitadas={"0x0002h"})
+    assert [v.linea for v in viols] == [6]

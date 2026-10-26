@@ -20563,14 +20563,6 @@
    false
   ],
   [
-   "0x0003h",
-   18,
-   9,
-   "Falta espacio alrededor del operador binario '-'.",
-   "Escribí ' - ' con exactamente un espacio antes y después.",
-   true
-  ],
-  [
    "0x2007h",
    20,
    1,
@@ -21179,14 +21171,6 @@
    "Cláusula 'else' redundante tras bloque finalizado incondicionalmente con 'return'.",
    "Desanidá el bloque posterior eliminando el 'else' innecesario.",
    false
-  ],
-  [
-   "0x0003h",
-   4,
-   5,
-   "Falta espacio alrededor del operador binario '-'.",
-   "Escribí ' - ' con exactamente un espacio antes y después.",
-   true
   ],
   [
    "0x2013h",

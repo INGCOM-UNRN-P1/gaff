@@ -91,3 +91,37 @@ def test_regla_0x000Fh_espacios_multiples_y_autofix(tmp_path: Path):
     assert arreglos > 0
     res = src.read_text(encoding="utf-8")
     assert "    int total = 10;" in res
+
+
+def test_regla_0x0003h_signo_tras_palabra_clave_no_es_resta(tmp_path: Path):
+    """`return -1;` y `case -2:` llevan un signo, no un operador binario (TP6 real)."""
+    src = tmp_path / "signo.c"
+    src.write_text(
+        "int f(int x)\n{\n    switch (x)\n    {\n    case -2:\n        return -1;\n    }\n    return x - 1;\n}\n",
+        encoding="utf-8",
+    )
+    viols = analizar_archivo(src, reglas_habilitadas={"0x0003h"})
+    assert viols == []
+
+
+def test_regla_0x0004h_no_exige_multiplo_de_4_en_lineas_de_continuacion(tmp_path: Path):
+    """Los argumentos alineados bajo el primero (lo que deja `gaff fix`) no son sangría de bloque."""
+    src = tmp_path / "continuacion.c"
+    src.write_text(
+        "int g(int a, int b);\n"
+        "int f(unsigned int horas, unsigned int minutos,\n"
+        "      unsigned int segundos)\n"
+        "{\n"
+        "    int total = g(horas,\n"
+        "                  minutos);\n"
+        "    return total * 3600 +\n"
+        "           segundos;\n"
+        "}\n"
+        "int h(void)\n"
+        "{\n"
+        "   return 0;\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    viols = [v for v in analizar_archivo(src, reglas_habilitadas={"0x0004h"}) if "múltiplo de 4" in v.mensaje]
+    assert [v.linea for v in viols] == [12]

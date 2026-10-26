@@ -12,6 +12,30 @@ from gaff.core.contexto import (
 from gaff.core.models import ViolacionRegla
 
 
+# Tras estas palabras clave un `-`, `+` o `*` es unario (signo o desreferencia), no un operador binario.
+_PALABRAS_ANTES_DE_UNARIO = frozenset({"return", "case", "else", "do", "goto", "sizeof"})
+
+
+def _lineas_de_continuacion(lineas_sin_cadenas: List[str]) -> set[int]:
+    """Las líneas (1-based) que continúan una sentencia: dentro de un paréntesis abierto o tras una
+    línea que termina en coma u operador. Su sangría es de alineación (la que deja `gaff fix`, con
+    los argumentos bajo el primero), no de bloque, así que no tiene por qué ser múltiplo de 4."""
+    continuacion: set[int] = set()
+    profundidad, previa = 0, ""
+    for idx, linea in enumerate(lineas_sin_cadenas, 1):
+        texto = linea.strip()
+        if not texto:
+            continue
+        if texto.startswith("#"):
+            previa = ""
+            continue
+        if profundidad > 0 or (previa and previa[-1] in ",+-*/%=&|<>?("):
+            continuacion.add(idx)
+        profundidad = max(0, profundidad + texto.count("(") - texto.count(")"))
+        previa = texto
+    return continuacion
+
+
 # 0x00XXh: Sintaxis Básica y Nomenclatura
 # 0x0004h: Espaciado en palabras clave (if, for, while, switch) y operadores binarios
 def _regla_0003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
@@ -57,6 +81,8 @@ def _regla_0003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
                     ))
             for m_ar in re_arith_bin.finditer(linea):
                 left, sp1, op, sp2 = m_ar.group(1), m_ar.group(2), m_ar.group(3), m_ar.group(4)
+                if left in _PALABRAS_ANTES_DE_UNARIO:
+                    continue  # `return -1`, `case -2:`: signo, no resta
                 if op == "*":
                     if re.match(rf"^(?:{TIPOS_BASICOS})$", left) or re.match(r"^[A-Z]\w*$", left):
                         continue
@@ -129,6 +155,7 @@ def _regla_0004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
     lineas = ctx.lineas
     lineas_sin_comentarios = ctx.lineas_sin_comentarios
     if ctx.esta_activa("0x0004h"):
+        continuacion = _lineas_de_continuacion(ctx.lineas_sin_cadenas)
         for idx, linea in enumerate(lineas, 1):
             if linea.endswith(" ") or linea.endswith("\t"):
                 rcode, tit = ctx.regla_info("0x0004h")
@@ -157,7 +184,7 @@ def _regla_0004(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
                     es_autofixable=True,
                 ))
             line_sin_com = lineas_sin_comentarios[idx - 1] if idx - 1 < len(lineas_sin_comentarios) else ""
-            if line_sin_com.strip() and not linea.lstrip().startswith(("*", "/*")):
+            if line_sin_com.strip() and not linea.lstrip().startswith(("*", "/*")) and idx not in continuacion:
                 lead_spaces = len(linea) - len(linea.lstrip(" "))
                 if lead_spaces > 0 and lead_spaces % 4 != 0 and "\t" not in linea[:lead_spaces]:
                     rcode, tit = ctx.regla_info("0x0004h")

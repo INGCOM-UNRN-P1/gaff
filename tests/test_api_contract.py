@@ -29,3 +29,35 @@ def test_analizar_codigo_memoria():
     codigo = "int main(void) { int a=1; return a; }\n"
     res = gaff.analizar_codigo(codigo)
     assert isinstance(res, list)
+
+
+def test_catalogo_dueno_canonico_y_concordancia_0x500a(tmp_path: Path):
+    from gaff.core.rules import exportar_catalogo_dict
+
+    cat = exportar_catalogo_dict()
+    por_codigo = {r["codigo"]: r for r in cat["reglas"]}
+    assert por_codigo["0x5004h"]["dueno"] == "kaneda"
+    assert por_codigo["0x5006h"]["dueno"] == "kaneda"
+    assert por_codigo["0x5008h"]["dueno"] == "kaneda"
+    assert por_codigo["0x500Ah"]["dueno"] == "zhora"
+    assert por_codigo["0x1008h"]["dueno"] == "gaff"
+
+    c_ok = tmp_path / "macros_ok.h"
+    c_ok.write_text(
+        "#ifndef MACROS_OK_H\n#define MACROS_OK_H\n"
+        '#define LOG(x) printf("x=%s: %d\\n", #x, x)\n'
+        "#endif\n",
+        encoding="utf-8",
+    )
+    v_ok = [v for v in gaff.api.analizar_archivo(c_ok) if v.codigo == "0x500Ah"]
+    assert v_ok == []
+
+    c_bad = tmp_path / "macros_bad.h"
+    c_bad.write_text(
+        "#ifndef MACROS_BAD_H\n#define MACROS_BAD_H\n"
+        "#define DOBLE(x) (x + x)\n"
+        "#endif\n",
+        encoding="utf-8",
+    )
+    v_bad = [v for v in gaff.api.analizar_archivo(c_bad) if v.codigo == "0x500Ah"]
+    assert len(v_bad) == 1

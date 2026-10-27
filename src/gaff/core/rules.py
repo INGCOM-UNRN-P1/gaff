@@ -15,8 +15,15 @@ MAPEO_SATELITES: Dict[str, Dict[str, str]] = {
     "zhora": {
         "ZH001": "0x500Dh",
         "ZH002": "0x500Ah",
-        "ZH003": "0x0013h",
-        "ZH004": "0x0013h",
+        "ZH003": "0x500Ah",
+        "ZH004": "0x500Dh",
+    },
+    "kaneda": {
+        "KND-001": "0x5008h",
+        "KND-002": "0x5004h",
+        "KND-003": "0x5006h",
+        "KND-004": "0x5008h",
+        "KND-006": "0x5008h",
     },
     "spunkmeyer_alias": {
         "AP001": "0x300Ah",
@@ -30,6 +37,14 @@ MAPEO_SATELITES: Dict[str, Dict[str, str]] = {
         "AP009": "0x100Dh",
         "AP010": "0x3001h",
     },
+}
+
+# Dueño canónico único por regla cuando existe solapamiento entre analizadores (05 §2.4, QoL #943, QoL #413)
+DUENO_CANONICO_POR_REGLA: Dict[str, str] = {
+    "0x5004h": "kaneda",
+    "0x5006h": "kaneda",
+    "0x5008h": "kaneda",
+    "0x500Ah": "zhora",
 }
 
 # Mapeo de códigos viejos a códigos nuevos (cátedra)
@@ -344,10 +359,13 @@ for _cod_ant, _cod_n in MAPA_RENUMERACION.items():
     if _cod_ant not in CATALOGO_REGLAS and _cod_n in CATALOGO_REGLAS:
         CATALOGO_REGLAS[_cod_ant] = CATALOGO_REGLAS[_cod_n]
 
-# Poblar severidad en todo el catálogo
+# Poblar severidad y dueño canónico en todo el catálogo
 for _k, _info in CATALOGO_REGLAS.items():
     if "severidad" not in _info:
         _info["severidad"] = obtener_severidad(_k)
+    if "dueno" not in _info:
+        _cod_can = _info.get("codigo", _k)
+        _info["dueno"] = DUENO_CANONICO_POR_REGLA.get(_cod_can, "gaff")
 
 
 

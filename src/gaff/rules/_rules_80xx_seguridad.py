@@ -13,6 +13,30 @@ from gaff.core.models import ViolacionRegla
 
 
 # 0x50XXh: Compilación y Buenas Prácticas
+def _usos_parametro_sin_proteger(param: str, body: str) -> bool:
+    """Detecta si un parámetro de macro se expande sin paréntesis protectores (concordante con ZH003)."""
+    limpio = re.sub(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', '""', body)
+    limpio = re.sub(rf"(?<!#)#\s*{re.escape(param)}\b", "0", limpio)
+    limpio = re.sub(rf"\b\w*\s*##\s*{re.escape(param)}\b|\b{re.escape(param)}\s*##\s*\w*", "0", limpio)
+    patron = re.compile(rf"\b{re.escape(param)}\b")
+    for m in patron.finditer(limpio):
+        inicio, fin = m.start(), m.end()
+        prefijo = limpio[:inicio].rstrip()
+        sufijo = limpio[fin:].lstrip()
+        if prefijo.endswith("(") and sufijo.startswith(")"):
+            continue
+        if prefijo.endswith(("->", ".")):
+            continue
+        if sufijo.startswith("("):
+            continue
+        if prefijo.endswith(("(", ",")) and sufijo.startswith((",", ")")):
+            continue
+        if not prefijo and not sufijo:
+            continue
+        return True
+    return False
+
+
 # 0x500Ah: Protección obligatoria de parámetros en macros funcionales mediante paréntesis
 def _regla_500a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
     ruta = ctx.ruta
@@ -20,13 +44,13 @@ def _regla_500a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
     codigo_sin_comentarios = ctx.codigo_sin_comentarios
     contenido_original = ctx.contenido_original
     if ctx.esta_activa("0x500Ah"):
-        re_macro_fn = re.compile(r"^[ \t]*#define\s+([a-zA-Z_]\w*)\s*\(([^)]+)\)\s+([^\n]+)", re.MULTILINE)
+        re_macro_fn = re.compile(r"^[ \t]*#define\s+([a-zA-Z_]\w*)\(([^)]+)\)\s+([^\n]+)", re.MULTILINE)
         for m_mf in re_macro_fn.finditer(codigo_sin_comentarios):
             m_name = m_mf.group(1)
-            m_params = [p.strip() for p in m_mf.group(2).split(",") if p.strip()]
+            m_params = [p.strip() for p in m_mf.group(2).split(",") if p.strip() and p.strip() != "..."]
             m_body = m_mf.group(3).strip()
             for p in m_params:
-                if re.search(rf"(?<!\()\b{p}\b(?!\))", m_body):
+                if _usos_parametro_sin_proteger(p, m_body):
                     linea_num = contenido_original[:m_mf.start()].count("\n") + 1
                     rcode, tit = ctx.regla_info("0x500Ah")
                     violaciones.append(ViolacionRegla(

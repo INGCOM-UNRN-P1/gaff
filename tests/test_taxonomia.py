@@ -1,13 +1,20 @@
 """Violaciones en la taxonomía común (yutani.hallazgos)."""
 
 from gaff.core.linter import ejecutar_linter
-from gaff.core.rules import CATALOGO_REGLAS
+from gaff.core.rules import CATALOGO_REGLAS, REGLAS_CANONICAS, exportar_catalogo_dict
 from gaff.core.taxonomia import CATEGORIA_POR_FAMILIA, categoria
 
 
 def test_todas_las_familias_tienen_categoria():
     familias = {v.get("directorio") for k, v in CATALOGO_REGLAS.items() if k.startswith("0x")}
     assert familias <= set(CATEGORIA_POR_FAMILIA)
+
+
+def test_catalogo_canonico_sin_duplicados():
+    exportado = exportar_catalogo_dict()
+    codigos = [r["codigo"] for r in exportado["reglas"]]
+    assert len(codigos) == len(set(codigos)) == len(REGLAS_CANONICAS) == 176
+    assert all(r.get("archivo_apunte", "").startswith(f"reglas/{r['directorio']}/") for r in exportado["reglas"])
 
 
 def test_reporte_json_con_hallazgos(tmp_path):

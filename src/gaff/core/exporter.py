@@ -23,7 +23,7 @@ def generar_guia_estilo_markdown() -> str:
     ]
     
     for cod, regla in sorted(CATALOGO_REGLAS.items()):
-        if not cod.startswith("0x"):
+        if not cod.startswith("0x") or regla.get("codigo") != cod:
             continue
         sev = regla.get("severidad", "ADVERTENCIA")
         titulo = regla.get("titulo", "Regla")

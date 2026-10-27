@@ -45,6 +45,15 @@ DUENO_CANONICO_POR_REGLA: Dict[str, str] = {
     "0x5006h": "kaneda",
     "0x5008h": "kaneda",
     "0x500Ah": "zhora",
+    # Reglas del catálogo implementadas exclusivamente por spunkmeyer
+    "0x1018h": "spunkmeyer",
+    "0x2015h": "spunkmeyer",
+    "0x2017h": "spunkmeyer",
+    "0x2018h": "spunkmeyer",
+    "0x301Fh": "spunkmeyer",
+    "0x400Bh": "spunkmeyer",
+    "0x400Ch": "spunkmeyer",
+    "0x7003h": "spunkmeyer",
 }
 
 # Mapeo de códigos viejos a códigos nuevos (cátedra)

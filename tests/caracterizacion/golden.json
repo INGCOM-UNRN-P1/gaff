@@ -20489,14 +20489,6 @@
    false
   ],
   [
-   "0x7001h",
-   16,
-   5,
-   "Variable 'i' declarada sin inicializar a un valor conocido.",
-   "Inicializá las variables locales al declararlas (ej: 'int x = 0;').",
-   false
-  ],
-  [
    "0x300Dh",
    17,
    21,

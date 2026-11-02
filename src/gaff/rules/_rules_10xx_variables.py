@@ -85,6 +85,19 @@ def _es_identificador_generico_numerado(name: str) -> bool:
                 return True
     return False
 
+def _inicializada_por_un_for(nombre: str, resto: str) -> bool:
+    """¿El primer uso de `nombre` en `resto` es la inicialización de un `for`?
+
+    `int i, j;` seguido de `for (i = 0; ...)` es el estilo C89 de contadores: el lazo les da su
+    valor antes de leerlos, así que pedir que se inicialicen al declararlos es un falso positivo.
+    """
+    uso = re.search(rf"\b{re.escape(nombre)}\b", resto)
+    if uso is None or re.match(rf"{re.escape(nombre)}\s*=(?!=)", resto[uso.start():]) is None:
+        return False
+    # Dentro de la inicialización de un for: desde `for (` hasta el uso no hay ningún `;`.
+    return re.search(r"\bfor\s*\([^;]*$", resto[:uso.start()]) is not None
+
+
 def _split_decl_items(decl: str) -> List[str]:
     items: List[str] = []
     current: List[str] = []
@@ -360,7 +373,8 @@ def _declaraciones_de_variables(ctx: ContextoAnalisis, violaciones: List[Violaci
                     ))
 
             # 0x0003h: Inicialización obligatoria
-            if ctx.esta_activa("0x7001h") and not has_init:
+            if (ctx.esta_activa("0x7001h") and not has_init
+                    and not _inicializada_por_un_for(var_name, codigo_sin_comentarios[m_vs.end():])):
                 rcode, tit = ctx.regla_info("0x7001h")
                 violaciones.append(ViolacionRegla(
                     codigo=rcode,

@@ -183,3 +183,29 @@ envio_t *crear(int fd, int id)
     assert any("'env'" in m for m in mensajes)
     assert not any("'fd'" in m for m in mensajes)
 
+
+
+def test_gaff_contadores_inicializados_por_el_for(tmp_path: Path):
+    """Regla 0x0003h: `int i, j;` con `for (i = 0, ...)` no es una variable sin inicializar (el
+    lazo le da su valor antes de leerla); las que se leen sin valor siguen marcadas."""
+    fuente = tmp_path / "contadores.c"
+    fuente.write_text("""
+int sumar(int n)
+{
+    int i, j;
+    int k;
+    int total;
+    for (i = 0, j = n; i < j; i++, j--)
+    {
+        n--;
+    }
+    for (k = 0; k < n; k++)
+    {
+        total += k;
+    }
+    return total;
+}
+""", encoding="utf-8")
+    viols = analizar_archivo(fuente, reglas_habilitadas={"0x0003h"})
+    marcadas = {v.mensaje.split("'")[1] for v in viols if v.codigo == "0x0003h"}
+    assert marcadas == {"total"}

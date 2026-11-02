@@ -107,6 +107,24 @@ Audita archivos de código C comprobando las reglas de estilo y arquitectura de 
 gaff check <rutas>
 ```
 
+#### Aceptar un caso con justificación
+
+Si en un lugar puntual hay un buen motivo para no cumplir una regla, se acepta con un comentario
+en esa línea, o en un comentario solo justo arriba, que diga la regla y por qué:
+
+```c
+int n = leer_cantidad();  // gaff:ignore 0x0101h n es el nombre que usa la consigna
+// gaff:ignore 0x300Dh 9.81 es la gravedad del enunciado, no un número mágico
+double peso = masa * 9.81;
+```
+
+- Hace falta la justificación: sin ella, la directiva no suprime nada y el hallazgo lo avisa en su sugerencia.
+- Vale para esa regla en esa línea; con `all` en lugar del código, para todas las reglas de la línea.
+- Para no evaluar una regla en todo un TP, va en el `ripley.toml` de la actividad (`[reglas] ignorar`) o en `.gaffrc.yaml` (`excluded_rules`).
+- `gaff explain <regla>` y el pie de `gaff check` recuerdan la sintaxis.
+
+---
+
 ### `gaff report`
 
 Genera directamente la sección de reporte Markdown de GAFF para Dredd.

@@ -234,6 +234,11 @@ def check_cmd(
         console.print(f"\n[green]✓ Se aplicaron {reporte.total_arreglos} correcciones automáticas.[/green]")
     elif not fix and any(v.es_autofixable for a in reporte.archivos for v in a.violaciones):
         console.print("\n[dim]💡 Ejecutá 'gaff fix <archivos>' o agregá '--fix' para corregir automáticamente los problemas marcados con '✓ auto'.[/dim]")
+    if any(not v.es_autofixable for a in reporte.archivos for v in a.violaciones):
+        console.print(
+            "[dim]💡 Si un caso está bien a propósito, aceptalo con una justificación en esa línea: "
+            "// gaff:ignore <regla> <por qué>. 'gaff explain <regla>' explica cada una.[/dim]"
+        )
 
     raise typer.Exit(code=1)
 
@@ -300,7 +305,12 @@ def explain_cmd(
         f"{info['descripcion']}\n\n"
         f"[bold green]✓ Ejemplo Correcto:[/bold green]\n```c\n{info['ejemplo_correcto']}\n```\n\n"
         f"[bold red]✗ Ejemplo Incorrecto:[/bold red]\n```c\n{info['ejemplo_incorrecto']}\n```\n\n"
-        f"[dim]Capacidad de Autofix: {info['autofix']}[/dim]"
+        f"[dim]Capacidad de Autofix: {info['autofix']}[/dim]\n\n"
+        f"[bold]Si en tu caso hay un buen motivo para no cumplirla[/bold], aceptala con una justificación "
+        f"en esa línea o en un comentario justo arriba:\n"
+        f"[cyan]// gaff:ignore {cod} <por qué en este caso está bien>[/cyan]\n"
+        f"Sin justificación no se acepta. Para todo un TP, la regla se desactiva en su ripley.toml "
+        f"(\\[reglas] ignorar) o en .gaffrc.yaml (excluded_rules)."
     )
     console.print(Panel(cuerpo, title=f"📘 Regla {cod}", border_style="cyan"))
 

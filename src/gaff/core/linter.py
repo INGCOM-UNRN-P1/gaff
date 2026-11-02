@@ -138,9 +138,16 @@ def analizar_archivo(
 
     # Directivas de supresión // gaff:ignore <regla> <justificación>
     lineas_ignoradas: Dict[int, Set[str]] = {}
+    # Las directivas sin justificación no suprimen: se avisa en lo que siguen informando.
+    sin_justificacion: Set[int] = set()
     re_ignore = re.compile(r"(?://|/\*)\s*gaff:ignore\s+(0x[0-9a-fA-F]+h?|all)\s+(\S.{3,})")
+    re_ignore_suelta = re.compile(r"(?://|/\*)\s*gaff:ignore\b")
     for idx_l, linea_raw in enumerate(lineas):
         m_ig = re_ignore.search(linea_raw)
+        if not m_ig and re_ignore_suelta.search(linea_raw):
+            sin_justificacion.add(idx_l + 1)
+            if linea_raw.strip().startswith(("//", "/*")):
+                sin_justificacion.add(idx_l + 2)
         if m_ig:
             cod_ig = m_ig.group(1).lower()
             if not cod_ig.endswith("h") and cod_ig.startswith("0x"):
@@ -175,6 +182,12 @@ def analizar_archivo(
         return False
 
     violaciones = [v for v in violaciones if not _esta_suprimida(v)]
+    for v in violaciones:
+        if v.linea in sin_justificacion:
+            v.sugerencia = (
+                f"{v.sugerencia} La directiva gaff:ignore de esta línea no suprime nada porque le falta "
+                f"la justificación: // gaff:ignore {v.codigo} <por qué en este caso está bien>."
+            ).strip()
 
     violaciones.sort(key=lambda v: (v.linea, v.columna))
     return violaciones

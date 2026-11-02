@@ -169,3 +169,30 @@ def test_catalogo_myst_generado():
     assert (cat_dir / "0x0022h.md").is_file()
     contenido_index = (cat_dir / "index.md").read_text(encoding="utf-8")
     assert "0x0001h" in contenido_index
+
+
+def test_gaff_ignore_sin_justificacion_lo_dice(tmp_path: Path):
+    """Una directiva sin justificación no suprime, y el hallazgo dice por qué y cómo escribirla."""
+    src = tmp_path / "sin_porque.c"
+    src.write_text(
+        "/*\n * Cátedra de Programación 1\n */\n"
+        "// gaff:ignore 0x0001h\n"
+        "int m = 3;\n",
+        encoding="utf-8",
+    )
+    viols = analizar_archivo(src, reglas_habilitadas={"0x0001h"})
+    [v] = [v for v in viols if v.linea == 5]
+    assert "le falta la justificación" in v.sugerencia
+    assert f"// gaff:ignore {v.codigo} <por qué" in v.sugerencia
+
+
+def test_explain_y_check_dicen_como_aceptar_un_caso(tmp_path: Path):
+    from gaff.cli import app
+
+    explicacion = runner.invoke(app, ["explain", "0x0101h"])
+    assert explicacion.exit_code == 0
+    assert "// gaff:ignore 0x0101h <por qué en este caso está bien>" in explicacion.output
+    src = tmp_path / "corto.c"
+    src.write_text("int main(void)\n{\n    int q = 0;\n    return q;\n}\n", encoding="utf-8")
+    chequeo = runner.invoke(app, ["check", str(src)])
+    assert "gaff:ignore <regla> <por qué>" in " ".join(chequeo.output.split())

@@ -665,14 +665,6 @@
    false
   ],
   [
-   "0x000Eh",
-   8,
-   1,
-   "Espacio en blanco innecesario inmediatamente tras '(' o antes de ')'.",
-   "Eliminá los espacios internos pegados a los paréntesis (ej: 'if (x > 0)' en lugar de 'if ( x > 0 )').",
-   true
-  ],
-  [
    "0x0006h",
    8,
    81,
@@ -17808,14 +17800,6 @@
    1,
    "Firma de puntero a función 'operacion_t' no respeta el formato canónico '(*nombre)'.",
    "Usá el formato estricto 'typedef tipo (*identificador_t)(params)' sin espacios entre el asterisco y el nombre.",
-   false
-  ],
-  [
-   "0x0016h",
-   2,
-   14,
-   "Espacio no permitido entre el operador unario '*' y su operando 'operacion_t'.",
-   "Uní el operador a su operando sin espacios: '*operacion_t'.",
    false
   ],
   [

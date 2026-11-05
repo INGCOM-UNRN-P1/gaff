@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from gaff.core.models import ReglaInfo, RuleCode, ViolacionRegla
+from gaff.core.tokens import Token, tokens_de
 from gaff.core.rules import (
     CATALOGO_REGLAS,
     MAPA_INVERSO,
@@ -250,6 +251,14 @@ class ContextoAnalisis:
     # Líneas sin comentarios con los literales tapados por MARCA_LITERAL (no por
     # espacios): las usan las reglas que miden espacios en blanco.
     lineas_literales_opacas: List[str] = field(default_factory=list)
+    _tokens: Optional[List[Token]] = None
+
+    @property
+    def tokens(self) -> List[Token]:
+        """Los tokens del archivo (ver core/tokens.py); se parsea una sola vez, y sólo si hace falta."""
+        if self._tokens is None:
+            self._tokens = tokens_de(self.contenido_original, self.lineas_sin_comentarios)
+        return self._tokens
 
     @property
     def max_line_length(self) -> int:
@@ -308,6 +317,16 @@ class ContextoAnalisis:
             severidad=severidad,
         )
         return ReglaInfo(codigo=rule_code, titulo=titulo)
+
+    def anotar(self, violaciones: List[ViolacionRegla], codigo_hex: str, fila: int, columna: int, mensaje: str,
+               sugerencia: str, es_autofixable: bool = True) -> None:
+        """Agrega una violación de una regla sobre tokens; `fila` y `columna` empiezan en 0."""
+        rcode, titulo = self.regla_info(codigo_hex)
+        violaciones.append(ViolacionRegla(
+            codigo=rcode, titulo=titulo, archivo=self.ruta, linea=fila + 1, columna=columna + 1, mensaje=mensaje,
+            sugerencia=sugerencia, codigo_linea=self.lineas[fila] if fila < len(self.lineas) else "",
+            es_autofixable=es_autofixable,
+        ))
 
     def nueva_violacion(self, **kwargs) -> ViolacionRegla:
         """Construye una violación asociada al archivo del contexto."""

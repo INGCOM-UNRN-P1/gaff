@@ -10,7 +10,10 @@ from gaff.core.contexto import (
     TIPOS_BASICOS,
 )
 from gaff.core.models import ViolacionRegla
+from gaff.core.tokens import contiguos, por_fila, separacion
 
+
+PALABRAS_DE_CONTROL = ("if", "for", "while", "switch")
 
 # `(?<![ \t])` ancla la búsqueda al inicio de cada racha de blancos. Sin él, la sangría de un
 # archivo muy anidado (cientos de espacios) se re-escaneaba desde cada posición interior y el
@@ -75,166 +78,83 @@ def _regla_0009(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
 
 # 0x0019h: Prohibición de espacios en blanco antes de separadores de sintaxis (; y ,)
 def _regla_000a(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
-    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
-    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x000Ah"):
-        re_space_sep = RE_ESPACIO_ANTES_DE_SEPARADOR
-        # Con los literales tapados (N-GAFF-06): "uno ,dos" no es un separador mal espaciado.
-        for i, l in enumerate(lineas_sin_cadenas):
-            if l.strip().startswith("for") or l.strip().startswith("/*") or l.strip().startswith("*"):
-                continue
-            for m_ss in re_space_sep.finditer(l):
-                sep = m_ss.group(1)
-                rcode, tit = ctx.regla_info("0x000Ah")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=i + 1,
-                    columna=m_ss.start() + 1,
-                    mensaje=f"Espacio en blanco innecesario antes del separador '{sep}'.",
-                    sugerencia="Pegá el separador directamente al identificador o expresión precedente.",
-                    codigo_linea=lineas[i],
-                    es_autofixable=True,
-                ))
+    if not ctx.esta_activa("0x000Ah"):
+        return
+    for fila, tokens in por_fila(ctx.tokens).items():
+        if tokens[0].texto == "for":  # `for (;;)` tiene su propia forma
+            continue
+        for anterior, siguiente in contiguos(tokens):
+            if siguiente.texto in (";", ",") and separacion(anterior, siguiente) > 0:
+                ctx.anotar(violaciones, "0x000Ah", fila, anterior.fin,
+                           f"Espacio en blanco innecesario antes del separador '{siguiente.texto}'.",
+                           "Pegá el separador directamente al identificador o expresión precedente.")
 
 
 # 0x001Ah: Prohibición de espacios en blanco alrededor de operadores de acceso a miembros (-> y .)
 def _regla_000b(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
-    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
-    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x000Bh"):
-        re_member = re.compile(r"\b([a-zA-Z0-9_]+)[ \t]+->[ \t]*([a-zA-Z0-9_]+)|\b([a-zA-Z0-9_]+)[ \t]*->[ \t]+([a-zA-Z0-9_]+)|\b([a-zA-Z_]\w*)[ \t]+\.[ \t]*([a-zA-Z_]\w*)|\b([a-zA-Z_]\w*)[ \t]*\.[ \t]+([a-zA-Z_]\w*)")
-        for i, l in enumerate(lineas_sin_cadenas):
-            m_mem = re_member.search(l)
-            if m_mem:
-                rcode, tit = ctx.regla_info("0x000Bh")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=i + 1,
-                    columna=m_mem.start() + 1,
-                    mensaje="Espacio en blanco innecesario alrededor del operador de acceso a miembros ('->' o '.').",
-                    sugerencia="Eliminá los espacios alrededor de '->' y '.' para escribir 'nodo->sig' o 'punto.x'.",
-                    codigo_linea=lineas[i],
-                    es_autofixable=True,
-                ))
+    if not ctx.esta_activa("0x000Bh"):
+        return
+    for fila, tokens in por_fila(ctx.tokens).items():
+        for izquierdo, operador, derecho in zip(tokens, tokens[1:], tokens[2:], strict=False):
+            if (operador.texto in ("->", ".") and operador.padre == "field_expression" and izquierdo.es_palabra
+                    and derecho.es_palabra and (separacion(izquierdo, operador) or separacion(operador, derecho))):
+                ctx.anotar(violaciones, "0x000Bh", fila, izquierdo.columna,
+                           "Espacio en blanco innecesario alrededor del operador de acceso a miembros ('->' o '.').",
+                           "Eliminá los espacios alrededor de '->' y '.' para escribir 'nodo->sig' o 'punto.x'.")
+                break
 
 
 # 0x001Bh: Prohibición de espacios en blanco entre operadores unarios (++, --, !) y su operando
 def _regla_000c(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
-    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
-    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x000Ch"):
-        re_unary = re.compile(r"\b([a-zA-Z_]\w*)[ \t]+(\+\+|\-\-)|(\+\+|\-\-)[ \t]+([a-zA-Z_]\w*)|(!)(?!=)[ \t]+([a-zA-Z_]\w*)")
-        for i, l in enumerate(lineas_sin_cadenas):
-            m_un = re_unary.search(l)
-            if m_un:
-                rcode, tit = ctx.regla_info("0x000Ch")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=i + 1,
-                    columna=m_un.start() + 1,
-                    mensaje="Espacio en blanco indebido entre el operador unario y su operando.",
-                    sugerencia="Uní el operador directamente a la variable (ej: 'i++', '++i', '!activo').",
-                    codigo_linea=lineas[i],
-                    es_autofixable=True,
-                ))
+    if not ctx.esta_activa("0x000Ch"):
+        return
+    for fila, tokens in por_fila(ctx.tokens).items():
+        for anterior, siguiente in contiguos(tokens):
+            sufijo = siguiente.texto in ("++", "--") and anterior.es_palabra
+            prefijo = anterior.texto in ("++", "--", "!") and siguiente.es_palabra
+            if (sufijo or prefijo) and separacion(anterior, siguiente) > 0:
+                ctx.anotar(violaciones, "0x000Ch", fila, anterior.columna,
+                           "Espacio en blanco indebido entre el operador unario y su operando.",
+                           "Uní el operador directamente a la variable (ej: 'i++', '++i', '!activo').")
+                break
 
 
 # 0x001Ch: Espacio en blanco obligatorio tras la coma separadora en listas y argumentos
 def _regla_000d(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
-    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
-    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x000Dh"):
-        re_comma = re.compile(r',(?=[^\s\n\r/>])')
-        for i, l in enumerate(lineas_sin_cadenas):
-            if l.strip().startswith("#"):
-                continue
-            for m_cm in re_comma.finditer(l):
-                rcode, tit = ctx.regla_info("0x000Dh")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=i + 1,
-                    columna=m_cm.start() + 1,
-                    mensaje="Falta espacio en blanco tras la coma ',' separadora.",
-                    sugerencia="Agregá exactamente un espacio tras la coma (ej: 'funcion(a, b, c)').",
-                    codigo_linea=lineas[i],
-                    es_autofixable=True,
-                ))
+    if not ctx.esta_activa("0x000Dh"):
+        return
+    for coma, siguiente in contiguos(ctx.tokens):
+        if coma.texto == "," and separacion(coma, siguiente) == 0:
+            ctx.anotar(violaciones, "0x000Dh", coma.fila, coma.columna, "Falta espacio en blanco tras la coma ',' separadora.",
+                       "Agregá exactamente un espacio tras la coma (ej: 'funcion(a, b, c)').")
 
 
 # 0x001Dh: Prohibición de espacios en blanco internos inmediatamente tras '(' o antes de ')'
 def _regla_000e(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
-    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
-    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x000Eh"):
-        re_paren_sp = re.compile(r"\([ \t]+(?!\s|\))|(?<!\s|\()[ \t]+\)")
-        for i, l in enumerate(lineas_sin_cadenas):
-            if l.strip().startswith("#") or l.strip().startswith("*"):
-                continue
-            m_psp = re_paren_sp.search(l)
-            if m_psp:
-                rcode, tit = ctx.regla_info("0x000Eh")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=i + 1,
-                    columna=m_psp.start() + 1,
-                    mensaje="Espacio en blanco innecesario inmediatamente tras '(' o antes de ')'.",
-                    sugerencia="Eliminá los espacios internos pegados a los paréntesis (ej: 'if (x > 0)' en lugar de 'if ( x > 0 )').",
-                    codigo_linea=lineas[i],
-                    es_autofixable=True,
-                ))
+    if not ctx.esta_activa("0x000Eh"):
+        return
+    for fila, tokens in por_fila(ctx.tokens).items():
+        for anterior, siguiente in contiguos(tokens):
+            tras_abrir = anterior.texto == "(" and siguiente.texto != ")"
+            antes_de_cerrar = siguiente.texto == ")" and anterior.texto != "("
+            if (tras_abrir or antes_de_cerrar) and separacion(anterior, siguiente) > 0:
+                ctx.anotar(violaciones, "0x000Eh", fila, anterior.columna if tras_abrir else anterior.fin,
+                           "Espacio en blanco innecesario inmediatamente tras '(' o antes de ')'.",
+                           "Eliminá los espacios internos pegados a los paréntesis (ej: 'if (x > 0)' en lugar de 'if ( x > 0 )').")
+                break
 
 
 # 0x001Eh: Prohibición de múltiples espacios en blanco consecutivos dentro de una línea de código
 def _regla_000f(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
-    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
-    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x000Fh"):
-        re_multi_sp = re.compile(r"(?<=\S)[ \t]{2,}(?=\S)")
-        for i, l in enumerate(lineas_sin_cadenas):
-            if l.strip().startswith("#") or l.strip().startswith("*"):
-                continue
-            m_msp = re_multi_sp.search(l)
-            if m_msp:
-                rcode, tit = ctx.regla_info("0x000Fh")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=i + 1,
-                    columna=m_msp.start() + 1,
-                    mensaje="Múltiples espacios consecutivos dentro de la línea de código.",
-                    sugerencia="Separá identificadores y operadores con exactamente un espacio en blanco.",
-                    codigo_linea=lineas[i],
-                    es_autofixable=True,
-                ))
+    if not ctx.esta_activa("0x000Fh"):
+        return
+    for fila, tokens in por_fila(ctx.tokens).items():
+        for anterior, siguiente in contiguos(tokens):
+            if separacion(anterior, siguiente) >= 2:
+                ctx.anotar(violaciones, "0x000Fh", fila, anterior.fin,
+                           "Múltiples espacios consecutivos dentro de la línea de código.",
+                           "Separá identificadores y operadores con exactamente un espacio en blanco.")
+                break
 
 
 # 0x0015h: Alineación vertical consistente en asignaciones consecutivas
@@ -343,29 +263,13 @@ def _regla_0010(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
 
 # 0x0022h: Validador de espaciado estricto en sentencias de control
 def _regla_0011(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
-    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
-    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x0011h"):
-        re_ctrl_no_space = re.compile(r"\b(if|for|while|switch)\(")
-        for i, l in enumerate(lineas_sin_cadenas):
-            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
-                continue
-            for m in re_ctrl_no_space.finditer(l):
-                rcode, tit = ctx.regla_info("0x0011h")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=i + 1,
-                    columna=m.start() + 1,
-                    mensaje=f"Falta espacio obligatorio tras la palabra clave '{m.group(1)}' antes del paréntesis.",
-                    sugerencia=f"Escribí '{m.group(1)} (...)' con un espacio de separación.",
-                    codigo_linea=lineas[i],
-                    es_autofixable=True,
-                ))
+    if not ctx.esta_activa("0x0011h"):
+        return
+    for palabra, siguiente in contiguos(ctx.tokens):
+        if palabra.texto in PALABRAS_DE_CONTROL and siguiente.texto == "(" and separacion(palabra, siguiente) == 0:
+            ctx.anotar(violaciones, "0x0011h", palabra.fila, palabra.columna,
+                       f"Falta espacio obligatorio tras la palabra clave '{palabra.texto}' antes del paréntesis.",
+                       f"Escribí '{palabra.texto} (...)' con un espacio de separación.")
 
 
 # 0x0025h: Formato canónico en firmas de punteros a función
@@ -545,37 +449,17 @@ def _regla_0015(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
 
 # 0x002Dh: Validador de espaciado en operadores unarios (*ptr, &var, !flag, ++i)
 def _regla_0016(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    # Reglas de espaciado: los literales se tapan con un carácter no blanco para
-    # que su contenido no genere espacios artificiales junto a `(`, `)` o `,`.
-    lineas_sin_cadenas = ctx.lineas_literales_opacas or ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x0016h"):
-        re_bad_unary = re.compile(r"(?:^|[\s(,=;])(\*|&|!|\+\+|--)[ \t]+([a-zA-Z_]\w*)")
-        for i, l in enumerate(lineas_sin_cadenas):
-            if l.strip().startswith("//") or l.strip().startswith("/*") or l.strip().startswith("#"):
-                continue
-            for m_u in re_bad_unary.finditer(l):
-                op = m_u.group(1)
-                target = m_u.group(2)
-                pre = l[:m_u.start(1)].strip()
-                if op in {"*", "&"}:
-                    if pre and (pre[-1].isalnum() or pre[-1] in {")", "]"}) and pre not in {"return", "sizeof"}:
-                        continue
-                    if pre.endswith("*)") or pre.endswith("&)") or pre.endswith(":") or pre.endswith("?"):
-                        continue
-                rcode, tit = ctx.regla_info("0x0016h")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=i + 1,
-                    columna=m_u.start(1) + 1,
-                    mensaje=f"Espacio no permitido entre el operador unario '{op}' y su operando '{target}'.",
-                    sugerencia=f"Uní el operador a su operando sin espacios: '{op}{target}'.",
-                    codigo_linea=lineas[i],
-                    es_autofixable=False,
-                ))
+    if not ctx.esta_activa("0x0016h"):
+        return
+    for operador, operando in contiguos(ctx.tokens):
+        # El padre distingue el operador unario de la multiplicación y del `*` de un declarador.
+        unario = operador.padre in ("pointer_expression", "unary_expression", "update_expression")
+        if unario and operador.texto in ("*", "&", "!", "++", "--") and operando.tipo == "identifier" \
+                and separacion(operador, operando) > 0:
+            ctx.anotar(violaciones, "0x0016h", operador.fila, operador.columna,
+                       f"Espacio no permitido entre el operador unario '{operador.texto}' y su operando '{operando.texto}'.",
+                       f"Uní el operador a su operando sin espacios: '{operador.texto}{operando.texto}'.",
+                       es_autofixable=False)
 
 
 # Las reglas de la familia, en el orden en que se evalúan (y se informan).

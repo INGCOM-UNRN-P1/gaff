@@ -47,6 +47,12 @@ Para instalar la herramienta de forma global y aislada en el sistema mediante `u
 uv tool install git+https://github.com/INGCOM-UNRN-P1/gaff
 ```
 
+### Formato y reglas de espacios
+
+`gaff format` y `gaff fix` usan `clang-format` con el estilo de la cátedra embebido en `gaff`: no hace falta un `.clang-format` en el proyecto, y uno que exista no cambia el resultado. Sin `clang-format` quedan las correcciones propias de `gaff`; `gaff doctor` lo informa.
+
+Las reglas de espacios (`0x0003h`, `0x000Ah`–`0x000Fh`, `0x0011h`, `0x0016h`) miran los tokens de tree-sitter, no las líneas de texto. Cada operador se juzga por su rol en el árbol, así que `int const *p`, `return -1` y `1e-5` no son operadores binarios, y el contenido de literales y comentarios no se mira. Las líneas del preprocesador, incluidas las continuaciones de una macro, no se revisan.
+
 ### Verificación de Instalación
 Ejecutá el comando `doctor` para constatar que todas las dependencias y binarios requeridos estén presentes y operativos:
 ```bash

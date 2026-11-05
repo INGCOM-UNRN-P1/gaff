@@ -10,10 +10,10 @@ from gaff.core.contexto import (
     TIPOS_BASICOS,
 )
 from gaff.core.models import ViolacionRegla
+from gaff.core.tokens import Token, contiguos, por_fila, separacion
 
 
 # Tras estas palabras clave un `-`, `+` o `*` es unario (signo o desreferencia), no un operador binario.
-_PALABRAS_ANTES_DE_UNARIO = frozenset({"return", "case", "else", "do", "goto", "sizeof"})
 
 
 def _lineas_de_continuacion(lineas_sin_cadenas: List[str]) -> set[int]:
@@ -36,72 +36,45 @@ def _lineas_de_continuacion(lineas_sin_cadenas: List[str]) -> set[int]:
     return continuacion
 
 
+_OPERADORES_BINARIOS = ("+=", "-=", "*=", "/=", "%=", "==", "!=", "<=", ">=", "&&", "||", "<", ">", "=",
+                        "+", "-", "*", "/", "%")
+# ERROR: en código que no parsea el árbol no dice el rol, pero un operador entre dos palabras es binario.
+_PADRES_DE_OPERADOR_BINARIO = ("binary_expression", "assignment_expression", "init_declarator", "enumerator",
+                               "initializer_pair", "ERROR")
+
+
+def _declarador_sin_arbol(izquierdo: Token, operador: Token) -> bool:
+    """`int *f(void)` después de un error de sintaxis: el árbol lo arma como una multiplicación, pero
+    una palabra de tipo nunca es un operando. Dentro de un ERROR tampoco un nombre en mayúscula."""
+    if operador.texto != "*":
+        return False
+    if re.match(rf"^(?:{TIPOS_BASICOS})$", izquierdo.texto):
+        return True
+    return operador.padre == "ERROR" and (izquierdo.tipo != "identifier" or izquierdo.texto[:1].isupper())
+
+
 # 0x00XXh: Sintaxis Básica y Nomenclatura
 # 0x0004h: Espaciado en palabras clave (if, for, while, switch) y operadores binarios
 def _regla_0003(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> None:
-    ruta = ctx.ruta
-    lineas = ctx.lineas
-    lineas_sin_cadenas = ctx.lineas_sin_cadenas
-    if ctx.esta_activa("0x0003h"):
-        re_kw = re.compile(r"\b(if|for|while|switch)\(")
-        re_asgn_bin = re.compile(r'\b([a-zA-Z0-9_]+)([ \t]*)(\+=|-=|\*=|/=|%=|==|!=|<=|>=|&&|\|\||<|>|=)([ \t]*)([a-zA-Z0-9_]+)')
-        re_arith_bin = re.compile(rf"\b([a-zA-Z0-9_]+)([ \t]*)(\+|\-|\*|\/|%)([ \t]*)([a-zA-Z0-9_]+)\b")
-        for idx, linea in enumerate(lineas_sin_cadenas, 1):
-            if linea.strip().startswith("#"):
-                continue
-            m_kw = re_kw.search(linea)
-            if m_kw:
-                kw = m_kw.group(1)
-                rcode, tit = ctx.regla_info("0x0003h")
-                violaciones.append(ViolacionRegla(
-                    codigo=rcode,
-                    titulo=tit,
-                    archivo=ruta,
-                    linea=idx,
-                    columna=m_kw.start() + 1,
-                    mensaje=f"Falta espacio entre palabra clave '{kw}' y el paréntesis de apertura.",
-                    sugerencia=f"Escribí '{kw} (' en lugar de '{kw}('",
-                    codigo_linea=lineas[idx - 1],
-                    es_autofixable=True,
-                ))
-            for m_ab in re_asgn_bin.finditer(linea):
-                sp1, op, sp2 = m_ab.group(2), m_ab.group(3), m_ab.group(4)
-                if sp1 != " " or sp2 != " ":
-                    rcode, tit = ctx.regla_info("0x0003h")
-                    violaciones.append(ViolacionRegla(
-                        codigo=rcode,
-                        titulo=tit,
-                        archivo=ruta,
-                        linea=idx,
-                        columna=m_ab.start() + 1,
-                        mensaje=f"Falta espacio alrededor del operador binario '{op}'.",
-                        sugerencia=f"Escribí ' {op} ' con exactamente un espacio antes y después.",
-                        codigo_linea=lineas[idx - 1],
-                        es_autofixable=True,
-                    ))
-            for m_ar in re_arith_bin.finditer(linea):
-                left, sp1, op, sp2 = m_ar.group(1), m_ar.group(2), m_ar.group(3), m_ar.group(4)
-                if left in _PALABRAS_ANTES_DE_UNARIO:
-                    continue  # `return -1`, `case -2:`: signo, no resta
-                if op == "*":
-                    if re.match(rf"^(?:{TIPOS_BASICOS})$", left) or re.match(r"^[A-Z]\w*$", left):
-                        continue
-                    prefix_ar = linea[:m_ar.start(1)].strip()
-                    if re.search(r"\b(?:struct|union|enum|const|static|extern|volatile)\s*$", prefix_ar):
-                        continue
-                if sp1 != " " or sp2 != " ":
-                    rcode, tit = ctx.regla_info("0x0003h")
-                    violaciones.append(ViolacionRegla(
-                        codigo=rcode,
-                        titulo=tit,
-                        archivo=ruta,
-                        linea=idx,
-                        columna=m_ar.start() + 1,
-                        mensaje=f"Falta espacio alrededor del operador binario '{op}'.",
-                        sugerencia=f"Escribí ' {op} ' con exactamente un espacio antes y después.",
-                        codigo_linea=lineas[idx - 1],
-                        es_autofixable=True,
-                    ))
+    if not ctx.esta_activa("0x0003h"):
+        return
+    for fila, tokens in por_fila(ctx.tokens).items():
+        hecho = False
+        for palabra, siguiente in contiguos(tokens):
+            if (not hecho and palabra.texto in ("if", "for", "while", "switch") and siguiente.texto == "("
+                    and separacion(palabra, siguiente) == 0):
+                hecho = True
+                ctx.anotar(violaciones, "0x0003h", fila, palabra.columna,
+                           f"Falta espacio entre palabra clave '{palabra.texto}' y el paréntesis de apertura.",
+                           f"Escribí '{palabra.texto} (' en lugar de '{palabra.texto}('")
+        for izquierdo, operador, derecho in zip(tokens, tokens[1:], tokens[2:], strict=False):
+            # Un operador binario es lo que el árbol dice que lo es: `return -1`, `int *p` y `1e-5` no.
+            if (operador.texto in _OPERADORES_BINARIOS and operador.padre in _PADRES_DE_OPERADOR_BINARIO
+                    and izquierdo.es_palabra and derecho.es_palabra and not _declarador_sin_arbol(izquierdo, operador)
+                    and (separacion(izquierdo, operador) != 1 or separacion(operador, derecho) != 1)):
+                ctx.anotar(violaciones, "0x0003h", fila, izquierdo.columna,
+                           f"Falta espacio alrededor del operador binario '{operador.texto}'.",
+                           f"Escribí ' {operador.texto} ' con exactamente un espacio antes y después.")
 
 
 # 0x0006h: Asterisco junto al identificador (int* ptr -> int *ptr)

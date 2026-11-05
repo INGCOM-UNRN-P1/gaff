@@ -365,29 +365,6 @@ def explain_syntax_cmd(
     console.print(Panel(cuerpo, title="📘 Equivalencias usadas", border_style="cyan"))
 
 
-CLANG_FORMAT_CATEDRA = """# Configuración canónica de formato para Cátedra de Programación 1 / Algoritmos
-BasedOnStyle: LLVM
-IndentWidth: 4
-UseTab: Never
-ColumnLimit: 80
-AllowShortIfStatementsOnASingleLine: false
-AllowShortLoopsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: None
-BreakBeforeBraces: Allman
-IndentCaseLabels: false
-SpaceBeforeParens: ControlStatements
-SpacesInParentheses: false
-SpacesInSquareBrackets: false
-SpaceInEmptyParentheses: false
-AlignAfterOpenBracket: Align
-AlignConsecutiveDeclarations: false
-AlignConsecutiveAssignments: false
-PointerAlignment: Right
-DerivePointerAlignment: false
-SortIncludes: false
-"""
-
-
 @app.command("init-config")
 def init_config_cmd(
     target_dir: Path = typer.Option(Path("."), "--dir", "-d", help="Directorio donde generar configuración"),
@@ -414,7 +391,9 @@ def init_config_cmd(
     if cfg_file.exists() and not force:
         console.print(f"[yellow]El archivo '{cfg_file}' ya existe. Usá '--force' para sobrescribirlo.[/yellow]")
         raise typer.Exit(code=1)
-    cfg_file.write_text(CLANG_FORMAT_CATEDRA, encoding="utf-8")
+    from gaff.core.config import CLANG_FORMAT_ARCHIVO
+
+    cfg_file.write_text(CLANG_FORMAT_ARCHIVO, encoding="utf-8")
     console.print(f"[bold green]✓ Archivo de formato .clang-format generado exitosamente en:[/bold green] {cfg_file.resolve()}")
 
 
@@ -496,7 +475,10 @@ def format_cmd(
                 except Exception:
                     pass
 
-        cmd = [clang_fmt, "-i"] + [str(f) for f in files_to_fmt]
+        from gaff.core.config import CLANG_FORMAT_STYLE
+
+        # Sin -style tomaba cualquier .clang-format del directorio o, si no había, el de LLVM.
+        cmd = [clang_fmt, "-i", f"-style={CLANG_FORMAT_STYLE}"] + [str(f) for f in files_to_fmt]
         subprocess.run(cmd, check=False)
 
         if idkfa and placeholders_por_archivo:

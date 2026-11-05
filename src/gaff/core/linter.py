@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Callable, Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from gaff.core.config import CLANG_FORMAT_STYLE
 from gaff.core.contexto import (
     ContextoAnalisis,
     eliminar_comentarios,
@@ -617,15 +618,6 @@ def _corregir_lineas(lineas: List[str], _activa: Callable[[str], bool]) -> Tuple
 def _formatear_con_clang(ruta: Path, encoding_detectado: str, idkfa: bool) -> int:
     """GAFF017 / 0x000Bh: estilo Allman con clang-format, si está instalado (1 si cambió algo)."""
     arreglos = 0
-    allman_style = (
-        "{BasedOnStyle: LLVM, BreakBeforeBraces: Allman, "
-        "AllowShortIfStatementsOnASingleLine: false, AllowShortBlocksOnASingleLine: false, "
-        "AllowShortLoopsOnASingleLine: false, AllowShortFunctionsOnASingleLine: None, "
-        "IndentWidth: 4, TabWidth: 4, UseTab: Never, IndentCaseLabels: true, "
-        "ColumnLimit: 80, SpaceBeforeParens: ControlStatements, PointerAlignment: Right, "
-        # El orden de los #include lo fija gaff (0x5005h): el de LLVM pone primero los locales.
-        "SortIncludes: Never}"
-    )
     try:
         contenido_pre = ruta.read_text(encoding=encoding_detectado, errors="replace") if ruta.exists() else ""
         placeholders_idkfa: Dict[str, str] = {}
@@ -634,7 +626,7 @@ def _formatear_con_clang(ruta: Path, encoding_detectado: str, idkfa: bool) -> in
             ruta.write_text(contenido_enmascarado, encoding=encoding_detectado)
 
         res = subprocess.run(
-            ["clang-format", "-i", f"-style={allman_style}", str(ruta)],
+            ["clang-format", "-i", f"-style={CLANG_FORMAT_STYLE}", str(ruta)],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -24,7 +24,7 @@ def chequear_herramienta(comando: str, args_version: str = "--version") -> Dict[
 
 
 HERRAMIENTAS = [
-    ("clang-format", "Formateador automático institucional", False, "sudo apt install clang-format"),
+    ("clang-format", "Formato completo en gaff format y gaff fix; sin él quedan las correcciones propias", False, "sudo apt install clang-format"),
     ("git", "Control de versiones para instalación de pre-commit hooks", True, "sudo apt install git"),
     ("gcc", "Compilador GNU C para verificación de sintaxis", True, "sudo apt install build-essential"),
 ]

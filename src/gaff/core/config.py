@@ -12,6 +12,30 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 import yaml
 
+# El estilo de la cátedra para clang-format, embebido: se pasa con -style, así que no hace falta un
+# archivo en el proyecto ni uno ajeno cambia el resultado. Llaves en su propia línea (0x000Bh), 80
+# columnas (0x0009h), `case` indentado (0x0004h), y sin ordenar los #include, que fija 0x5005h.
+OPCIONES_CLANG_FORMAT = (
+    ("BasedOnStyle", "LLVM"),
+    ("BreakBeforeBraces", "Allman"),
+    ("AllowShortIfStatementsOnASingleLine", "false"),
+    ("AllowShortBlocksOnASingleLine", "false"),
+    ("AllowShortLoopsOnASingleLine", "false"),
+    ("AllowShortFunctionsOnASingleLine", "None"),
+    ("IndentWidth", "4"),
+    ("TabWidth", "4"),
+    ("UseTab", "Never"),
+    ("IndentCaseLabels", "true"),
+    ("ColumnLimit", "80"),
+    ("SpaceBeforeParens", "ControlStatements"),
+    ("PointerAlignment", "Right"),
+    ("DerivePointerAlignment", "false"),
+    ("SortIncludes", "Never"),
+)
+CLANG_FORMAT_STYLE = "{" + ", ".join(f"{clave}: {valor}" for clave, valor in OPCIONES_CLANG_FORMAT) + "}"
+CLANG_FORMAT_ARCHIVO = "# Estilo de la cátedra de Programación 1 (gaff init-config).\n" + "".join(
+    f"{clave}: {valor}\n" for clave, valor in OPCIONES_CLANG_FORMAT)
+
 try:
     import tomllib  # Python 3.11+
 except ImportError:

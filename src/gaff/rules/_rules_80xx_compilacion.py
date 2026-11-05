@@ -259,7 +259,7 @@ def _regla_5002(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
                     linea=i + 1,
                     columna=m_pw.start() + 1,
                     mensaje="Uso de directiva '#pragma' para silenciar advertencias del compilador.",
-                    sugerencia="Corregí la causa raíz del warning en el código en lugar de silenciar los diagnósticos del compilador.",
+                    sugerencia="Corregí la causa raíz de la advertencia en el código en lugar de silenciar los diagnósticos del compilador.",
                     codigo_linea=lineas[i],
                     es_autofixable=False,
                 ))

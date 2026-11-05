@@ -29,7 +29,7 @@ def _regla_1006(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
                     linea=idx,
                     columna=m_goto.start() + 1,
                     mensaje="Uso de la sentencia 'goto' detectado.",
-                    sugerencia="Reemplazá 'goto' por estructuras de control estructuradas (bucles, retornos directos).",
+                    sugerencia="Reemplazá 'goto' por estructuras de control estructuradas (lazos, retornos directos).",
                     codigo_linea=lineas[idx - 1],
                     es_autofixable=False,
                 ))

@@ -388,7 +388,7 @@ def _regla_1011(ctx: ContextoAnalisis, violaciones: List[ViolacionRegla]) -> Non
                 motivo = ""
                 if lbl_line is not None and lbl_line <= goto_line:
                     es_salto_invalido = True
-                    motivo = f"Salto hacia atrás (línea {goto_line} -> {lbl_line}) simulando bucle no estructurado."
+                    motivo = f"Salto hacia atrás (línea {goto_line} -> {lbl_line}) simulando un lazo no estructurado."
                 elif not re.search(r"(?:clean|err|exit|salir|salida|fin|free|liberar|end)", target, re.IGNORECASE):
                     es_salto_invalido = True
                     motivo = f"Salto a etiqueta '{target}' que no corresponde al patrón canónico de liberación de recursos."

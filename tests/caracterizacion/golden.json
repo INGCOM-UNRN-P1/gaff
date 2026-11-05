@@ -18961,7 +18961,7 @@
    16,
    5,
    "Uso de la sentencia 'goto' detectado.",
-   "Reemplazá 'goto' por estructuras de control estructuradas (bucles, retornos directos).",
+   "Reemplazá 'goto' por estructuras de control estructuradas (lazos, retornos directos).",
    false
   ]
  ],
@@ -19472,7 +19472,7 @@
    "0x1011h",
    4,
    5,
-   "Uso no estructurado de 'goto inicio': Salto hacia atrás (línea 4 -> 3) simulando bucle no estructurado.",
+   "Uso no estructurado de 'goto inicio': Salto hacia atrás (línea 4 -> 3) simulando un lazo no estructurado.",
    "Reemplazá el salto por estructuras de control estándar ('while', 'for') o reservalo exclusivamente para liberación limpia de recursos al final de la función.",
    false
   ],
@@ -19481,7 +19481,7 @@
    4,
    5,
    "Uso de la sentencia 'goto' detectado.",
-   "Reemplazá 'goto' por estructuras de control estructuradas (bucles, retornos directos).",
+   "Reemplazá 'goto' por estructuras de control estructuradas (lazos, retornos directos).",
    false
   ]
  ],
@@ -23301,7 +23301,7 @@
    14,
    1,
    "Uso de directiva '#pragma' para silenciar advertencias del compilador.",
-   "Corregí la causa raíz del warning en el código en lugar de silenciar los diagnósticos del compilador.",
+   "Corregí la causa raíz de la advertencia en el código en lugar de silenciar los diagnósticos del compilador.",
    false
   ]
  ],
@@ -23889,7 +23889,7 @@
    1,
    1,
    "Uso de directiva '#pragma' para silenciar advertencias del compilador.",
-   "Corregí la causa raíz del warning en el código en lugar de silenciar los diagnósticos del compilador.",
+   "Corregí la causa raíz de la advertencia en el código en lugar de silenciar los diagnósticos del compilador.",
    false
   ],
   [
